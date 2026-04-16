@@ -83,6 +83,14 @@ class SenzuOverlayBottom extends StatelessWidget {
                       }),
 
                     const Spacer(),
+                    _Btn(
+                        icon: Icon(
+                          PhosphorIcons.fileAudio(),
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        onTap: () => bundle.ui.togglePanel(SenzuPanel.audio),
+                      ),
                     // PiP
                     if (enablePip) SenzuPipButton(bundle: bundle),
                     // ── Episode ──────────────────────────────────────────────

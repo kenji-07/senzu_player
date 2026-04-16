@@ -147,7 +147,7 @@ extension SenzuDrmManager: AVContentKeySessionDelegate {
                 do {
                     let ckc = try self.fetchLicense(spcData: spc, assetId: assetId)
                     let response = AVContentKeyResponse(fairPlayStreamingKeyResponseData: ckc)
-                    keyRequest.process(contentKeyResponse: response)
+                    keyRequest.processContentKeyResponse(response)
                 } catch {
                     keyRequest.processContentKeyResponseError(error)
                     self.onError?(error.localizedDescription)
