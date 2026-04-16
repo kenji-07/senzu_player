@@ -1,0 +1,26 @@
+name: senzu_player_example
+description: A new Flutter project.
+publish_to: none
+version: 1.0.0+1
+
+
+environment:
+  sdk: ">=2.14.0 <4.0.0"
+  flutter: ">=3.16.2"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.5.0
+  video_player: ^2.8.6
+  dio: ^5.9.0
+  senzu_player:
+    path: "../"
+
+dev_dependencies:
+  flutter_lints: ^3.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

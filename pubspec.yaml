@@ -1,0 +1,41 @@
+name: senzu_player
+description: >-
+  Feature-rich Flutter video player with GetX state management, Native player.
+version: 1.0.0
+homepage: https://github.com/kenji-07/senzu_player
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+  flutter: ">=3.41.0"
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: dev.senzu.senzu_player
+        pluginClass: SenzuPlayerPlugin
+      ios:
+        pluginClass: SenzuPlayerPlugin
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # State management — GetX only, no provider
+  get: ^4.7.3
+  # AES subtitle decryption
+  pointycastle: ^4.0.0
+  # HTTP
+  http: ^1.6.0
+  # IMA ads
+  interactive_media_ads: ^0.3.0+14
+  # URL launcher
+  url_launcher: ^6.3.2
+  # Icons
+  phosphor_flutter: ^2.1.0
+  cached_network_image: ^3.4.1
+  visibility_detector: ^0.4.0+2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0

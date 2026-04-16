@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ExoPlayerConfig>
+    <!-- LL-HLS: part segment татах -->
+    <boolean name="enableAutoSelectLowLatency" value="true"/>
+    <!-- Target latency: 3 секунд -->
+    <long name="targetLiveOffsetUs" value="3000000"/>
+    <!-- Buffer хамгийн бага -->
+    <long name="minLiveOffsetUs" value="1000000"/>
+</ExoPlayerConfig>
