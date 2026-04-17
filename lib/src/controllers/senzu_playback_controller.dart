@@ -2,15 +2,6 @@ import 'package:get/get.dart';
 import 'package:senzu_player/src/platform/senzu_native_video_state.dart';
 import 'senzu_core_controller.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuPlaybackController
-//
-// Single responsibility:
-//   • Reads SenzuNativeVideoState from Core (via rxNativeState listener)
-//   • Owns: position, duration, buffering, isPlaying, maxBuffering
-//   • Does NOT know about subtitles, ads, overlay, or UI
-// ─────────────────────────────────────────────────────────────────────────────
-
 class SenzuPlaybackController extends GetxController {
   SenzuPlaybackController({required this.core});
 

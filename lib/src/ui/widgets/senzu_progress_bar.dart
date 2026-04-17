@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
 import 'package:senzu_player/src/data/models/senzu_thumbnail_sprite.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
@@ -14,10 +15,12 @@ class SenzuProgressBar extends StatefulWidget {
     required this.style,
     required this.bundle,
     this.thumbnailSprite,
+    this.chapters = const [],
   });
   final SenzuProgressBarStyle style;
   final SenzuPlayerBundle bundle;
   final SenzuThumbnailSprite? thumbnailSprite;
+  final List<SenzuChapter> chapters;
 
   @override
   State<SenzuProgressBar> createState() => _SenzuProgressBarState();
@@ -173,6 +176,23 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
                     style: s,
                     isDragging: bundle.playback.isDragging.value,
                   ),
+                  // ── Chapter markers ────────────────────────────────────────
+                  if (widget.chapters.isNotEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: SenzuChapterPainter(
+                            chapters: widget.chapters,
+                            duration: dur, // Obx дотор аль хэдийн унших байгаа
+                            currentPosition: bundle.playback.isDragging.value
+                                ? dur * bundle.playback.dragRatio.value
+                                : bundle.playback.position.value,
+                            markerHeight: s.height * 1.0,
+                            markerWidth: 2.0,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             );
@@ -180,6 +200,140 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
         );
       },
     );
+  }
+}
+
+class SenzuChapterPainter extends CustomPainter {
+  SenzuChapterPainter({
+    required this.chapters,
+    required this.duration,
+    this.markerColor = Colors.white,
+    this.markerWidth = 2.0,
+    this.markerHeight = 10.0,
+    this.activeChapterColor = const Color(0xFFFFD700),
+    this.currentPosition,
+  }) : _cache = _ChapterPainterCache(chapters, duration);
+
+  final List<SenzuChapter> chapters;
+  final Duration duration;
+  final Duration? currentPosition;
+  final Color markerColor;
+  final Color activeChapterColor;
+  final double markerWidth;
+  final double markerHeight;
+
+  // Immutable cache — duration/chapters өөрчлөгдөхөд л шинэчлэгдэнэ
+  final _ChapterPainterCache _cache;
+
+  // Paint объектуудыг дахин үүсгэхгүйн тулд lazy init
+  final _normalPaint = Paint()..strokeCap = StrokeCap.round;
+  final _activePaint = Paint()..strokeCap = StrokeCap.round;
+  final _glowPaint = Paint()..style = PaintingStyle.fill;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fractions = _cache.fractions;
+    if (fractions.isEmpty) return;
+
+    final activeIdx = currentPosition != null
+        ? _cache.activeChapterIndex(currentPosition!.inMilliseconds)
+        : -1;
+
+    for (int i = 0; i < fractions.length; i++) {
+      // showOnProgressBar=false chapter-уудыг skip — OP/ED separator-ууд
+      if (!chapters[i].showOnProgressBar) continue;
+
+      final x = fractions[i] * size.width;
+
+      // Edge-д байгаа marker-уудыг skip (visual clipping)
+      if (x < markerWidth || x > size.width - markerWidth) continue;
+
+      final isActive = i == activeIdx;
+      final top = (size.height - markerHeight) / 2;
+
+      if (isActive) {
+        _activePaint
+          ..color = activeChapterColor
+          ..strokeWidth = markerWidth + 0.5;
+        canvas.drawLine(
+          Offset(x, top),
+          Offset(x, top + markerHeight),
+          _activePaint,
+        );
+
+        // Glow effect — active chapter-т
+        _glowPaint.color = activeChapterColor.withValues(alpha: 0.28);
+        canvas.drawCircle(
+          Offset(x, size.height / 2),
+          markerWidth * 2.5,
+          _glowPaint,
+        );
+      } else {
+        _normalPaint
+          ..color = markerColor
+          ..strokeWidth = markerWidth;
+        canvas.drawLine(
+          Offset(x, top),
+          Offset(x, top + markerHeight),
+          _normalPaint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(SenzuChapterPainter old) {
+    // Position өөрчлөгдөхөд л repaint
+    if (old.currentPosition != currentPosition) return true;
+    // Duration өөрчлөгдсөн бол cache invalid → repaint
+    if (old.duration != duration) return true;
+    // Chapter тоо өөрчлөгдсөн бол repaint
+    if (old.chapters.length != chapters.length) return true;
+    return false;
+  }
+
+  @override
+  bool shouldRebuildSemantics(SenzuChapterPainter old) => false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _ChapterPainterCache  —  fraction list-ийг duration-аар cache хийнэ
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ChapterPainterCache {
+  _ChapterPainterCache(List<SenzuChapter> chapters, Duration duration)
+    : fractions = _compute(chapters, duration);
+
+  final List<double> fractions;
+
+  static List<double> _compute(List<SenzuChapter> chapters, Duration duration) {
+    if (duration.inMilliseconds == 0 || chapters.isEmpty) return const [];
+    final ms = duration.inMilliseconds.toDouble();
+    // showOnProgressBar=false байсан ч fraction-г хадгална —
+    // index alignment-г хадгалахад хэрэгтэй (paint дотор skip хийнэ)
+    return List.generate(
+      chapters.length,
+      (i) => chapters[i].startMs / ms,
+      growable: false,
+    );
+  }
+
+  /// O(log n) binary search: posMs-д хамааралтай chapter index
+  int activeChapterIndex(int posMs) {
+    if (fractions.isEmpty) return -1;
+    int lo = 0, hi = fractions.length - 1, result = -1;
+    while (lo <= hi) {
+      final mid = (lo + hi) ~/ 2;
+      // Chapter-ийн startMs <= posMs бол candidate
+      // (fractions[mid] * duration_ms ≈ startMs)
+      if ((fractions[mid] * 1e9).round() <= posMs * 1e3.round()) {
+        result = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return result;
   }
 }
 
@@ -258,7 +412,6 @@ class SeekThumbnail extends StatelessWidget {
   Widget build(BuildContext context) {
     final offset = sprite.fractionalOffsetAt(position);
 
-
     return Stack(
       children: [
         CachedNetworkImage(
@@ -266,7 +419,7 @@ class SeekThumbnail extends StatelessWidget {
           fit: BoxFit.none,
           width: Get.width,
           height: Get.height,
-          alignment: offset, 
+          alignment: offset,
           placeholder: (_, __) => const SizedBox.shrink(),
           errorWidget: (_, __, ___) => Container(
             color: Colors.black45,

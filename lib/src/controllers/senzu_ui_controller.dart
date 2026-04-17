@@ -4,19 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'senzu_core_controller.dart';
 import 'senzu_playback_controller.dart';
-
+import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
 import 'package:senzu_player/src/platform/senzu_native_channel.dart';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuUIController  —  OPTIMIZED
-//
-// CHANGES vs original:
-//   • _skipWorkerTimer stored and cancelled in onClose (was leaked before)
-//   • _scheduleOverlay guard: only reschedule when state actually changes
-//   • showAndHideOverlay: early-return if already in desired state
-//   • setNotificationEnabled: cached last value, avoid redundant method calls
-//   • _onPlayingChanged: combined condition check to reduce branch count
-// ─────────────────────────────────────────────────────────────────────────────
 
 enum SenzuPanel {
   caption,
@@ -37,37 +26,57 @@ class SenzuUIController extends GetxController {
   final SenzuPlaybackController playback;
 
   // ── Rx ────────────────────────────────────────────────────────────────────
-  final isShowingOverlay    = true.obs;
-  final isLocked            = false.obs;
-  final isShowingThumbnail  = true.obs;
-  final activePanel         = SenzuPanel.none.obs;
-  final currentAspect       = BoxFit.cover.obs;
-  final showSkipOp          = false.obs;
-  final showSkipEd          = false.obs;
+  final isShowingOverlay   = true.obs;
+  final isLocked           = false.obs;
+  final isShowingThumbnail = true.obs;
+  final activePanel        = SenzuPanel.none.obs;
+  final currentAspect      = BoxFit.cover.obs;
+
+  final activeSkipChapters = RxList<SenzuChapter>([]);
 
   // ── Private ────────────────────────────────────────────────────────────────
   static const _overlayMs = 2800;
   Timer? _overlayTimer;
-  // FIX: was not stored, leaked on dispose
   Timer? _skipWorkerTimer;
   bool _thumbnailDismissed = false;
-  bool? _lastNotificationEnabled; // cache to avoid redundant platform calls
-
+  bool? _lastNotificationEnabled;
   Duration _lastSkipPos = Duration.zero;
+
+  // CHANGED: opStart..edEnd → _chapters
+  List<SenzuChapter> _chapters = const [];
+  // isSkippable chapters кэш — scan loop дотор filter хийхгүй
+  List<SenzuChapter> _skippableChapters = const [];
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // setChapters — SenzuPlayer._init() дуусмагч дуудна
+  // CHANGED: Core controller-д op/ed params дамжуулахгүй болсон тул
+  //          UIController нь chapters list-аас skip range-г авна.
+  // ─────────────────────────────────────────────────────────────────────────
+  void setChapters(List<SenzuChapter> chapters) {
+    _chapters = chapters;
+    // isSkippable chapters-г pre-filter хийнэ — scan loop дотор filter хийхгүй
+    _skippableChapters = chapters.where((c) => c.isSkippable).toList();
+    activeSkipChapters.clear();
+    _lastSkipPos = Duration.zero;
+
+    // Timer-г chapters байвал л эхлүүлнэ
+    if (_skippableChapters.isNotEmpty) {
+      _startSkipWorker();
+    } else {
+      _skipWorkerTimer?.cancel();
+      _skipWorkerTimer = null;
+    }
+  }
 
   @override
   void onInit() {
     super.onInit();
-
     ever(playback.isPlaying, _onPlayingChanged);
     ever(playback.isDragging, _onDragging);
     ever(core.rxActiveSource, _onSourceChanged);
-
-    _startSkipWorker();
     setNotificationEnabled(core.notification);
   }
 
-  // FIX: Timer.periodic is now stored in _skipWorkerTimer and cancelled onClose
   void _startSkipWorker() {
     _skipWorkerTimer?.cancel();
     _skipWorkerTimer = Timer.periodic(
@@ -81,25 +90,68 @@ class SenzuUIController extends GetxController {
     );
   }
 
-  // ── Skip OP / ED ───────────────────────────────────────────────────────────
-
-  // PERF: single pass, both conditions evaluated with short-circuit
+  // ── Skip chapters ──────────────────────────────────────────────────────────
+  //
+  // CHANGED: opStart..opEnd range check → isSkippable chapters scan
+  // O(k) — k = isSkippable chapter тоо (ихэвчлэн 1–2)
   void _updateSkipButtons(Duration pos) {
+    if (_skippableChapters.isEmpty) return;
     final posMs = pos.inMilliseconds;
 
-    final opShow = core.opEnd > Duration.zero &&
-        posMs >= core.opStart.inMilliseconds &&
-        posMs < core.opEnd.inMilliseconds;
+    final active = <SenzuChapter>[];
+    for (final chapter in _skippableChapters) {
+      final startMs = chapter.startMs;
+      // skipToMs байвал ашиглана, үгүй бол дараагийн chapter startMs
+      final endMs = chapter.skipToMs ?? _nextChapterStartMs(chapter);
+      if (endMs == null) continue;
+      if (posMs >= startMs && posMs < endMs) {
+        active.add(chapter);
+      }
+    }
 
-    final edShow = core.edEnd > Duration.zero &&
-        posMs >= core.edStart.inMilliseconds &&
-        posMs < core.edEnd.inMilliseconds;
-
-    // Only write to Rx when value changes — avoids unnecessary rebuilds
-    if (showSkipOp.value != opShow) showSkipOp.value = opShow;
-    if (showSkipEd.value != edShow) showSkipEd.value = edShow;
+    // Diff-based update — зөвхөн өөрчлөгдсөн үед Rx update
+    final changed = active.length != activeSkipChapters.length ||
+        active.any((c) => !activeSkipChapters.contains(c));
+    if (changed) activeSkipChapters.value = active;
   }
 
+  int? _nextChapterStartMs(SenzuChapter chapter) {
+    final idx = _chapters.indexOf(chapter);
+    if (idx < 0 || idx + 1 >= _chapters.length) return null;
+    return _chapters[idx + 1].startMs;
+  }
+
+  // CHANGED: skipOp()/skipEd() → skipChapter(chapter)
+  void skipChapter(SenzuChapter chapter) {
+    final targetMs = chapter.skipToMs ?? _nextChapterStartMs(chapter);
+    if (targetMs == null) return;
+    core.seekTo(Duration(milliseconds: targetMs));
+    activeSkipChapters.remove(chapter);
+  }
+
+  // Backward compatibility — UI layer-д OP/ED хоёр тусдаа байвал:
+  void skipOp() {
+    final op = activeSkipChapters.firstWhereOrNull((c) => c.title == 'OP');
+    if (op != null) skipChapter(op);
+  }
+
+  void skipEd() {
+    final ed = activeSkipChapters.firstWhereOrNull((c) => c.title == 'ED');
+    if (ed != null) skipChapter(ed);
+  }
+
+  // Chapters getter — UI (progress bar painter) дамжуулна
+  List<SenzuChapter> get chapters => _chapters;
+
+  // ── Source change ──────────────────────────────────────────────────────────
+  void _onSourceChanged(_) {
+    _thumbnailDismissed = false;
+    isShowingThumbnail.value = true;
+    _lastSkipPos = Duration.zero;
+    activeSkipChapters.clear();
+  }
+
+  // ── Dragging ───────────────────────────────────────────────────────────────
   void _onDragging(bool dragging) {
     if (dragging) {
       isShowingOverlay.value = true;
@@ -109,15 +161,6 @@ class SenzuUIController extends GetxController {
     }
   }
 
-  void _onSourceChanged(_) {
-    _thumbnailDismissed = false;
-    isShowingThumbnail.value = true;
-    _lastSkipPos = Duration.zero;
-    // Reset skip buttons immediately on source change
-    showSkipOp.value = false;
-    showSkipEd.value = false;
-  }
-
   // ── Thumbnail ──────────────────────────────────────────────────────────────
   void _onPlayingChanged(bool playing) {
     if (playing) {
@@ -125,7 +168,6 @@ class SenzuUIController extends GetxController {
         _thumbnailDismissed = true;
         isShowingThumbnail.value = false;
       }
-      // OPT: only schedule if overlay is visible and no timer running
       if (isShowingOverlay.value && _overlayTimer == null) {
         _scheduleOverlay();
       }
@@ -140,11 +182,8 @@ class SenzuUIController extends GetxController {
       activePanel.value = SenzuPanel.none;
       return;
     }
-
     final desired = show ?? !isShowingOverlay.value;
-    // OPT: early return if already in desired state
     if (isShowingOverlay.value == desired && show != null) return;
-
     isShowingOverlay.value = desired;
     if (desired) {
       _cancelOverlay();
@@ -187,29 +226,17 @@ class SenzuUIController extends GetxController {
   // ── Aspect ─────────────────────────────────────────────────────────────────
   void setAspect(BoxFit fit) => currentAspect.value = fit;
 
-  // ── Notification on/off ────────────────────────────────────────────────────
-  // OPT: skip platform call if value hasn't changed
+  // ── Notification ──────────────────────────────────────────────────────────
   Future<void> setNotificationEnabled(bool enabled) async {
     if (_lastNotificationEnabled == enabled) return;
     _lastNotificationEnabled = enabled;
     await SenzuNativeChannel.setNowPlayingEnabled(enabled);
   }
 
-  void skipOp() {
-    core.seekTo(core.opEnd);
-    showSkipOp.value = false;
-  }
-
-  void skipEd() {
-    core.seekTo(core.edEnd);
-    showSkipEd.value = false;
-  }
-
   @override
   void onClose() {
     _overlayTimer?.cancel();
     _overlayTimer = null;
-    // FIX: was missing — this timer leaked in previous version
     _skipWorkerTimer?.cancel();
     _skipWorkerTimer = null;
     super.onClose();

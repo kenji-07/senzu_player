@@ -1,5 +1,3 @@
-// lib/src/controllers/senzu_annotation_controller.dart — full refactor
-
 import 'dart:async';
 import 'package:get/get.dart';
 import 'package:senzu_player/src/controllers/senzu_playback_controller.dart';

@@ -68,155 +68,171 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
     super.dispose();
   }
 
-  Widget _buildM3U8Player() {
-    return FutureBuilder<Map<String, VideoSource>>(
-      future: VideoSource.fromM3u8PlaylistUrl(
-        'https://cdn2.playmax.mn//volume1/2026/movies/asian/ultimate_mission/480p.m3u8',
-        httpHeaders: customHeaders,
-        autoSubtitle: true,
-        formatter: (quality) =>
-            quality == 'Auto' ? 'Automatic' : '${quality.split('x').last}p',
-      ),
-      builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          return SenzuPlayer(
-            source: snapshot.data!,
-            autoPlay: true,
-            seekTo: Duration.zero,
-            isLive: false,
+  // Widget _buildM3U8Player() {
+  //   return FutureBuilder<Map<String, VideoSource>>(
+  //     future: VideoSource.fromM3u8PlaylistUrl(
+  //       'https://cdn2.playmax.mn//volume1/2026/movies/asian/ultimate_mission/480p.m3u8',
+  //       httpHeaders: customHeaders,
+  //       autoSubtitle: true,
+  //       formatter: (quality) =>
+  //           quality == 'Auto' ? 'Automatic' : '${quality.split('x').last}p',
+  //     ),
+  //     builder: (context, snapshot) {
+  //       if (snapshot.hasData) {
+  //         return SenzuPlayer(
+  //           source: snapshot.data!,
+  //           autoPlay: true,
+  //           seekTo: Duration.zero,
+  //           isLive: false,
 
-            // imaAdTagUrl:
-            //     'https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/vmap_ad_samples&sz=640x480&cust_params=sample_ar%3Dpremidpost&ciu_szs=300x250&gdfp_req=1&ad_rule=1&output=vmap&unviewed_position_start=1&env=vp&impl=s&cmsid=496&vid=short_onecue&correlator=',
+  //           // imaAdTagUrl:
+  //           //     'https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/vmap_ad_samples&sz=640x480&cust_params=sample_ar%3Dpremidpost&ciu_szs=300x250&gdfp_req=1&ad_rule=1&output=vmap&unviewed_position_start=1&env=vp&impl=s&cmsid=496&vid=short_onecue&correlator=',
 
-            // ── Playback ──────────────────────────────────────────────────
-            looping: false,
-            secureMode: false,
+  //           // ── Playback ──────────────────────────────────────────────────
+  //           looping: false,
+  //           secureMode: false,
 
-            // ── Lock screen / Now Playing ─────────────────────────────────
-            enableLockScreen: true,
+  //           // ── Lock screen / Now Playing ─────────────────────────────────
+  //           enableLockScreen: true,
 
-            // ── ABR ───────────────────────────────────────────────────────
-            adaptiveBitrate: true,
-            minBufferThreshold: 8,
-            maxBufferThreshold: 25,
-            onQualityChanged: (q) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('Quality: $q'),
-                  duration: const Duration(seconds: 1)));
-            },
+  //           // ── ABR ───────────────────────────────────────────────────────
+  //           adaptiveBitrate: true,
+  //           minBufferThreshold: 8,
+  //           maxBufferThreshold: 25,
+  //           onQualityChanged: (q) {
+  //             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+  //                 content: Text('Quality: $q'),
+  //                 duration: const Duration(seconds: 1)));
+  //           },
 
-            // ── UI toggles ────────────────────────────────────────────────
-            enableFullscreen: true,
-            enableCaption: true,
-            enableQuality: true,
-            enableSpeed: true,
-            enableLock: true,
-            enableAspect: true,
-            enableEpisode: true,
-            enableAudio: true,
-            enablePip: true,
+  //           // ── UI toggles ────────────────────────────────────────────────
+  //           enableFullscreen: true,
+  //           enableCaption: true,
+  //           enableQuality: true,
+  //           enableSpeed: true,
+  //           enableLock: true,
+  //           enableAspect: true,
+  //           enableEpisode: true,
+  //           enableAudio: true,
+  //           enablePip: true,
 
-            // ── Skip OP/ED ────────────────────────────────────────────────
-            opStart: _opStart,
-            opEnd: _opEnd,
-            edStart: _edStart,
-            edEnd: _edEnd,
+  //           // ── Skip OP/ED ────────────────────────────────────────────────
+  //           chapters: const [
+  //             SenzuChapter(
+  //               startMs: 5000,
+  //               title: 'Opening',
+  //               showOnProgressBar: true, // progress bar дээр marker зурна
+  //               isSkippable: true, // overlay дээр "Skip Opening" товч харуулна
+  //               skipToMs: 90000, // skip хийх target цаг
+  //             ),
+  //             SenzuChapter(
+  //               startMs: 90000,
+  //               title: 'Episode',
+  //               showOnProgressBar: false, // separator, marker зурахгүй
+  //             ),
+  //             SenzuChapter(
+  //               startMs: 1200000,
+  //               title: 'Ending',
+  //               isSkippable: true,
+  //               skipToMs: 1320000,
+  //             ),
+  //           ],
 
-            // ── Гадаас bundle дамжуулах (programmatic mode) ───────────────
-            bundle: _externalBundle,
+  //           // ── Гадаас bundle дамжуулах (programmatic mode) ───────────────
+  //           bundle: _externalBundle,
 
-            // ── Header ────────────────────────────────────────────────────
-            meta: _externalBundle != null
-                ? SenzuMetaData(
-                    title: widget.title,
-                    description: 'Episode 1',
-                    icon: Icons.arrow_back,
-                    iconColor: Colors.red,
-                    iconSize: 20)
-                : SenzuMetaData(
-                    title: widget.title,
-                    description: 'Episode 1',
-                    icon: Icons.arrow_back,
-                    iconColor: Colors.red,
-                    iconSize: 20),
+  //           // ── Header ────────────────────────────────────────────────────
+  //           meta: _externalBundle != null
+  //               ? SenzuMetaData(
+  //                   title: widget.title,
+  //                   description: 'Episode 1',
+  //                   icon: Icons.arrow_back,
+  //                   iconColor: Colors.red,
+  //                   iconSize: 20)
+  //               : SenzuMetaData(
+  //                   title: widget.title,
+  //                   description: 'Episode 1',
+  //                   icon: Icons.arrow_back,
+  //                   iconColor: Colors.red,
+  //                   iconSize: 20),
 
-            // ── Data policy ───────────────────────────────────────────────
-            dataPolicy: const SenzuDataPolicy(
-              warnOnCellular: true,
-              dataSaverOnCellular: false,
-              dataSaverQualityKey: '480p',
-            ),
+  //           // ── Data policy ───────────────────────────────────────────────
+  //           dataPolicy: const SenzuDataPolicy(
+  //             warnOnCellular: true,
+  //             dataSaverOnCellular: false,
+  //             dataSaverQualityKey: '480p',
+  //           ),
 
-            // ── Watermark ─────────────────────────────────────────────────
-            watermark: const SenzuWatermark(
-              userId: 'user_12345',
-              opacity: 0.15,
-              position: WatermarkPosition.random,
-              moveDuration: Duration(seconds: 20),
-              showTimestamp: true,
-            ),
+  //           // ── Watermark ─────────────────────────────────────────────────
+  //           watermark: const SenzuWatermark(
+  //             userId: 'user_12345',
+  //             opacity: 0.15,
+  //             position: WatermarkPosition.random,
+  //             moveDuration: Duration(seconds: 20),
+  //             showTimestamp: true,
+  //           ),
 
-            // ── Token refresh ─────────────────────────────────────────────
-            tokenConfig: SenzuTokenConfig(
-              refreshBeforeExpirySec: 120,
-              onRefresh: (sourceName, headers) async {
-                return {
-                  'url': 'https://your-cdn.com/refreshed-url.m3u8',
-                  'Authorization': 'Bearer refreshed_token',
-                };
-              },
-            ),
-            defaultAspectRatio: 16 / 9,
-            // ── Annotations ─────────────────────────────────────────────
-            annotations: [
-              SenzuAnnotation(
-                id: 'subscribe',
-                text: '👍 Subscribe хийгээрэй!',
-                appearAt: const Duration(seconds: 10),
-                disappearAt: const Duration(seconds: 15),
-                alignment: Alignment.topRight,
-                onTap: () => debugPrint('Тapped!'),
-              ),
-              SenzuAnnotation(
-                id: 'link',
-                text: '🔗 Дэлгэрэнгүй мэдээлэл',
-                appearAt: const Duration(seconds: 30),
-                disappearAt: const Duration(seconds: 40),
-                alignment: Alignment.bottomLeft,
-                onTap: () => debugPrint('Тapped!'),
-              ),
-            ],
+  //           // ── Token refresh ─────────────────────────────────────────────
+  //           tokenConfig: SenzuTokenConfig(
+  //             refreshBeforeExpirySec: 120,
+  //             onRefresh: (sourceName, headers) async {
+  //               return {
+  //                 'url': 'https://your-cdn.com/refreshed-url.m3u8',
+  //                 'Authorization': 'Bearer refreshed_token',
+  //               };
+  //             },
+  //           ),
+  //           defaultAspectRatio: 16 / 9,
+  //           // ── Annotations ─────────────────────────────────────────────
+  //           annotations: [
+  //             SenzuAnnotation(
+  //               id: 'subscribe',
+  //               text: '👍 Subscribe хийгээрэй!',
+  //               appearAt: const Duration(seconds: 10),
+  //               disappearAt: const Duration(seconds: 15),
+  //               alignment: Alignment.topRight,
+  //               onTap: () => debugPrint('Тapped!'),
+  //             ),
+  //             SenzuAnnotation(
+  //               id: 'link',
+  //               text: '🔗 Дэлгэрэнгүй мэдээлэл',
+  //               appearAt: const Duration(seconds: 30),
+  //               disappearAt: const Duration(seconds: 40),
+  //               alignment: Alignment.bottomLeft,
+  //               onTap: () => debugPrint('Тapped!'),
+  //             ),
+  //           ],
 
-            // ── Style ─────────────────────────────────────────────────────
-            style: SenzuPlayerStyle(
-                onPrevEpisode: () {},
-                onNextEpisode: () {},
-                progressBarStyle: const SenzuProgressBarStyle(
-                  color: Color(0xFFFF4444),
-                  bufferedColor: Color(0x4DFFFFFF),
-                  backgroundColor: Color(0x33FFFFFF),
-                  height: 4,
-                  dotSize: 6,
-                  dotColor: Colors.white,
-                ),
-                episodeWidget: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white12,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'episode.title',
-                    style: TextStyle(color: Colors.white, fontSize: 11),
-                  ),
-                )),
-          );
-        }
-        return const Center(child: CircularProgressIndicator());
-      },
-    );
-  }
+  //           // ── Style ─────────────────────────────────────────────────────
+  //           style: SenzuPlayerStyle(
+  //               onPrevEpisode: () {},
+  //               onNextEpisode: () {},
+  //               progressBarStyle: const SenzuProgressBarStyle(
+  //                 color: Color(0xFFFF4444),
+  //                 bufferedColor: Color(0x4DFFFFFF),
+  //                 backgroundColor: Color(0x33FFFFFF),
+  //                 height: 4,
+  //                 dotSize: 6,
+  //                 dotColor: Colors.white,
+  //               ),
+  //               episodeWidget: Container(
+  //                 padding:
+  //                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  //                 decoration: BoxDecoration(
+  //                   color: Colors.white12,
+  //                   borderRadius: BorderRadius.circular(4),
+  //                 ),
+  //                 child: const Text(
+  //                   'episode.title',
+  //                   style: TextStyle(color: Colors.white, fontSize: 11),
+  //                 ),
+  //               )),
+  //         );
+  //       }
+  //       return const Center(child: CircularProgressIndicator());
+  //     },
+  //   );
+  // }
 
   final Map<String, String> customHeaders = {
     'Referer': 'https://playmax.mn/',
@@ -330,15 +346,6 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
     return null;
   }
 
-  Duration get _opStart =>
-      _isLive == true ? Duration.zero : const Duration(seconds: 5);
-  Duration get _opEnd =>
-      _isLive == true ? Duration.zero : const Duration(seconds: 90);
-  Duration get _edStart =>
-      _isLive == true ? Duration.zero : const Duration(minutes: 21);
-  Duration get _edEnd =>
-      _isLive == true ? Duration.zero : const Duration(minutes: 23);
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -347,7 +354,160 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
         child: Column(
           children: [
             // ── Player ────────────────────────────────────────────────────────
-            _buildM3U8Player(),
+            SenzuPlayer(
+              source: _sources,
+              autoPlay: true,
+              seekTo: Duration.zero,
+              isLive: false,
+
+              // imaAdTagUrl:
+              //     'https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/vmap_ad_samples&sz=640x480&cust_params=sample_ar%3Dpremidpost&ciu_szs=300x250&gdfp_req=1&ad_rule=1&output=vmap&unviewed_position_start=1&env=vp&impl=s&cmsid=496&vid=short_onecue&correlator=',
+
+              // ── Playback ──────────────────────────────────────────────────
+              looping: false,
+              secureMode: false,
+
+              // ── Lock screen / Now Playing ─────────────────────────────────
+              enableLockScreen: true,
+
+              // ── ABR ───────────────────────────────────────────────────────
+              adaptiveBitrate: true,
+              minBufferThreshold: 8,
+              maxBufferThreshold: 25,
+              onQualityChanged: (q) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('Quality: $q'),
+                    duration: const Duration(seconds: 1)));
+              },
+
+              // ── UI toggles ────────────────────────────────────────────────
+              enableFullscreen: true,
+              enableCaption: true,
+              enableQuality: true,
+              enableSpeed: true,
+              enableLock: true,
+              enableAspect: true,
+              enableEpisode: true,
+              enableAudio: true,
+              enablePip: true,
+
+              // ── Skip OP/ED ────────────────────────────────────────────────
+              chapters: const [
+                SenzuChapter(
+                  startMs: 5000,
+                  title: 'Opening',
+                  showOnProgressBar: true, // progress bar дээр marker зурна
+                  isSkippable:
+                      true, // overlay дээр "Skip Opening" товч харуулна
+                  skipToMs: 90000, // skip хийх target цаг
+                ),
+                SenzuChapter(
+                  startMs: 90000,
+                  title: 'Episode',
+                  showOnProgressBar: true, // progress bar дээр marker зурна
+                  isSkippable:
+                      true, // overlay дээр "Skip Opening" товч харуулна
+                ),
+                SenzuChapter(
+                  startMs: 1200000,
+                  title: 'Ending',
+                  showOnProgressBar: true, // progress bar дээр marker зурна
+                  isSkippable:
+                      true, // overlay дээр "Skip Opening" товч харуулна
+                  skipToMs: 1320000,
+                ),
+              ],
+
+              // ── Гадаас bundle дамжуулах (programmatic mode) ───────────────
+              bundle: _externalBundle,
+
+              // ── Header ────────────────────────────────────────────────────
+              meta: _externalBundle != null
+                  ? SenzuMetaData(
+                      title: widget.title,
+                      description: 'Episode 1',
+                      icon: Icons.arrow_back,
+                      iconColor: Colors.red,
+                      iconSize: 20)
+                  : SenzuMetaData(
+                      title: widget.title,
+                      description: 'Episode 1',
+                      icon: Icons.arrow_back,
+                      iconColor: Colors.red,
+                      iconSize: 20),
+
+              // ── Data policy ───────────────────────────────────────────────
+              dataPolicy: const SenzuDataPolicy(
+                warnOnCellular: true,
+                dataSaverOnCellular: false,
+                dataSaverQualityKey: '480p',
+              ),
+
+              // ── Watermark ─────────────────────────────────────────────────
+              watermark: const SenzuWatermark(
+                userId: 'user_12345',
+                opacity: 0.15,
+                position: WatermarkPosition.random,
+                moveDuration: Duration(seconds: 20),
+                showTimestamp: true,
+              ),
+
+              // ── Token refresh ─────────────────────────────────────────────
+              tokenConfig: SenzuTokenConfig(
+                refreshBeforeExpirySec: 120,
+                onRefresh: (sourceName, headers) async {
+                  return {
+                    'url': 'https://your-cdn.com/refreshed-url.m3u8',
+                    'Authorization': 'Bearer refreshed_token',
+                  };
+                },
+              ),
+              defaultAspectRatio: 16 / 9,
+              // ── Annotations ─────────────────────────────────────────────
+              annotations: [
+                SenzuAnnotation(
+                  id: 'subscribe',
+                  text: '👍 Subscribe хийгээрэй!',
+                  appearAt: const Duration(seconds: 10),
+                  disappearAt: const Duration(seconds: 15),
+                  alignment: Alignment.topRight,
+                  onTap: () => debugPrint('Тapped!'),
+                ),
+                SenzuAnnotation(
+                  id: 'link',
+                  text: '🔗 Дэлгэрэнгүй мэдээлэл',
+                  appearAt: const Duration(seconds: 30),
+                  disappearAt: const Duration(seconds: 40),
+                  alignment: Alignment.bottomLeft,
+                  onTap: () => debugPrint('Тapped!'),
+                ),
+              ],
+
+              // ── Style ─────────────────────────────────────────────────────
+              style: SenzuPlayerStyle(
+                  onPrevEpisode: () {},
+                  onNextEpisode: () {},
+                  progressBarStyle: const SenzuProgressBarStyle(
+                    color: Color(0xFFFF4444),
+                    bufferedColor: Color(0x4DFFFFFF),
+                    backgroundColor: Color(0x33FFFFFF),
+                    height: 4,
+                    dotSize: 6,
+                    dotColor: Colors.white,
+                  ),
+                  episodeWidget: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white12,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'episode.title',
+                      style: TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                  )),
+            ),
             // ── Mode-specific content ─────────────────────────────────────────
             Expanded(
               child: SingleChildScrollView(
@@ -450,8 +610,8 @@ class _ProgrammaticControls extends StatelessWidget {
                       'Battery',
                       '${bundle.device.batteryLevel.value}% (${bundle.device.batteryState.value})',
                     ),
-                    _Info('Skip OP', bundle.ui.showSkipOp.value.toString()),
-                    _Info('Skip ED', bundle.ui.showSkipEd.value.toString()),
+                    // _Info('Skip OP', bundle.ui.showSkipOp.value.toString()),
+                    // _Info('Skip ED', bundle.ui.showSkipEd.value.toString()),
                     _Info('HDR', bundle.core.isHdrEnabled.value.toString()),
                     _Info('Locked', bundle.ui.isLocked.value.toString()),
                   ],
