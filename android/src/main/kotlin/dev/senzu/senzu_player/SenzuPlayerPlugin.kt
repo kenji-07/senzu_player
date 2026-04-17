@@ -44,9 +44,9 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
         eventChannel.setStreamHandler(this)
 
         exoManager = SenzuExoPlayerManager(
-            context      = binding.applicationContext,
-            messenger    = binding.binaryMessenger,
-            textureEntry = binding.textureRegistry.createSurfaceTexture()
+            context         = binding.applicationContext,
+            messenger       = binding.binaryMessenger,
+            textureRegistry = binding.textureRegistry   // ← registry дамжуулна
         )
 
         binding.platformViewRegistry.registerViewFactory(
@@ -58,7 +58,7 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel.setMethodCallHandler(null)
         eventChannel.setStreamHandler(null)
-        exoManager?.dispose()
+        exoManager?.dispose()   // disposePlayer биш dispose()
         exoManager = null
         appContext = null
     }

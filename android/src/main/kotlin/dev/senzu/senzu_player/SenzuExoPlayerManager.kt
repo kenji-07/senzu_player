@@ -1,3 +1,5 @@
+// android/src/main/kotlin/dev/senzu/senzu_player/SenzuExoPlayerManager.kt
+
 package dev.senzu.senzu_player
 
 import android.app.Activity
@@ -25,7 +27,7 @@ import io.flutter.view.TextureRegistry
 class SenzuExoPlayerManager(
     private val context: Context,
     private val messenger: BinaryMessenger,
-    private val textureEntry: TextureRegistry.SurfaceTextureEntry
+    private val textureRegistry: TextureRegistry  // registry дамжуулна, entry биш
 ) {
     private var player: ExoPlayer? = null
     private var trackSelector: DefaultTrackSelector? = null
@@ -41,7 +43,8 @@ class SenzuExoPlayerManager(
     private val positionPollMs = 200L
     private var positionRunnable: Runnable? = null
 
-    val textureId: Long get() = textureEntry.id()
+    // Texture — initialize бүрт шинээр үүсгэнэ
+    private var textureEntry: TextureRegistry.SurfaceTextureEntry? = null
 
     fun setActivity(act: Activity?) {
         activity = act
@@ -69,17 +72,14 @@ class SenzuExoPlayerManager(
             "seekTo"               -> { seekTo(args, result);                  true }
             "setPlaybackSpeed"     -> { setPlaybackSpeed(args, result);        true }
             "setLooping"           -> { setLooping(args, result);              true }
-            "dispose"              -> { dispose(result);                        true }
-            // Now Playing
+            "dispose"              -> { disposePlayer(result);                 true }
             "setNowPlayingMetadata"-> { setNowPlayingMetadata(args, result);   true }
             "setNowPlayingEnabled" -> { setNowPlayingEnabled(args, result);    true }
-            // PiP
             "isPipSupported"       -> { result.success(pipManager?.isSupported() ?: false); true }
             "enablePip"            -> { pipManager?.enable(); result.success(null);         true }
             "disablePip"           -> { pipManager?.disable(); result.success(null);        true }
             "enterPip"             -> { enterPip(result);                      true }
             "exitPip"              -> { pipManager?.exit(); result.success(null);           true }
-            // DRM
             "checkDrmSupport"      -> { checkDrmSupport(args, result);         true }
             else                   -> false
         }
@@ -88,15 +88,19 @@ class SenzuExoPlayerManager(
     // ── initialize ─────────────────────────────────────────────────────────
     private fun initialize(args: Map<*, *>?, result: MethodChannel.Result) {
         val url = args?.get("url") as? String
-        ?: run { result.error("BAD_ARGS", "url required", null); return }
+            ?: run { result.error("BAD_ARGS", "url required", null); return }
 
-    @Suppress("UNCHECKED_CAST")
-    val headers = (args["headers"] as? Map<String, String>) ?: emptyMap()
+        @Suppress("UNCHECKED_CAST")
+        val headers = (args["headers"] as? Map<String, String>) ?: emptyMap()
+        val drmConfig = SenzuWidevineConfig.from(args)
 
-    val drmConfig = SenzuWidevineConfig.from(args)
+        mainHandler.post {
+            // Хуучин player + texture-г цэвэрлэнэ
+            releasePlayerInternal()
 
-    mainHandler.post {
-        releasePlayer()
+            // Шинэ texture entry үүсгэнэ
+            val entry = textureRegistry.createSurfaceTexture()
+            textureEntry = entry
 
             val selector = DefaultTrackSelector(context)
             trackSelector = selector
@@ -123,12 +127,15 @@ class SenzuExoPlayerManager(
                 .setLoadControl(loadControl)
                 .build()
 
-            val surfaceTexture = textureEntry.surfaceTexture()
-        if (surfaceTexture.isReleased) {
-            result.error("SURFACE_RELEASED", "SurfaceTexture has been released", null)
-            return@post
-        }
-        val surface = Surface(surfaceTexture)
+            val surfaceTexture = entry.surfaceTexture()
+            if (surfaceTexture.isReleased) {
+                result.error("SURFACE_RELEASED", "SurfaceTexture has been released", null)
+                entry.release()
+                textureEntry = null
+                exo.release()
+                return@post
+            }
+            val surface = Surface(surfaceTexture)
             exo.setVideoSurface(surface)
 
             exo.addListener(object : Player.Listener {
@@ -153,7 +160,6 @@ class SenzuExoPlayerManager(
                 }
             })
 
-            // MediaItem: DRM байвал Widevine MediaItem, үгүй бол энгийн
             val mediaItem = if (drmConfig != null) {
                 SenzuDrmManager.buildMediaItem(url, drmConfig)
             } else {
@@ -163,14 +169,13 @@ class SenzuExoPlayerManager(
             exo.setMediaItem(mediaItem)
             exo.prepare()
 
-            // Готов болтол хүлээнэ
             exo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_READY) {
                         exo.removeListener(this)
                         result.success(mapOf(
                             "durationMs" to exo.duration.coerceAtLeast(0L),
-                            "textureId"  to textureId
+                            "textureId"  to entry.id()
                         ))
                     }
                 }
@@ -270,16 +275,7 @@ class SenzuExoPlayerManager(
     fun setLowLatencyMode(targetMs: Int) {
         mainHandler.post {
             player?.let { exo ->
-                val params = exo.trackSelectionParameters.buildUpon()
-                    .setMaxVideoBitrate(Int.MAX_VALUE)
-                    .build()
-                exo.trackSelectionParameters = params
-                // Live offset: targetMs → microseconds
                 if (exo.isCurrentMediaItemLive) {
-                    val targetUs = targetMs * 1000L
-                    exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
-                        .build()
-                    // ExoPlayer 1.x дахь live configuration
                     val item = exo.currentMediaItem ?: return@let
                     val newItem = item.buildUpon()
                         .setLiveConfiguration(
@@ -397,20 +393,28 @@ class SenzuExoPlayerManager(
     }
 
     // ── Dispose ────────────────────────────────────────────────────────────
-    fun dispose(result: MethodChannel.Result? = null) {
-    mainHandler.post {
-        mediaSessionManager?.teardown()
-        releasePlayer()
-        textureEntry.release() // Зөвхөн эцсийн dispose-д
-        result?.success(null)
+    fun disposePlayer(result: MethodChannel.Result? = null) {
+        mainHandler.post {
+            releasePlayerInternal()
+            result?.success(null)
+        }
     }
-}
 
-    private fun releasePlayer() {
-    stopPositionPolling()
-    player?.release()
-    player = null
-    trackSelector = null
-    // textureEntry.release() ЭНД ДУУДАХГҮЙ
-}
+    // Plugin-г бүхэлд нь устгах үед (onDetachedFromEngine)
+    fun dispose() {
+        mainHandler.post {
+            mediaSessionManager?.teardown()
+            releasePlayerInternal()
+        }
+    }
+
+    private fun releasePlayerInternal() {
+        stopPositionPolling()
+        player?.release()
+        player = null
+        trackSelector = null
+        // Texture-г энд release хийнэ — initialize бүрт шинийг авна
+        textureEntry?.release()
+        textureEntry = null
+    }
 }

@@ -1,3 +1,5 @@
+<!-- example/android/app/src/main/AndroidManifest.xml -->
+<!-- MediaButtonReceiver-г устга, MediaBrowserService байхгүй тул crash болно -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.example">
 
@@ -17,10 +19,8 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/LaunchTheme"
-
             android:supportsPictureInPicture="true"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
-
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 
@@ -35,15 +35,8 @@
             </intent-filter>
         </activity>
 
-        <receiver
-            android:name="androidx.media.session.MediaButtonReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MEDIA_BUTTON" />
-            </intent-filter>
-        </receiver>
+        <!-- MediaButtonReceiver-г УСТГАВ — MediaBrowserService байхгүй тул crash болно -->
 
-        <!-- Flutter embedding -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

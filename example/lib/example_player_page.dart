@@ -122,13 +122,13 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
       // ── DRM (FairPlay iOS / Widevine Android) ─────────────────────────────
       case PlayerMode.drm:
         return {
-          'FairPlay HLS (EZDRM)': VideoSource.fromUrl(
-            'https://fps.ezdrm.com/demo/hls/BigBuckBunny_320x180.m3u8',
-            drm: const SenzuDrmConfig.fairPlay(
-              certificateUrl: 'https://fps.ezdrm.com/demo/fairplay.cer',
-              licenseUrl: 'https://fps.ezdrm.com/api/licenses/',
-            ),
-          ),
+          // 'FairPlay HLS (EZDRM)': VideoSource.fromUrl(
+          //   'https://fps.ezdrm.com/demo/hls/BigBuckBunny_320x180.m3u8',
+          //   drm: const SenzuDrmConfig.fairPlay(
+          //     certificateUrl: 'https://fps.ezdrm.com/demo/fairplay.cer',
+          //     licenseUrl: 'https://fps.ezdrm.com/api/licenses/',
+          //   ),
+          // ),
           // Widevine (Android)
           'Widevine DASH': VideoSource.fromDashUrl(
             'https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest_1080p.mpd',
