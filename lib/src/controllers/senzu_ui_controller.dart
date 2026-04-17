@@ -55,33 +55,69 @@ class SenzuUIController extends GetxController {
   Timer? _overlayTimer;
   bool _thumbnailDismissed = false;
 
+  // Throttle: skip button update-ийг 500ms-д нэг удаа хязгаарлана
+
+  Duration _lastSkipPos = Duration.zero;
+
   @override
   void onInit() {
     super.onInit();
 
-    // Hide thumbnail when playback actually starts
     ever(playback.isPlaying, _onPlayingChanged);
+    ever(playback.isDragging, _onDragging);
+    ever(core.rxActiveSource, _onSourceChanged);
 
-    // Skip OP/ED buttons driven by position
-    ever(playback.position, _updateSkipButtons);
-
-    // Drag: show overlay, cancel timer; stop drag: reschedule if playing
-    ever(playback.isDragging, (dragging) {
-      if (dragging) {
-        isShowingOverlay.value = true;
-        _cancelOverlay();
-      } else {
-        if (playback.isPlaying.value) _scheduleOverlay();
-      }
-    });
-
-    // When source changes, reset thumbnail state
-    ever(core.rxActiveSource, (_) {
-      _thumbnailDismissed = false;
-      isShowingThumbnail.value = true;
-    });
+    // Throttled skip button update — 500ms interval
+    // ever() биш interval worker ашиглана
+    _startSkipWorker();
 
     setNotificationEnabled(core.notification);
+  }
+
+  void _startSkipWorker() {
+    // Position reactive-г сонсох биш polling timer ашиглана
+    // Учир нь: ever(position) = 200ms тутам, timer = 500ms тутам
+    Timer.periodic(const Duration(milliseconds: 500), (t) {
+      final pos = playback.position.value;
+      // dirty check — position 500ms дотор өөрчлөгдөөгүй бол skip
+      if (pos == _lastSkipPos) return;
+      _lastSkipPos = pos;
+      _updateSkipButtons(pos);
+    });
+  }
+
+  // ── Skip OP / ED ───────────────────────────────────────────────────────────
+
+  void _updateSkipButtons(Duration pos) {
+    // Бүх comparison нэг pass-д хийнэ — branch prediction friendly
+    final opShow =
+        core.opEnd > Duration.zero &&
+        pos.inMilliseconds >= core.opStart.inMilliseconds &&
+        pos.inMilliseconds < core.opEnd.inMilliseconds;
+
+    final edShow =
+        core.edEnd > Duration.zero &&
+        pos.inMilliseconds >= core.edStart.inMilliseconds &&
+        pos.inMilliseconds < core.edEnd.inMilliseconds;
+
+    // Rx update нь зөвхөн state өөрчлөгдсөн үед
+    if (showSkipOp.value != opShow) showSkipOp.value = opShow;
+    if (showSkipEd.value != edShow) showSkipEd.value = edShow;
+  }
+
+  void _onDragging(bool dragging) {
+    if (dragging) {
+      isShowingOverlay.value = true;
+      _cancelOverlay();
+    } else {
+      if (playback.isPlaying.value) _scheduleOverlay();
+    }
+  }
+
+  void _onSourceChanged(_) {
+    _thumbnailDismissed = false;
+    isShowingThumbnail.value = true;
+    _lastSkipPos = Duration.zero;
   }
 
   // ── Thumbnail logic ────────────────────────────────────────────────────────
@@ -152,16 +188,6 @@ class SenzuUIController extends GetxController {
     } else {
       await SenzuNativeChannel.setNowPlayingEnabled(false);
     }
-  }
-
-  // ── Skip OP / ED ───────────────────────────────────────────────────────────
-  void _updateSkipButtons(Duration pos) {
-    final opShow =
-        core.opEnd > Duration.zero && pos >= core.opStart && pos < core.opEnd;
-    final edShow =
-        core.edEnd > Duration.zero && pos >= core.edStart && pos < core.edEnd;
-    if (showSkipOp.value != opShow) showSkipOp.value = opShow;
-    if (showSkipEd.value != edShow) showSkipEd.value = edShow;
   }
 
   void skipOp() {

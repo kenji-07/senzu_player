@@ -71,7 +71,7 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
   Widget _buildM3U8Player() {
     return FutureBuilder<Map<String, VideoSource>>(
       future: VideoSource.fromM3u8PlaylistUrl(
-        'https://demo.unified-streaming.com/k8s/live/scte35.isml/.m3u8',
+        'https://cdn2.playmax.mn//volume1/2026/movies/asian/ultimate_mission/480p.m3u8',
         httpHeaders: customHeaders,
         autoSubtitle: true,
         formatter: (quality) =>

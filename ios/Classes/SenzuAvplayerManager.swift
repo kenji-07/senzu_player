@@ -42,6 +42,13 @@ import MediaPlayer
 
     private let messenger: FlutterBinaryMessenger
 
+    // ── Now Playing throttle ───────────────────────────────────────────────────
+    private var _lastNowPlayingUpdate: TimeInterval = 0
+    private let _nowPlayingThrottleMs: TimeInterval = 1.0 // 1 second
+    private var _cachedArtwork: MPMediaItemArtwork? = nil
+    private var _cachedArtworkUrl: String? = nil
+    private var _artworkFetchInProgress = false
+
     @objc public init(messenger: FlutterBinaryMessenger) {
         self.messenger = messenger
         super.init()
@@ -243,37 +250,74 @@ import MediaPlayer
     @objc public func updateNowPlayingInfoPublic() { updateNowPlayingInfo() }
 
     private func updateNowPlayingInfo() {
-        guard let player, let item = playerItem else { return }
-        var info: [String: Any] = [:]
+    // Throttle: 1 секундэд нэг удаа л update хийнэ
+    let now = Date().timeIntervalSince1970
+    guard now - _lastNowPlayingUpdate >= _nowPlayingThrottleMs else { return }
+    _lastNowPlayingUpdate = now
 
-        info[MPMediaItemPropertyTitle]  = _title.isEmpty  ? "SenzuPlayer" : _title
-        info[MPMediaItemPropertyArtist] = _artist.isEmpty ? ""            : _artist
+    guard let player, let item = playerItem else { return }
 
-        let posMs  = cmTimeToMs(player.currentTime())
-        let durMs  = cmTimeToMs(item.duration)
-        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = Double(posMs) / 1000.0
-        info[MPMediaItemPropertyPlaybackDuration]         = Double(durMs) / 1000.0
-        info[MPNowPlayingInfoPropertyPlaybackRate]        = Double(player.rate)
-        info[MPNowPlayingInfoPropertyIsLiveStream]        = _isLive
+    var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
 
-        if _isLive {
-            info[MPMediaItemPropertyPlaybackDuration] = 0.0
-        }
+    info[MPMediaItemPropertyTitle]  = _title.isEmpty  ? "SenzuPlayer" : _title
+    info[MPMediaItemPropertyArtist] = _artist.isEmpty ? "" : _artist
 
+    let posMs  = cmTimeToMs(player.currentTime())
+    let durMs  = cmTimeToMs(item.duration)
+    info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = Double(posMs) / 1000.0
+    info[MPMediaItemPropertyPlaybackDuration]         = _isLive ? 0.0 : Double(durMs) / 1000.0
+    info[MPNowPlayingInfoPropertyPlaybackRate]        = Double(player.rate)
+    info[MPNowPlayingInfoPropertyIsLiveStream]        = _isLive
+
+    // Cached artwork байвал шууд ашиглана — fetch хийхгүй
+    if let cached = _cachedArtwork, _cachedArtworkUrl == _artworkUrl {
+        info[MPMediaItemPropertyArtwork] = cached
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-
-        if let artStr = _artworkUrl, let artUrl = URL(string: artStr) {
-            URLSession.shared.dataTask(with: artUrl) { data, _, _ in
-                guard let data, let image = UIImage(data: data) else { return }
-                let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                DispatchQueue.main.async {
-                    var updated = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-                    updated[MPMediaItemPropertyArtwork] = artwork
-                    MPNowPlayingInfoCenter.default().nowPlayingInfo = updated
-                }
-            }.resume()
-        }
+        return
     }
+
+    MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    _fetchArtworkIfNeeded()
+}
+
+private func _fetchArtworkIfNeeded() {
+    guard let artStr = _artworkUrl,
+          !artStr.isEmpty,
+          artStr != _cachedArtworkUrl,
+          !_artworkFetchInProgress else { return }
+
+    _artworkFetchInProgress = true
+    let targetUrl = artStr
+
+    // URL cache ашиглана: URLSession default cache policy
+    var request = URLRequest(url: URL(string: targetUrl)!)
+    request.cachePolicy = .returnCacheDataElseLoad // disk cache
+    request.timeoutInterval = 10
+
+    URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+        guard let self, let data, let image = UIImage(data: data) else {
+            self?._artworkFetchInProgress = false
+            return
+        }
+        let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        DispatchQueue.main.async {
+            self._cachedArtwork = artwork
+            self._cachedArtworkUrl = targetUrl
+            self._artworkFetchInProgress = false
+            // Update info center with new artwork
+            var updated = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+            updated[MPMediaItemPropertyArtwork] = artwork
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = updated
+        }
+    }.resume()
+}
+
+// Source солигдоход cache цэвэрлэнэ
+private func invalidateArtworkCache() {
+    _cachedArtwork = nil
+    _cachedArtworkUrl = nil
+    _artworkFetchInProgress = false
+}
 
     // ── Remote Command Center ──────────────────────────────────────────────────
 

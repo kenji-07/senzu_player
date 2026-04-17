@@ -187,31 +187,31 @@ class _SenzuFeedListState extends State<SenzuFeedList> {
   final _ctrl = PageController();
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return PageView.builder(
       controller: _ctrl,
       scrollDirection: Axis.vertical,
       itemCount: widget.sources.length,
       onPageChanged: widget.onPageChanged,
-      itemBuilder: (ctx, i) => SenzuFeedPlayer(
-        key: ValueKey('feed_$i'),
-        source: widget.sources[i],
-        aspectRatio: widget.aspectRatio,
-        looping: widget.looping,
-        style: widget.style,
-        header: widget.headerBuilder?.call(ctx, i),
-        footer: widget.footerBuilder?.call(ctx, i),
-      ),
+      // addAutomaticKeepAlives: false — dispose хурдан болно
+      // addRepaintBoundaries: true — default, page isolation хийнэ
+      itemBuilder: (ctx, i) {
+        return RepaintBoundary(
+          // GPU layer isolation
+          child: SenzuFeedPlayer(
+            key: PageStorageKey('feed_$i'), // ValueKey биш PageStorageKey
+            source: widget.sources[i],
+            aspectRatio: widget.aspectRatio,
+            looping: widget.looping,
+            style: widget.style,
+            header: widget.headerBuilder?.call(ctx, i),
+            footer: widget.footerBuilder?.call(ctx, i),
+          ),
+        );
+      },
     );
   }
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 // SenzuScrollFeed  —  Instagram/Twitter хэв маяг (ListView)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -244,24 +244,30 @@ class SenzuScrollFeed extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.builder(
       padding: padding ?? EdgeInsets.zero,
-      physics: physics,
+      physics: physics ?? const AlwaysScrollableScrollPhysics(),
       controller: controller,
       itemCount: sources.length,
-      itemBuilder: (ctx, i) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (headerBuilder != null)
-            headerBuilder!(ctx, i) ?? const SizedBox.shrink(),
-          SenzuFeedPlayer(
-            key: ValueKey('scroll_$i'),
-            source: sources[i],
-            aspectRatio: aspectRatio,
-            looping: looping,
-            style: style,
-          ),
-          if (footerBuilder != null)
-            footerBuilder!(ctx, i) ?? const SizedBox.shrink(),
-        ],
+      // CacheExtent: screen height-ийн 0.5x — memory vs smoothness balance
+      cacheExtent: MediaQuery.of(context).size.height * 0.5,
+      addRepaintBoundaries: true,
+      itemBuilder: (ctx, i) => RepaintBoundary(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min, // Column height minimize
+          children: [
+            if (headerBuilder != null)
+              headerBuilder!(ctx, i) ?? const SizedBox.shrink(),
+            SenzuFeedPlayer(
+              key: PageStorageKey('scroll_$i'),
+              source: sources[i],
+              aspectRatio: aspectRatio,
+              looping: looping,
+              style: style,
+            ),
+            if (footerBuilder != null)
+              footerBuilder!(ctx, i) ?? const SizedBox.shrink(),
+          ],
+        ),
       ),
     );
   }

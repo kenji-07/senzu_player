@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:interactive_media_ads/interactive_media_ads.dart';
 import 'package:senzu_player/src/data/models/ad_model.dart';
+import 'package:senzu_player/src/platform/senzu_native_video_state.dart';
 import 'senzu_core_controller.dart';
 import 'senzu_playback_controller.dart';
 
@@ -17,16 +18,16 @@ class SenzuAdController extends GetxController {
   final SenzuPlaybackController playback;
 
   // ── Rx ────────────────────────────────────────────────────────────────────
-  final activeAd              = Rxn<SenzuPlayerAd>();
-  final isAdActive            = false.obs;
-  final adTimeWatched         = Rxn<Duration>();
-  final shouldShowAd          = false.obs;
-  final isAdLoaded            = false.obs;
-  final isAdInitializing      = false.obs;
+  final activeAd = Rxn<SenzuPlayerAd>();
+  final isAdActive = false.obs;
+  final adTimeWatched = Rxn<Duration>();
+  final shouldShowAd = false.obs;
+  final isAdLoaded = false.obs;
+  final isAdInitializing = false.obs;
   // FIX: default false — video is hidden until explicitly shown
   final shouldShowContentVideo = false.obs;
-  final adDisplayContainer    = Rxn<AdDisplayContainer>();
-  final totalAds              = 0.obs;
+  final adDisplayContainer = Rxn<AdDisplayContainer>();
+  final totalAds = 0.obs;
 
   // ── Private ────────────────────────────────────────────────────────────────
   List<SenzuPlayerAd> _pendingAds = [];
@@ -42,21 +43,22 @@ class SenzuAdController extends GetxController {
   bool _isProcessingAd = false;
   Duration _lastCheckedPos = Duration.zero;
   final _queuedAds = <SenzuPlayerAd>[];
+  StreamSubscription<SenzuNativeVideoState>? _adStreamSub;
+  Duration _lastAdCheckPos = Duration.zero;
 
   int get currentAdIndex => adsSeen.length;
 
   @override
   void onInit() {
     super.onInit();
-
-    // Эхлэлд content видео харуулна (ad байхгүй бол)
     shouldShowContentVideo.value = true;
 
     core.onPendingAdsChanged = (ads) {
       final filtered = ads.whereType<SenzuPlayerAd>().toList();
       totalAds.value = filtered.length;
       _pendingAds = filtered.where((a) => !adsSeen.any((s) => s == a)).toList();
-      _startAdCheckTimer();
+      // Timer биш: pending ads байвал stream listener нэмнэ
+      _attachAdStreamListener();
     };
 
     core.onSourceChanged = (name) {
@@ -64,10 +66,32 @@ class SenzuAdController extends GetxController {
       _pendingAds.clear();
       adsSeen.clear();
       _queuedAds.clear();
+      _detachAdStreamListener();
       if (isAdActive.value) _forceEndAd();
-      // Source солигдоход content видео харуулна
       shouldShowContentVideo.value = true;
     };
+  }
+
+  void _attachAdStreamListener() {
+    if (_adStreamSub != null) return; // Already listening
+
+    _adStreamSub = core.rxNativeState.listen((state) {
+      if (_pendingAds.isEmpty || isAdActive.value) {
+        _detachAdStreamListener();
+        return;
+      }
+      // Playback stream-ийн interval = 200ms
+      // Жижиг optimization: 200ms-д position change мэдэгдэхүйц байхгүй бол skip
+      final pos = state.position;
+      if ((pos - _lastAdCheckPos).abs().inMilliseconds < 150) return;
+      _lastAdCheckPos = pos;
+      _findAd();
+    });
+  }
+
+  void _detachAdStreamListener() {
+    _adStreamSub?.cancel();
+    _adStreamSub = null;
   }
 
   void _forceEndAd() {
@@ -77,20 +101,6 @@ class SenzuAdController extends GetxController {
     activeAd.value = null;
     adTimeWatched.value = null;
     shouldShowContentVideo.value = true;
-  }
-
-  void _startAdCheckTimer() {
-    if (_adCheckTimer?.isActive ?? false) return;
-    _adCheckTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
-      if (_pendingAds.isEmpty || isAdActive.value) {
-        if (_pendingAds.isEmpty) {
-          _adCheckTimer?.cancel();
-          _adCheckTimer = null;
-        }
-        return;
-      }
-      _findAd();
-    });
   }
 
   void _findAd() {
@@ -294,6 +304,8 @@ class SenzuAdController extends GetxController {
 
   @override
   void onClose() {
+    _detachAdStreamListener();
+
     _adCheckTimer?.cancel();
     _adCheckTimer = null;
     _adTimer?.cancel();

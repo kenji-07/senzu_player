@@ -1,17 +1,10 @@
+// ios/Classes/SenzuSurfaceViewFactory.swift — full refactor
+
 import Flutter
 import UIKit
 import AVFoundation
 
-/// Registers "senzu_player/surface" as a native PlatformView.
-///
-/// The view hosts an [AVPlayerLayer] sourced from
-/// [SenzuAVPlayerManager.sharedPlayerLayer]. Flutter renders this view
-/// inside a [UiKitView] widget (see senzu_player.dart).
-///
-/// Creation params (passed from Dart via UiKitView.creationParams):
-///   { } — reserved for future multi-player support.
 public class SenzuSurfaceViewFactory: NSObject, FlutterPlatformViewFactory {
-
     private let messenger: FlutterBinaryMessenger
 
     public init(messenger: FlutterBinaryMessenger) {
@@ -28,21 +21,16 @@ public class SenzuSurfaceViewFactory: NSObject, FlutterPlatformViewFactory {
     }
 
     public func createArgsCodec() -> FlutterMessageCodec & NSObjectProtocol {
-        return FlutterStandardMessageCodec.sharedInstance()
+        FlutterStandardMessageCodec.sharedInstance()
     }
 }
 
-/// A UIView that hosts an [AVPlayerLayer].
-///
-/// The layer is obtained from [SenzuAVPlayerManager.sharedPlayerLayer]
-/// which is set when [SenzuAVPlayerManager.initialize] runs. If the layer
-/// is not yet available (race condition on cold start), it will be installed
-/// via [SenzuAVPlayerManager.sharedPlayerLayerDidChange] notification.
 public class SenzuPlayerLayerView: NSObject, FlutterPlatformView {
-
     private let containerView: _SenzuLayerHostView
 
     init(frame: CGRect) {
+        // IMPORTANT: UIView subclass-ийг main thread дээр үүсгэнэ
+        assert(Thread.isMainThread, "SenzuPlayerLayerView must be created on main thread")
         containerView = _SenzuLayerHostView(frame: frame)
         super.init()
     }
@@ -50,52 +38,76 @@ public class SenzuPlayerLayerView: NSObject, FlutterPlatformView {
     public func view() -> UIView { containerView }
 }
 
-/// Internal UIView subclass that owns the AVPlayerLayer.
 final class _SenzuLayerHostView: UIView {
-
-    private var playerLayer: AVPlayerLayer?
+    // Weak reference: AVPlayerLayer-г manager эзэмшдэг, view биш
+    private weak var playerLayer: AVPlayerLayer?
+    private var notificationToken: NSObjectProtocol?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .black
+
+        // Main thread guarantee: installLayerIfAvailable main-д л ажиллана
+        assert(Thread.isMainThread)
         installLayerIfAvailable()
 
-        // Listen for when the manager creates a new player layer
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(playerLayerDidChange),
-            name: NSNotification.Name("SenzuPlayerLayerDidChange"),
-            object: nil)
+        // Token-based observer — removeObserver дуудахад token ашиглана
+        // (object-based observer memory leak-ийн эх болдог)
+        notificationToken = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("SenzuPlayerLayerDidChange"),
+            object: nil,
+            queue: .main  // Main queue-д direct deliver — DispatchQueue.main.async шаардлагагүй
+        ) { [weak self] _ in
+            // [weak self]: retain cycle-ээс сэргийлнэ
+            self?.installLayerIfAvailable()
+        }
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
     deinit {
-        NotificationCenter.default.removeObserver(self)
+        // Token-based observer цэвэрлэнэ
+        if let token = notificationToken {
+            NotificationCenter.default.removeObserver(token)
+        }
     }
 
     private func installLayerIfAvailable() {
+        // Precondition: main thread шаардлагатай (UIKit contract)
+        assert(Thread.isMainThread, "installLayerIfAvailable must run on main thread")
+
         guard let layer = SenzuAVPlayerManager.sharedPlayerLayer else { return }
+
+        // Same layer байвал reinstall хийхгүй — флicker болон layout хойшлолтоос сэргийлнэ
+        if playerLayer === layer { return }
+
         installLayer(layer)
     }
 
     private func installLayer(_ l: AVPlayerLayer) {
+        // Хуучин layer-г sublayer-ийн жагсаалтаас хасна
         playerLayer?.removeFromSuperlayer()
         playerLayer = l
-        l.frame = bounds
-        l.videoGravity = .resizeAspect
-        self.layer.addSublayer(l)
-    }
 
-    @objc private func playerLayerDidChange() {
-        DispatchQueue.main.async { [weak self] in
-            self?.installLayerIfAvailable()
-        }
+        l.videoGravity = .resizeAspect
+        // Frame-г bounds-д synchronously тохируулна
+        // (layoutSubviews-г хүлээхгүйгээр шууд correct size өгнө)
+        l.frame = bounds
+        self.layer.insertSublayer(l, at: 0) // addSublayer биш insertSublayer(at:0)
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        if playerLayer == nil { installLayerIfAvailable() } 
-        playerLayer?.frame = bounds
+
+        guard let layer = playerLayer else {
+            // layoutSubviews үед layer байхгүй бол дахин оролдоно
+            installLayerIfAvailable()
+            return
+        }
+        // CATransaction: layout animation-г disable хийнэ
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.frame = bounds
+        CATransaction.commit()
     }
 }
