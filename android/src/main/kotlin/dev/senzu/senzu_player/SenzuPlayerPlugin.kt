@@ -78,6 +78,7 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
         exoManager?.setActivity(binding.activity)
         // PiP mode-оос буцах үед config change гарна
         binding.activity.onPictureInPictureModeChangedListeners
+        
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
