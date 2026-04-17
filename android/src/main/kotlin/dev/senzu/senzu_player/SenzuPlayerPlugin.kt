@@ -19,9 +19,9 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import android.media.MediaCodecList
-import android.media.MediaCodecInfo
-import VideoToolbox.VTIsHardwareDecodeSupported
+import androidx.media3.common.util.UnstableApi
 
+@UnstableApi
 class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
     ActivityAware, EventChannel.StreamHandler {
 
@@ -32,28 +32,23 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
     private var eventSink: EventChannel.EventSink? = null
     private var batteryReceiver: BroadcastReceiver? = null
 
-    // ExoPlayer manager — handles video playback method calls
     private var exoManager: SenzuExoPlayerManager? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         appContext = binding.applicationContext
 
-        // ── Method channel ────────────────────────────────────────────────
         methodChannel = MethodChannel(binding.binaryMessenger, "senzu_player/native")
         methodChannel.setMethodCallHandler(this)
 
-        // ── Event channel (device events + playback events) ───────────────
         eventChannel = EventChannel(binding.binaryMessenger, "senzu_player/events")
         eventChannel.setStreamHandler(this)
 
-        // ── ExoPlayer manager ─────────────────────────────────────────────
         exoManager = SenzuExoPlayerManager(
             context      = binding.applicationContext,
             messenger    = binding.binaryMessenger,
             textureEntry = binding.textureRegistry.createSurfaceTexture()
         )
 
-        // ── PlatformView factory for video surface ────────────────────────
         binding.platformViewRegistry.registerViewFactory(
             "senzu_player/surface",
             SenzuSurfaceViewFactory(binding.binaryMessenger)
@@ -81,6 +76,8 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
         activity = binding.activity
         exoManager?.setActivity(binding.activity)
+        // PiP mode-оос буцах үед config change гарна
+        binding.activity.onPictureInPictureModeChangedListeners
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
@@ -93,16 +90,28 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
         val args = call.arguments as? Map<*, *>
         val ctx  = activity ?: appContext
 
-        // First, delegate video playback calls to ExoPlayer manager
+        // ExoPlayer manager-т эхлээд дамжуулна
         if (exoManager != null && exoManager!!.handleMethodCall(call, result)) return
 
         when (call.method) {
 
             // ── Secure / Wakelock ─────────────────────────────────────────
-            "enableSecureMode"  -> { activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE);   result.success(null) }
-            "disableSecureMode" -> { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE); result.success(null) }
-            "enableWakelock"    -> { activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);   result.success(null) }
-            "disableWakelock"   -> { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); result.success(null) }
+            "enableSecureMode"  -> {
+                activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                result.success(null)
+            }
+            "disableSecureMode" -> {
+                activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                result.success(null)
+            }
+            "enableWakelock"    -> {
+                activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                result.success(null)
+            }
+            "disableWakelock"   -> {
+                activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                result.success(null)
+            }
 
             // ── Volume ────────────────────────────────────────────────────
             "getVolume" -> {
@@ -155,10 +164,10 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
                 val cm   = ctx?.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
                 val caps = cm?.getNetworkCapabilities(cm.activeNetwork)
                 val type = when {
-                    caps == null                                               -> "none"
+                    caps == null -> "none"
                     caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)     -> "wifi"
                     caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "cellular"
-                    else                                                       -> "unknown"
+                    else -> "unknown"
                 }
                 result.success(type)
             }
@@ -196,23 +205,21 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
             "checkCodecSupport" -> {
                 val codec     = args?.get("codec") as? String ?: ""
                 val supported = when (codec.lowercase()) {
-                    "hevc", "h265" -> {
-                        MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.any { ci ->
-                            !ci.isEncoder && ci.supportedTypes.any {
-                                it.equals("video/hevc", ignoreCase = true)
-                            }
-                        }
+                    "hevc", "h265" -> MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.any { ci ->
+                        !ci.isEncoder && ci.supportedTypes.any { it.equals("video/hevc", ignoreCase = true) }
                     }
-                    "av1" -> {
-                        MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.any { ci ->
-                            !ci.isEncoder && ci.supportedTypes.any {
-                                it.equals("video/av01", ignoreCase = true)
-                            }
-                        }
+                    "av1" -> MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.any { ci ->
+                        !ci.isEncoder && ci.supportedTypes.any { it.equals("video/av01", ignoreCase = true) }
                     }
                     else -> true
                 }
                 result.success(supported)
+            }
+
+            // ── DRM ───────────────────────────────────────────────────────
+            "checkDrmSupport" -> {
+                // exoManager-аас handle хийгдсэн — энд хүрэхгүй
+                result.success(SenzuDrmManager.isWidevineSupported())
             }
 
             else -> result.notImplemented()
@@ -222,7 +229,6 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
     // ── EventChannel StreamHandler ─────────────────────────────────────────
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         eventSink = events
-        // Pass sink to ExoManager so it can emit playback events on the same channel
         exoManager?.setEventSink(events)
 
         val f = IntentFilter().apply {

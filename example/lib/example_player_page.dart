@@ -34,8 +34,6 @@ class _Urls {
       'https://demo.unified-streaming.com/k8s/live/scte35.isml/.m3u8';
   static const mp4Big =
       'https://commondatastorage.googleapis.com/gtv-videos-bucket/CastVideos/mp4/TearsOfSteel.mp4';
-  static const mp4Short =
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/CastVideos/mp4/ForBiggerBlazes.mp4';
   static const subtitleEn =
       'https://commondatastorage.googleapis.com/gtv-videos-bucket/CastVideos/tracks/DesigningForGoogleCast-en.vtt';
   static const sprite =
@@ -57,6 +55,8 @@ class ExamplePlayerPage extends StatefulWidget {
 
 class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
   SenzuPlayerBundle? _externalBundle;
+  int currentIndex = 1;
+  int total = 10;
 
   @override
   void initState() {
@@ -131,10 +131,14 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
           ),
           // Widevine (Android)
           'Widevine DASH': VideoSource.fromDashUrl(
-            'https://storage.googleapis.com/shaka-demo-assets/sintel/dash.mpd',
+            'https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest_1080p.mpd',
             drm: const SenzuDrmConfig.widevine(
-              licenseUrl: 'https://cwip-shaka-proxy.appspot.com/no_auth',
-            ),
+                licenseUrl:
+                    'https://drm-widevine-licensing.axprod.net/AcquireLicense',
+                headers: {
+                  "X-AxDRM-Message":
+                      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXJzaW9uIjogMSwiY29tX2tleV9pZCI6ICI3YjVkYmIwNC0xYzY3LTRlNjQtYWIyZS1hZTIyMDBkZmY5NzAiLCJtZXNzYWdlIjogeyAgInR5cGUiOiAiZW50aXRsZW1lbnRfbWVzc2FnZSIsICAidmVyc2lvbiI6IDIsICAiY29udGVudF9rZXlzX3NvdXJjZSI6IHsgICAgImlubGluZSI6IFsgICAgICB7ICAgICAgICAiaWQiOiAiOWViNDA1MGQtZTQ0Yi00ODAyLTkzMmUtMjdkNzUwODNlMjY2IiwgICAgICAgICJlbmNyeXB0ZWRfa2V5IjogInZzRTdGakNWZE83T2VpQ21xNFhKUmc9PSIgICAgICB9ICAgIF0gIH19fQ.WOa2ZjpbMASDEyDfER3y0A5K1JzV0bcRo6qig7Zfb7I"
+                }),
           ),
         };
 
@@ -276,6 +280,8 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
         onNextEpisode: widget.mode == PlayerMode.vod
             ? () => _showSnack('Next episode →')
             : null,
+        hasPrevEpisode: currentIndex > 0,
+        hasNextEpisode: currentIndex < total - 1,
         progressBarStyle: const SenzuProgressBarStyle(
           color: Color(0xFFFF4444),
           bufferedColor: Color(0x4DFFFFFF),
@@ -375,7 +381,7 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
               seekTo: Duration.zero,
               isLive: _isLive,
               looping: widget.mode == PlayerMode.range,
-              secureMode: widget.mode == PlayerMode.drm,
+              secureMode: false,
               enableLockScreen: true,
 
               // ABR

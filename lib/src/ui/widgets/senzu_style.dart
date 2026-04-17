@@ -99,6 +99,12 @@ class SenzuPlayerStyle {
     this.skipAdBuilder,
     this.onPrevEpisode,
     this.onNextEpisode,
+    // ── Episode navigation state ──────────────────────────────────────────
+    // null = always enabled (backward compat)
+    // false = disabled (dimmed, not tappable)
+    // true = enabled
+    this.hasPrevEpisode,
+    this.hasNextEpisode,
     this.skipAdAlignment = Alignment.bottomRight,
     this.transitions = const Duration(milliseconds: 400),
     this.textStyle = const TextStyle(
@@ -144,4 +150,14 @@ class SenzuPlayerStyle {
   final Widget buffering;
   final VoidCallback? onPrevEpisode;
   final VoidCallback? onNextEpisode;
+
+  /// If null → button visibility follows whether callback is non-null (old behavior).
+  /// If false → button is shown but greyed out / disabled.
+  /// If true → button is shown and active.
+  ///
+  /// Use case:
+  ///   hasPrevEpisode: currentIndex > 0
+  ///   hasNextEpisode: currentIndex < totalEpisodes - 1
+  final bool? hasPrevEpisode;
+  final bool? hasNextEpisode;
 }

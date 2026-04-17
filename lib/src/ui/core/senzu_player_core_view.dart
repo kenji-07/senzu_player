@@ -884,8 +884,11 @@ class SenzuCenterControls extends StatelessWidget {
     required this.forwardCount,
     this.onPrev,
     this.onNext,
+    // NEW: explicit enabled/disabled state; null = derive from callback presence
+    this.hasPrev,
+    this.hasNext,
   });
-
+ 
   final SenzuPlayerBundle bundle;
   final SenzuCenterButtonStyle style;
   final Widget loading, buffering;
@@ -893,7 +896,9 @@ class SenzuCenterControls extends StatelessWidget {
   final int rewindCount, forwardCount;
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
-
+  final bool? hasPrev;
+  final bool? hasNext;
+ 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
@@ -901,26 +906,36 @@ class SenzuCenterControls extends StatelessWidget {
       if (showForward) return _circle(_seekText('+${forwardCount * 10}s'));
       if (bundle.core.isChangingSource.value) return _circle(loading);
       if (bundle.playback.isBuffering.value) return _circle(buffering);
-
+ 
       final playing = bundle.playback.isPlaying.value;
       final ended =
           !bundle.core.isLiveRx.value &&
           bundle.playback.position.value >= bundle.playback.duration.value &&
           bundle.playback.duration.value > Duration.zero;
-
+ 
+      // Determine prev/next visibility and enabled state
+      // Priority: explicit hasPrev/hasNext > callback null check
+      final showPrev = hasPrev != null || onPrev != null;
+      final showNext = hasNext != null || onNext != null;
+      final prevEnabled = hasPrev ?? (onPrev != null);
+      final nextEnabled = hasNext ?? (onNext != null);
+ 
       return Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (onPrev != null)
+          if (showPrev)
             _SideButton(
               icon: PhosphorIcons.skipBack(),
-              onTap: onPrev!,
+              onTap: prevEnabled && onPrev != null ? onPrev! : null,
               size: style.circleSize * 0.55,
+              isDisabled: !prevEnabled,
             )
           else
             SizedBox(width: style.circleSize * 0.55 + 8),
+ 
           const SizedBox(width: 16),
+ 
           GestureDetector(
             onTap: ended
                 ? () => bundle.core.seekTo(Duration.zero)
@@ -929,12 +944,15 @@ class SenzuCenterControls extends StatelessWidget {
               ended ? style.replay : (playing ? style.pause : style.play),
             ),
           ),
+ 
           const SizedBox(width: 16),
-          if (onNext != null)
+ 
+          if (showNext)
             _SideButton(
               icon: PhosphorIcons.skipForward(),
-              onTap: onNext!,
+              onTap: nextEnabled && onNext != null ? onNext! : null,
               size: style.circleSize * 0.55,
+              isDisabled: !nextEnabled,
             )
           else
             SizedBox(width: style.circleSize * 0.55 + 8),
@@ -942,14 +960,14 @@ class SenzuCenterControls extends StatelessWidget {
       );
     });
   }
-
+ 
   Widget _circle(Widget child) => Container(
     width: style.circleSize,
     height: style.circleSize,
     decoration: BoxDecoration(shape: BoxShape.circle, color: style.circleColor),
     child: child,
   );
-
+ 
   Widget _seekText(String text) => _circle(
     Center(
       child: Text(
@@ -963,31 +981,41 @@ class SenzuCenterControls extends StatelessWidget {
     ),
   );
 }
-
+ 
 class _SideButton extends StatelessWidget {
   const _SideButton({
     required this.icon,
     required this.onTap,
     required this.size,
+    this.isDisabled = false,
   });
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final double size;
-
+  final bool isDisabled;
+ 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      width: size + 16,
-      height: size + 16,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.black.withValues(alpha: 0.35),
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: isDisabled ? null : onTap,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        // Disabled = 35% opacity (greyed out like iQIYI)
+        opacity: isDisabled ? 0.35 : 1.0,
+        child: Container(
+          width: size + 16,
+          height: size + 16,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.black.withValues(alpha: isDisabled ? 0.15 : 0.35),
+          ),
+          child: Icon(icon, color: Colors.white, size: size),
+        ),
       ),
-      child: Icon(icon, color: Colors.white, size: size),
-    ),
-  );
+    );
+  }
 }
+
 
 class _LockButton extends StatelessWidget {
   const _LockButton({required this.bundle});

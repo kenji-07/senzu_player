@@ -4,16 +4,15 @@ import android.app.Activity
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.view.Surface
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.TrackGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import io.flutter.plugin.common.BinaryMessenger
@@ -34,38 +33,67 @@ class SenzuExoPlayerManager(
     private var activity: Activity? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // Polling interval for position updates (ms)
+    // Managers
+    private var mediaSessionManager: SenzuMediaSessionManager? = null
+    var pipManager: SenzuPipManager? = null
+
+    // Position polling
     private val positionPollMs = 200L
     private var positionRunnable: Runnable? = null
 
-    // ── Public surface texture id (used by SurfaceViewFactory) ───────────
     val textureId: Long get() = textureEntry.id()
 
-    fun setActivity(act: Activity?) { activity = act }
-    fun setEventSink(sink: EventChannel.EventSink?) { eventSink = sink }
+    fun setActivity(act: Activity?) {
+        activity = act
+        if (act != null && pipManager == null) {
+            pipManager = SenzuPipManager { activity }
+        }
+        if (act != null && mediaSessionManager == null) {
+            mediaSessionManager = SenzuMediaSessionManager(context) { activity }
+        }
+    }
+
+    fun setEventSink(sink: EventChannel.EventSink?) {
+        eventSink = sink
+        mediaSessionManager?.setEventSink(sink)
+        pipManager?.setEventSink(sink)
+    }
 
     // ── MethodCall dispatcher ──────────────────────────────────────────────
-    // Returns true if the call was handled here, false if plugin should continue.
     fun handleMethodCall(call: MethodCall, result: MethodChannel.Result): Boolean {
         val args = call.arguments as? Map<*, *>
         return when (call.method) {
-            "initialize"        -> { initialize(args, result); true }
-            "play"              -> { play(result);             true }
-            "pause"             -> { pause(result);            true }
-            "seekTo"            -> { seekTo(args, result);     true }
-            "setPlaybackSpeed"  -> { setPlaybackSpeed(args, result); true }
-            "setLooping"        -> { setLooping(args, result); true }
-            "dispose"           -> { dispose(result);          true }
-            else                -> false
+            "initialize"           -> { initialize(args, result);              true }
+            "play"                 -> { play(result);                          true }
+            "pause"                -> { pause(result);                         true }
+            "seekTo"               -> { seekTo(args, result);                  true }
+            "setPlaybackSpeed"     -> { setPlaybackSpeed(args, result);        true }
+            "setLooping"           -> { setLooping(args, result);              true }
+            "dispose"              -> { dispose(result);                        true }
+            // Now Playing
+            "setNowPlayingMetadata"-> { setNowPlayingMetadata(args, result);   true }
+            "setNowPlayingEnabled" -> { setNowPlayingEnabled(args, result);    true }
+            // PiP
+            "isPipSupported"       -> { result.success(pipManager?.isSupported() ?: false); true }
+            "enablePip"            -> { pipManager?.enable(); result.success(null);         true }
+            "disablePip"           -> { pipManager?.disable(); result.success(null);        true }
+            "enterPip"             -> { enterPip(result);                      true }
+            "exitPip"              -> { pipManager?.exit(); result.success(null);           true }
+            // DRM
+            "checkDrmSupport"      -> { checkDrmSupport(args, result);         true }
+            else                   -> false
         }
     }
 
     // ── initialize ─────────────────────────────────────────────────────────
     private fun initialize(args: Map<*, *>?, result: MethodChannel.Result) {
-        val url     = args?.get("url") as? String ?: run { result.error("BAD_ARGS", "url required", null); return }
-        val headers = (args["headers"] as? Map<*, *>)
-            ?.entries?.associate { (k, v) -> k.toString() to v.toString() }
-            ?: emptyMap()
+        val url = args?.get("url") as? String
+            ?: run { result.error("BAD_ARGS", "url required", null); return }
+
+        @Suppress("UNCHECKED_CAST")
+        val headers = (args["headers"] as? Map<String, String>) ?: emptyMap()
+
+        val drmConfig = SenzuWidevineConfig.from(args)
 
         mainHandler.post {
             releasePlayer()
@@ -79,15 +107,14 @@ class SenzuExoPlayerManager(
                 .setReadTimeoutMs(15_000)
                 .setAllowCrossProtocolRedirects(true)
 
-            val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
+            val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory).apply {
+                if (drmConfig != null) {
+                    setDrmSessionManagerProvider { SenzuDrmManager.build(drmConfig) }
+                }
+            }
 
             val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(
-                    /* minBufferMs          */ 15_000,
-                    /* maxBufferMs          */ 50_000,
-                    /* bufferForPlaybackMs  */ 2_500,
-                    /* bufferForPlaybackAfterRebufferMs */ 5_000
-                )
+                .setBufferDurationsMs(15_000, 50_000, 2_500, 5_000)
                 .build()
 
             val exo = ExoPlayer.Builder(context)
@@ -96,23 +123,23 @@ class SenzuExoPlayerManager(
                 .setLoadControl(loadControl)
                 .build()
 
-            // Attach surface texture so PlatformView can render
-            val surface = android.view.Surface(textureEntry.surfaceTexture())
+            val surface = Surface(textureEntry.surfaceTexture())
             exo.setVideoSurface(surface)
 
             exo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     when (state) {
-                        Player.STATE_READY    -> emitPlaybackState()
+                        Player.STATE_READY     -> emitPlaybackState()
                         Player.STATE_BUFFERING -> emitPlaybackState(isBuffering = true)
-                        Player.STATE_ENDED    -> emitPlaybackState(isPlaying = false)
-                        else                  -> Unit
+                        Player.STATE_ENDED     -> emitPlaybackState(isPlaying = false)
+                        else                   -> Unit
                     }
                 }
 
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (isPlaying) startPositionPolling() else stopPositionPolling()
+                override fun onIsPlayingChanged(playing: Boolean) {
+                    if (playing) startPositionPolling() else stopPositionPolling()
                     emitPlaybackState()
+                    syncMediaSession()
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
@@ -121,11 +148,17 @@ class SenzuExoPlayerManager(
                 }
             })
 
-            val mediaItem = MediaItem.fromUri(url)
+            // MediaItem: DRM байвал Widevine MediaItem, үгүй бол энгийн
+            val mediaItem = if (drmConfig != null) {
+                SenzuDrmManager.buildMediaItem(url, drmConfig)
+            } else {
+                MediaItem.fromUri(url)
+            }
+
             exo.setMediaItem(mediaItem)
             exo.prepare()
 
-            // Wait for ready to return duration
+            // Готов болтол хүлээнэ
             exo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_READY) {
@@ -150,6 +183,7 @@ class SenzuExoPlayerManager(
     private fun play(result: MethodChannel.Result) {
         mainHandler.post {
             player?.play()
+            syncMediaSession()
             result.success(null)
         }
     }
@@ -157,6 +191,7 @@ class SenzuExoPlayerManager(
     private fun pause(result: MethodChannel.Result) {
         mainHandler.post {
             player?.pause()
+            syncMediaSession()
             result.success(null)
         }
     }
@@ -165,6 +200,7 @@ class SenzuExoPlayerManager(
         val posMs = (args?.get("positionMs") as? Number)?.toLong() ?: 0L
         mainHandler.post {
             player?.seekTo(posMs)
+            syncMediaSession()
             result.success(null)
         }
     }
@@ -185,6 +221,46 @@ class SenzuExoPlayerManager(
         }
     }
 
+    // ── Now Playing ────────────────────────────────────────────────────────
+    private fun setNowPlayingMetadata(args: Map<*, *>?, result: MethodChannel.Result) {
+        mediaSessionManager?.setMetadata(args)
+        result.success(null)
+    }
+
+    private fun setNowPlayingEnabled(args: Map<*, *>?, result: MethodChannel.Result) {
+        val enabled = args?.get("enabled") as? Boolean ?: true
+        if (enabled) mediaSessionManager?.enable() else mediaSessionManager?.disable()
+        result.success(null)
+    }
+
+    private fun syncMediaSession() {
+        val exo = player ?: return
+        mediaSessionManager?.updatePlaybackState(
+            posMs   = exo.currentPosition.coerceAtLeast(0L),
+            durMs   = exo.duration.coerceAtLeast(0L),
+            playing = exo.isPlaying,
+            speed   = exo.playbackParameters.speed
+        )
+    }
+
+    // ── PiP ────────────────────────────────────────────────────────────────
+    private fun enterPip(result: MethodChannel.Result) {
+        val success = pipManager?.enter() ?: false
+        if (success) result.success(null)
+        else result.error("PIP_NA", "PiP not supported or not enabled", null)
+    }
+
+    // ── DRM ────────────────────────────────────────────────────────────────
+    private fun checkDrmSupport(args: Map<*, *>?, result: MethodChannel.Result) {
+        val type = args?.get("type") as? String ?: "widevine"
+        result.success(
+            when (type.lowercase()) {
+                "widevine" -> SenzuDrmManager.isWidevineSupported()
+                else       -> false
+            }
+        )
+    }
+
     // ── Low-latency / Live ─────────────────────────────────────────────────
     fun setLowLatencyMode(targetMs: Int) {
         mainHandler.post {
@@ -193,13 +269,23 @@ class SenzuExoPlayerManager(
                     .setMaxVideoBitrate(Int.MAX_VALUE)
                     .build()
                 exo.trackSelectionParameters = params
-                // LiveConfiguration target offset
+                // Live offset: targetMs → microseconds
                 if (exo.isCurrentMediaItemLive) {
-                    exo.updateCurrentPlaybackLocally(
-                        exo.currentPosition,
-                        exo.playbackParameters,
-                        /* resetToDefaultPosition = */ false
-                    )
+                    val targetUs = targetMs * 1000L
+                    exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+                        .build()
+                    // ExoPlayer 1.x дахь live configuration
+                    val item = exo.currentMediaItem ?: return@let
+                    val newItem = item.buildUpon()
+                        .setLiveConfiguration(
+                            MediaItem.LiveConfiguration.Builder()
+                                .setTargetOffsetMs(targetMs.toLong())
+                                .setMinOffsetMs(500L)
+                                .setMaxOffsetMs(targetMs.toLong() * 2)
+                                .build()
+                        )
+                        .build()
+                    exo.replaceMediaItem(exo.currentMediaItemIndex, newItem)
                 }
             }
         }
@@ -207,23 +293,20 @@ class SenzuExoPlayerManager(
 
     fun getLiveLatency(): Long {
         return player?.let { exo ->
-            if (exo.isCurrentMediaItemLive) {
-                exo.currentLiveOffset
-            } else -1L
+            if (exo.isCurrentMediaItemLive) exo.currentLiveOffset else -1L
         } ?: -1L
     }
 
     // ── Audio tracks ───────────────────────────────────────────────────────
     fun getAudioTracks(): List<Map<String, Any>> {
-        val exo = player ?: return emptyList()
+        val exo    = player ?: return emptyList()
         val result = mutableListOf<Map<String, Any>>()
-        val tracks = exo.currentTracks
-        for (group in tracks.groups) {
+        for (group in exo.currentTracks.groups) {
             if (group.type != C.TRACK_TYPE_AUDIO) continue
             for (i in 0 until group.length) {
                 val format = group.getTrackFormat(i)
                 result.add(mapOf(
-                    "id"       to "${group.hashCode()}_$i",
+                    "id"       to "${group.mediaTrackGroup.hashCode()}_$i",
                     "language" to (format.language ?: "und"),
                     "label"    to (format.label    ?: "Audio ${result.size + 1}"),
                     "selected" to group.isTrackSelected(i)
@@ -241,8 +324,7 @@ class SenzuExoPlayerManager(
         val groupHash = parts[0].toIntOrNull() ?: return
         val trackIdx  = parts[1].toIntOrNull() ?: return
 
-        val tracks = exo.currentTracks
-        for (group in tracks.groups) {
+        for (group in exo.currentTracks.groups) {
             if (group.type != C.TRACK_TYPE_AUDIO) continue
             if (group.mediaTrackGroup.hashCode() != groupHash) continue
             val override = androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, trackIdx)
@@ -261,12 +343,8 @@ class SenzuExoPlayerManager(
         val exo  = player ?: return
         val sink = eventSink ?: return
         val actualPlaying = isPlaying ?: exo.isPlaying
-        val buffered = buildList {
-            for (i in 0 until exo.bufferedPercentage / 10) {
-                // Approximate single range from 0 to buffered position
-            }
-            add(mapOf("start" to 0L, "end" to exo.bufferedPosition))
-        }
+        val buffered = listOf(mapOf("start" to 0L, "end" to exo.bufferedPosition))
+
         mainHandler.post {
             sink.success(mapOf(
                 "type"        to "playback",
@@ -301,6 +379,7 @@ class SenzuExoPlayerManager(
         positionRunnable = object : Runnable {
             override fun run() {
                 emitPlaybackState()
+                syncMediaSession()
                 mainHandler.postDelayed(this, positionPollMs)
             }
         }
@@ -315,6 +394,7 @@ class SenzuExoPlayerManager(
     // ── Dispose ────────────────────────────────────────────────────────────
     fun dispose(result: MethodChannel.Result? = null) {
         mainHandler.post {
+            mediaSessionManager?.teardown()
             releasePlayer()
             textureEntry.release()
             result?.success(null)
