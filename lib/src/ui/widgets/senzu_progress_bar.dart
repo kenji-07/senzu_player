@@ -30,6 +30,8 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
   double _totalW = 1.0;
 
   int _lastHapticSecond = -1;
+  // Chapter boundary haptic: chapter startMs-г track хийнэ
+  int _lastChapterHapticMs = -1;
 
   SenzuPlayerBundle get bundle => widget.bundle;
   SenzuProgressBarStyle get s => widget.style;
@@ -38,10 +40,9 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
     _totalW = w > 0 ? w : 1.0;
     bundle.playback.dragRatio.value = (dx / _totalW).clamp(0.0, 1.0);
     _lastHapticSecond = -1;
+    _lastChapterHapticMs = -1;
     bundle.playback.setDragging(true);
-    bundle.ui.showAndHideOverlay(
-      true,
-    ); // ← overlay харуулж, timer-г cancel хийнэ
+    bundle.ui.showAndHideOverlay(true);
     bundle.core.pause();
     setState(() {});
   }
@@ -54,15 +55,40 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
     final dur = bundle.playback.duration.value;
     if (dur.inMilliseconds == 0) return;
 
-    final currentSec = (dur.inSeconds * bundle.playback.dragRatio.value)
-        .floor();
+    final currentMs =
+        (dur.inMilliseconds * bundle.playback.dragRatio.value).round();
+    final currentSec = currentMs ~/ 1000;
 
+    // ── 1. Second-tick haptic (light) ────────────────────────────────────
     if (currentSec != _lastHapticSecond) {
       _lastHapticSecond = currentSec;
       HapticFeedback.selectionClick();
     }
 
+    // ── 2. Chapter boundary haptic (medium) ──────────────────────────────
+    // Chapter-ийн startMs-т ойртох үед (±80ms tolerance) нэг удаа дуугарна
+    _checkChapterHaptic(currentMs);
+
     setState(() {});
+  }
+
+  void _checkChapterHaptic(int currentMs) {
+    if (widget.chapters.isEmpty) return;
+
+    const toleranceMs = 80;
+
+    for (final chapter in widget.chapters) {
+      if (!chapter.showOnProgressBar) continue;
+      final startMs = chapter.startMs;
+      final diff = (currentMs - startMs).abs();
+
+      if (diff <= toleranceMs && _lastChapterHapticMs != startMs) {
+        _lastChapterHapticMs = startMs;
+        // Chapter boundary дээр илүү хүчтэй haptic
+        HapticFeedback.mediumImpact();
+        return; // Нэг frame-д нэг chapter-т хангалттай
+      }
+    }
   }
 
   Future<void> _onDragEnd() async {
@@ -71,25 +97,24 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
         bundle.playback.duration.value * bundle.playback.dragRatio.value;
     bundle.playback.setDragging(false);
     _lastHapticSecond = -1;
+    _lastChapterHapticMs = -1;
     await bundle.core.seekTo(bundle.core.beginRange + target);
     if (bundle.ad.activeAd.value == null) await bundle.core.play();
-    // play() дуусмагц timer дахин эхэлнэ — автоматаар
   }
 
   void _onDragCancel() {
     if (!bundle.playback.isDragging.value) return;
-    // Frame lock үед шууд setState дуудахгүйн тулд next frame хүлээнэ
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Widget аль хэдийн unmount болсон ч GetX Rx-д бичиж болно
-      // (widget биш controller-д бичиж байгаа тул mounted шаардлагагүй)
       bundle.playback.setDragging(false);
       _lastHapticSecond = -1;
+      _lastChapterHapticMs = -1;
       if (bundle.ad.activeAd.value == null) bundle.core.play();
     });
   }
 
   void _stopHapticTimer() {
     _lastHapticSecond = -1;
+    _lastChapterHapticMs = -1;
   }
 
   @override
@@ -128,7 +153,6 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
             if (dur.inMilliseconds == 0) return;
 
             final target = dur * ratio;
-
             bundle.core.seekTo(bundle.core.beginRange + target);
           },
           onTapUp: (_) => _onDragEnd(),
@@ -136,7 +160,6 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
           child: Obx(() {
             final dur = bundle.playback.duration.value;
 
-            // Drag хийж байвал bundle.playback.dragRatio.value, үгүй бол position-ийн ratio
             final posR = bundle.playback.isDragging.value
                 ? bundle.playback.dragRatio.value
                 : (dur.inMilliseconds > 0
@@ -157,18 +180,8 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
                 alignment: AlignmentDirectional.centerStart,
                 clipBehavior: Clip.none,
                 children: [
-                  _Bar(
-                    w: _totalW,
-                    ratio: 1.0,
-                    color: s.backgroundColor,
-                    style: s,
-                  ),
-                  _Bar(
-                    w: _totalW,
-                    ratio: bufR,
-                    color: s.bufferedColor,
-                    style: s,
-                  ),
+                  _Bar(w: _totalW, ratio: 1.0, color: s.backgroundColor, style: s),
+                  _Bar(w: _totalW, ratio: bufR, color: s.bufferedColor, style: s),
                   _Bar(w: _totalW, ratio: posR, color: s.color, style: s),
                   _Dot(
                     posRatio: posR,
@@ -176,14 +189,13 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
                     style: s,
                     isDragging: bundle.playback.isDragging.value,
                   ),
-                  // ── Chapter markers ────────────────────────────────────────
                   if (widget.chapters.isNotEmpty)
                     Positioned.fill(
                       child: IgnorePointer(
                         child: CustomPaint(
                           painter: SenzuChapterPainter(
                             chapters: widget.chapters,
-                            duration: dur, // Obx дотор аль хэдийн унших байгаа
+                            duration: dur,
                             currentPosition: bundle.playback.isDragging.value
                                 ? dur * bundle.playback.dragRatio.value
                                 : bundle.playback.position.value,
@@ -222,10 +234,8 @@ class SenzuChapterPainter extends CustomPainter {
   final double markerWidth;
   final double markerHeight;
 
-  // Immutable cache — duration/chapters өөрчлөгдөхөд л шинэчлэгдэнэ
   final _ChapterPainterCache _cache;
 
-  // Paint объектуудыг дахин үүсгэхгүйн тулд lazy init
   final _normalPaint = Paint()..strokeCap = StrokeCap.round;
   final _activePaint = Paint()..strokeCap = StrokeCap.round;
   final _glowPaint = Paint()..style = PaintingStyle.fill;
@@ -240,12 +250,9 @@ class SenzuChapterPainter extends CustomPainter {
         : -1;
 
     for (int i = 0; i < fractions.length; i++) {
-      // showOnProgressBar=false chapter-уудыг skip — OP/ED separator-ууд
       if (!chapters[i].showOnProgressBar) continue;
 
       final x = fractions[i] * size.width;
-
-      // Edge-д байгаа marker-уудыг skip (visual clipping)
       if (x < markerWidth || x > size.width - markerWidth) continue;
 
       final isActive = i == activeIdx;
@@ -255,39 +262,23 @@ class SenzuChapterPainter extends CustomPainter {
         _activePaint
           ..color = activeChapterColor
           ..strokeWidth = markerWidth + 0.5;
-        canvas.drawLine(
-          Offset(x, top),
-          Offset(x, top + markerHeight),
-          _activePaint,
-        );
+        canvas.drawLine(Offset(x, top), Offset(x, top + markerHeight), _activePaint);
 
-        // Glow effect — active chapter-т
         _glowPaint.color = activeChapterColor.withValues(alpha: 0.28);
-        canvas.drawCircle(
-          Offset(x, size.height / 2),
-          markerWidth * 2.5,
-          _glowPaint,
-        );
+        canvas.drawCircle(Offset(x, size.height / 2), markerWidth * 2.5, _glowPaint);
       } else {
         _normalPaint
           ..color = markerColor
           ..strokeWidth = markerWidth;
-        canvas.drawLine(
-          Offset(x, top),
-          Offset(x, top + markerHeight),
-          _normalPaint,
-        );
+        canvas.drawLine(Offset(x, top), Offset(x, top + markerHeight), _normalPaint);
       }
     }
   }
 
   @override
   bool shouldRepaint(SenzuChapterPainter old) {
-    // Position өөрчлөгдөхөд л repaint
     if (old.currentPosition != currentPosition) return true;
-    // Duration өөрчлөгдсөн бол cache invalid → repaint
     if (old.duration != duration) return true;
-    // Chapter тоо өөрчлөгдсөн бол repaint
     if (old.chapters.length != chapters.length) return true;
     return false;
   }
@@ -295,10 +286,6 @@ class SenzuChapterPainter extends CustomPainter {
   @override
   bool shouldRebuildSemantics(SenzuChapterPainter old) => false;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _ChapterPainterCache  —  fraction list-ийг duration-аар cache хийнэ
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _ChapterPainterCache {
   _ChapterPainterCache(List<SenzuChapter> chapters, Duration duration)
@@ -309,8 +296,6 @@ class _ChapterPainterCache {
   static List<double> _compute(List<SenzuChapter> chapters, Duration duration) {
     if (duration.inMilliseconds == 0 || chapters.isEmpty) return const [];
     final ms = duration.inMilliseconds.toDouble();
-    // showOnProgressBar=false байсан ч fraction-г хадгална —
-    // index alignment-г хадгалахад хэрэгтэй (paint дотор skip хийнэ)
     return List.generate(
       chapters.length,
       (i) => chapters[i].startMs / ms,
@@ -318,14 +303,11 @@ class _ChapterPainterCache {
     );
   }
 
-  /// O(log n) binary search: posMs-д хамааралтай chapter index
   int activeChapterIndex(int posMs) {
     if (fractions.isEmpty) return -1;
     int lo = 0, hi = fractions.length - 1, result = -1;
     while (lo <= hi) {
       final mid = (lo + hi) ~/ 2;
-      // Chapter-ийн startMs <= posMs бол candidate
-      // (fractions[mid] * duration_ms ≈ startMs)
       if ((fractions[mid] * 1e9).round() <= posMs * 1e3.round()) {
         result = mid;
         lo = mid + 1;
@@ -337,7 +319,6 @@ class _ChapterPainterCache {
   }
 }
 
-// ── _Bar ──────────────────────────────────────────────────────────────────────
 class _Bar extends StatelessWidget {
   const _Bar({
     required this.w,
@@ -358,7 +339,6 @@ class _Bar extends StatelessWidget {
   );
 }
 
-// ── _Dot ──────────────────────────────────────────────────────────────────────
 class _Dot extends StatelessWidget {
   const _Dot({
     required this.posRatio,
@@ -382,7 +362,6 @@ class _Dot extends StatelessWidget {
       decoration: BoxDecoration(
         color: style.dotColor,
         shape: BoxShape.circle,
-        // Drag хийж байвал shadow нэм
         boxShadow: isDragging
             ? [
                 BoxShadow(
@@ -397,7 +376,6 @@ class _Dot extends StatelessWidget {
   }
 }
 
-// ── _SeekThumbnail ────────────────────────────────────────────────────────────
 class SeekThumbnail extends StatelessWidget {
   const SeekThumbnail({
     required this.position,
@@ -423,11 +401,7 @@ class SeekThumbnail extends StatelessWidget {
           placeholder: (_, __) => const SizedBox.shrink(),
           errorWidget: (_, __, ___) => Container(
             color: Colors.black45,
-            child: const Icon(
-              Icons.image_not_supported,
-              color: Colors.white38,
-              size: 24,
-            ),
+            child: const Icon(Icons.image_not_supported, color: Colors.white38, size: 24),
           ),
         ),
         Align(
@@ -460,7 +434,6 @@ class SeekThumbnail extends StatelessWidget {
   }
 }
 
-// ── _Tooltip ──────────────────────────────────────────────────────────────────
 class Tooltips extends StatelessWidget {
   const Tooltips({required this.position, required this.style});
   final Duration position;
@@ -468,8 +441,6 @@ class Tooltips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = _fmt(position);
-
     return Align(
       alignment: Alignment.center,
       child: Container(
@@ -479,7 +450,7 @@ class Tooltips extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
-          text,
+          _fmt(position),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 16,

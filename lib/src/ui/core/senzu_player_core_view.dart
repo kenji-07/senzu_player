@@ -20,7 +20,6 @@ import 'package:senzu_player/src/data/models/senzu_metadata.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
 import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
 
-
 class SenzuPlayerCoreView extends StatefulWidget {
   const SenzuPlayerCoreView({
     super.key,
@@ -1074,18 +1073,13 @@ class _AdViewer extends StatelessWidget {
           Positioned(
             left: 0,
             bottom: 0,
-            child:
-                style.skipAdBuilder?.call(watched) ??
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  child: Text(
-                    'Ad $current of $total',
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Text(
+                'Ad $current of $total',
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
           ),
           Positioned(
             right: 16,
