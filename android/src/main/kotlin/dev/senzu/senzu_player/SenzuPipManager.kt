@@ -1,8 +1,10 @@
 package dev.senzu.senzu_player
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.PictureInPictureParams
 import android.content.pm.PackageManager
+import android.content.Context
 import android.os.Build
 import android.util.Rational
 import androidx.annotation.RequiresApi
@@ -64,10 +66,9 @@ class SenzuPipManager(private val getActivity: () -> Activity?) {
 
     // ── Exit PiP — Activity-г foreground руу буцаана ──────────────────────
     fun exit() {
-        // Android-д PiP-ийг программаар "гарах" боломжгүй тул
-        // app-г foreground-д авчирна
         val activity = getActivity() ?: return
-        activity.moveTaskToFront(activity.taskId, 0)
+        val am = activity.getSystemService(android.content.Context.ACTIVITY_SERVICE) as? ActivityManager
+        am?.moveTaskToFront(activity.taskId, 0)
     }
 
     // ── Activity PiP callback-уудыг хүлээн авна (FlutterActivity-аас) ────

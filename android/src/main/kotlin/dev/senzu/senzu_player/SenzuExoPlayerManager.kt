@@ -88,15 +88,15 @@ class SenzuExoPlayerManager(
     // ── initialize ─────────────────────────────────────────────────────────
     private fun initialize(args: Map<*, *>?, result: MethodChannel.Result) {
         val url = args?.get("url") as? String
-            ?: run { result.error("BAD_ARGS", "url required", null); return }
+        ?: run { result.error("BAD_ARGS", "url required", null); return }
 
-        @Suppress("UNCHECKED_CAST")
-        val headers = (args["headers"] as? Map<String, String>) ?: emptyMap()
+    @Suppress("UNCHECKED_CAST")
+    val headers = (args["headers"] as? Map<String, String>) ?: emptyMap()
 
-        val drmConfig = SenzuWidevineConfig.from(args)
+    val drmConfig = SenzuWidevineConfig.from(args)
 
-        mainHandler.post {
-            releasePlayer()
+    mainHandler.post {
+        releasePlayer()
 
             val selector = DefaultTrackSelector(context)
             trackSelector = selector
@@ -123,7 +123,12 @@ class SenzuExoPlayerManager(
                 .setLoadControl(loadControl)
                 .build()
 
-            val surface = Surface(textureEntry.surfaceTexture())
+            val surfaceTexture = textureEntry.surfaceTexture()
+        if (surfaceTexture.isReleased) {
+            result.error("SURFACE_RELEASED", "SurfaceTexture has been released", null)
+            return@post
+        }
+        val surface = Surface(surfaceTexture)
             exo.setVideoSurface(surface)
 
             exo.addListener(object : Player.Listener {
@@ -393,18 +398,19 @@ class SenzuExoPlayerManager(
 
     // ── Dispose ────────────────────────────────────────────────────────────
     fun dispose(result: MethodChannel.Result? = null) {
-        mainHandler.post {
-            mediaSessionManager?.teardown()
-            releasePlayer()
-            textureEntry.release()
-            result?.success(null)
-        }
+    mainHandler.post {
+        mediaSessionManager?.teardown()
+        releasePlayer()
+        textureEntry.release() // Зөвхөн эцсийн dispose-д
+        result?.success(null)
     }
+}
 
     private fun releasePlayer() {
-        stopPositionPolling()
-        player?.release()
-        player = null
-        trackSelector = null
-    }
+    stopPositionPolling()
+    player?.release()
+    player = null
+    trackSelector = null
+    // textureEntry.release() ЭНД ДУУДАХГҮЙ
+}
 }
