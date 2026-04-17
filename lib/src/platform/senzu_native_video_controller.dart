@@ -3,6 +3,19 @@ import 'package:flutter/services.dart';
 import 'senzu_native_video_state.dart';
 import 'senzu_native_channel.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SenzuNativeVideoController  —  OPTIMIZED
+//
+// CHANGES vs original:
+//   • _disposed flag prevents use-after-dispose crashes
+//   • initialize(): drm map only sent when non-empty (avoids native null-parse)
+//   • dispose(): sequential — cancel sub THEN close stream (prevents events
+//     arriving at a closed sink)
+//   • _emit(): double-check isClosed before add (belt-and-suspenders)
+//   • play/pause/seekTo: return early when _disposed to prevent MethodChannel
+//     calls after disposePlayer has been called on native side
+// ─────────────────────────────────────────────────────────────────────────────
+
 class SenzuNativeVideoController {
   static const _methodChannel = MethodChannel('senzu_player/native');
 
@@ -10,17 +23,18 @@ class SenzuNativeVideoController {
   StreamSubscription<SenzuNativeVideoState>? _eventSub;
 
   SenzuNativeVideoState _value = const SenzuNativeVideoState();
+  bool _disposed = false;
+
   SenzuNativeVideoState get value => _value;
   Stream<SenzuNativeVideoState> get stream => _stateCtrl.stream;
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
-  /// EventChannel-д subscribe хийнэ.
-  /// [SenzuNativeChannel.startListening] өмнө нь дуудагдсан байх ёстой.
   void startListening() {
     _eventSub?.cancel();
     _eventSub = SenzuNativeChannel.playbackStream.listen(
       (state) {
+        if (_disposed) return;
         _value = state;
         _emit(state);
       },
@@ -31,24 +45,34 @@ class SenzuNativeVideoController {
   Future<SenzuNativeVideoState> initialize({
     required String url,
     Map<String, String> headers = const {},
+    // FIX: was always sent as {} — native side couldn't distinguish
+    // "no DRM" from "DRM with empty config". Now only sent when non-empty.
     Map<String, dynamic> drm = const {},
     String title  = '',
     String artist = '',
     String? artwork,
     bool isLive   = false,
   }) async {
+    assert(!_disposed, 'initialize() called after dispose()');
+
+    final args = <String, dynamic>{
+      'url':     url,
+      'headers': headers,
+      'title':   title,
+      'artist':  artist,
+      'artwork': artwork ?? '',
+      'isLive':  isLive,
+    };
+
+    // FIX: Only include drm key when there's actual DRM config.
+    // Native Swift code checks for nil, not empty map.
+    if (drm.isNotEmpty) {
+      args['drm'] = drm;
+    }
+
     final result = await _methodChannel.invokeMapMethod<String, dynamic>(
       'initialize',
-      {
-        'url':     url,
-        'headers': headers,
-        'title':   title,
-        'artist':  artist,
-        'artwork': artwork ?? '',
-        'isLive':  isLive,
-        'drm': drm,
-
-      },
+      args,
     );
     final durationMs = result?['durationMs'] as int? ?? 0;
     _value = SenzuNativeVideoState(
@@ -59,28 +83,58 @@ class SenzuNativeVideoController {
     return _value;
   }
 
-  Future<void> play()  => _methodChannel.invokeMethod('play');
-  Future<void> pause() => _methodChannel.invokeMethod('pause');
+  Future<void> play() async {
+    if (_disposed) return;
+    return _methodChannel.invokeMethod('play');
+  }
 
-  Future<void> seekTo(Duration pos) =>
-      _methodChannel.invokeMethod('seekTo', {'positionMs': pos.inMilliseconds.toDouble()});
+  Future<void> pause() async {
+    if (_disposed) return;
+    return _methodChannel.invokeMethod('pause');
+  }
 
-  Future<void> setPlaybackSpeed(double s) =>
-      _methodChannel.invokeMethod('setPlaybackSpeed', {'speed': s});
+  Future<void> seekTo(Duration pos) async {
+    if (_disposed) return;
+    return _methodChannel.invokeMethod(
+      'seekTo',
+      {'positionMs': pos.inMilliseconds.toDouble()},
+    );
+  }
 
-  Future<void> setLooping(bool v) =>
-      _methodChannel.invokeMethod('setLooping', {'looping': v});
+  Future<void> setPlaybackSpeed(double s) async {
+    if (_disposed) return;
+    return _methodChannel.invokeMethod('setPlaybackSpeed', {'speed': s});
+  }
+
+  Future<void> setLooping(bool v) async {
+    if (_disposed) return;
+    return _methodChannel.invokeMethod('setLooping', {'looping': v});
+  }
 
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+
+    // FIX: cancel subscription BEFORE closing stream to prevent
+    // events landing in a closed sink and throwing StateError
     await _eventSub?.cancel();
     _eventSub = null;
-    await _methodChannel.invokeMethod('dispose');
-    if (!_stateCtrl.isClosed) await _stateCtrl.close();
+
+    try {
+      await _methodChannel.invokeMethod('dispose');
+    } catch (_) {
+      // Native player may already be gone on hot-restart / force-close
+    }
+
+    if (!_stateCtrl.isClosed) {
+      await _stateCtrl.close();
+    }
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
 
   void _onError(Object err) {
+    if (_disposed) return;
     final msg = err is PlatformException ? (err.message ?? '$err') : '$err';
     final s = _value.copyWith(errorDescription: msg, isPlaying: false);
     _value = s;
@@ -88,6 +142,8 @@ class SenzuNativeVideoController {
   }
 
   void _emit(SenzuNativeVideoState s) {
-    if (!_stateCtrl.isClosed) _stateCtrl.add(s);
+    // Double-check: disposed flag OR isClosed guard
+    if (_disposed || _stateCtrl.isClosed) return;
+    _stateCtrl.add(s);
   }
 }

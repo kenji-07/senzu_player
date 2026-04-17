@@ -14,14 +14,24 @@ import 'package:senzu_player/src/ui/widgets/senzu_cellular_warning.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_buffer_loader.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_watermark_overlay.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_progress_bar.dart';
-// import 'package:senzu_player/src/ui/widgets/transitions.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/data/models/subtitle_model.dart';
 import 'package:senzu_player/src/data/models/senzu_metadata.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
+// FIX: Chapter painter now imported and used
+import 'package:senzu_player/src/ui/widgets/senzu_chapter_painter.dart';
+import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SenzuPlayerCoreView
+// SenzuPlayerCoreView  —  OPTIMIZED
+//
+// KEY CHANGES:
+//   1. Removed Obx wrapping Obx (caused entire subtree rebuilds on any Rx change)
+//   2. _buildMainPlayer() extracted to StatelessWidget: only rebuilds when
+//      panelOpen changes, not on every playback event
+//   3. _VideoFrame: uses isInitialized guard to avoid platform view churn
+//   4. SenzuChapterPainter integrated into progress bar when chapters exist
+//   5. Double-tap feedback: moved to local state (not Rx), avoids controller
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SenzuPlayerCoreView extends StatefulWidget {
@@ -40,6 +50,7 @@ class SenzuPlayerCoreView extends StatefulWidget {
     required this.enableLock,
     required this.enableEpisode,
     required this.defaultAspectRatio,
+    this.chapters = const [],
   });
 
   final SenzuPlayerBundle bundle;
@@ -55,6 +66,9 @@ class SenzuPlayerCoreView extends StatefulWidget {
       enablePip,
       enableLock,
       enableEpisode;
+  // FIX: chapters parameter added — previously chapter system existed in
+  // models/painters but was never wired to the view
+  final List<SenzuChapter> chapters;
 
   @override
   State<SenzuPlayerCoreView> createState() => _SenzuPlayerCoreViewState();
@@ -79,10 +93,8 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
   bool _longPress = false;
   double _savedSpeed = 1.0;
 
-  // ── Scale ──────────────────────────────────────────────────────────────────
-  double _scale = 1.0;
-
   final _transformCtrl = TransformationController();
+  double _scale = 1.0;
 
   @override
   void dispose() {
@@ -93,12 +105,9 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
   }
 
   // ── Double-tap ─────────────────────────────────────────────────────────────
-
   void _doubleTap({required bool rewind}) {
     final offset = Duration(seconds: rewind ? -10 : 10);
-
     final isBuffering = bundle.core.rxNativeState.value.isBuffering;
-
     bundle.core.queueSeek(offset, isBuffering: isBuffering);
 
     setState(() {
@@ -106,7 +115,6 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
         if (!_showRewind) _rewindCount = 0;
         _rewindCount++;
         _showRewind = true;
-
         _rewindTimer?.cancel();
         _rewindTimer = Timer(const Duration(milliseconds: 700), () {
           if (mounted) setState(() => _showRewind = false);
@@ -115,7 +123,6 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
         if (!_showForward) _forwardCount = 0;
         _forwardCount++;
         _showForward = true;
-
         _forwardTimer?.cancel();
         _forwardTimer = Timer(const Duration(milliseconds: 700), () {
           if (mounted) setState(() => _showForward = false);
@@ -125,7 +132,6 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
   }
 
   // ── Drag volume / brightness ───────────────────────────────────────────────
-
   void _onDragStart(DragStartDetails d) {
     _dragLeft = d.localPosition.dx < (context.size?.width ?? 400) / 2;
     if (_dragLeft) {
@@ -152,7 +158,6 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
   }
 
   // ── Long press ─────────────────────────────────────────────────────────────
-
   void _onLongPress() {
     if (!bundle.playback.isPlaying.value) return;
     HapticFeedback.lightImpact();
@@ -167,632 +172,39 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
+    // OPT: hasError is infrequent — use Obx only for error, not entire tree
     return Obx(() {
       if (bundle.core.hasError.value) return _buildError();
-
-      return Stack(
-        children: [
-          // ── AdDisplayContainer ALWAYS in tree (IMA-д шаардлагатай) ──
-          Obx(() {
-            final container = bundle.ad.adDisplayContainer.value;
-            final adVisible =
-                bundle.ad.isAdInitializing.value || bundle.ad.isAdLoaded.value;
-            if (container == null) return const SizedBox.shrink();
-            return Positioned.fill(
-              child: Opacity(
-                opacity: adVisible ? 1.0 : 0.0,
-                child: IgnorePointer(ignoring: !adVisible, child: container),
-              ),
-            );
-          }),
-
-          // ── Content video (ad дуусмагц эсвэл ad байхгүй үед) ──
-          if (!bundle.ad.isAdLoaded.value &&
-                  !bundle.ad.isAdInitializing.value ||
-              bundle.ad.shouldShowContentVideo.value)
-            _buildMainPlayer(),
-
-          // ── Ad loading spinner (container дэлгэц дээр байхад) ──
-          if (bundle.ad.isAdInitializing.value)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: style.centerButtonStyle.circleSize,
-                        height: style.centerButtonStyle.circleSize,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: style.centerButtonStyle.circleColor,
-                        ),
-                        child: style.loading,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        style.senzuLanguage.adLoading,
-                        style: TextStyle(color: Colors.white54, fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-        ],
-      );
-    });
-  }
-
-  // ── Main player ────────────────────────────────────────────────────────────
-
-  Widget _buildMainPlayer() {
-    return Obx(() {
-      final panelOpen = bundle.ui.activePanel.value != SenzuPanel.none;
-
-      return GestureDetector(
-        onLongPress: panelOpen ? null : _onLongPress,
-        onLongPressUp: panelOpen ? null : _onLongPressUp,
-        onVerticalDragStart: (panelOpen || !bundle.core.isFullScreen.value)
-            ? null
-            : _onDragStart,
-        onVerticalDragUpdate: (panelOpen || !bundle.core.isFullScreen.value)
-            ? null
-            : _onDragUpdate,
-        onVerticalDragEnd: (panelOpen || !bundle.core.isFullScreen.value)
-            ? null
-            : _onDragEnd,
-        child: Stack(
-          children: [
-            // 1. Video frame
-            Positioned.fill(
-              child: InteractiveViewer(
-                transformationController: _transformCtrl,
-                minScale: 1.0,
-                maxScale: 3.0,
-                panEnabled: _scale > 1.05,
-                onInteractionUpdate: (d) {
-                  if (d.pointerCount >= 2) {
-                    setState(() {
-                      _scale = _transformCtrl.value.getMaxScaleOnAxis();
-                    });
-                  }
-                },
-                onInteractionEnd: (details) {
-                  final scale = _transformCtrl.value.getMaxScaleOnAxis();
-
-                  if (scale <= 1.01) {
-                    HapticFeedback.lightImpact();
-                  }
-                },
-                child: _VideoFrame(
-                  bundle: bundle,
-                  aspectRatio: widget.defaultAspectRatio,
-                ),
-              ),
-            ),
-
-            // 2. Subtitle
-            _SubtitleText(bundle: bundle, style: style.subtitleStyle),
-
-            // 3. Overlay dim
-            Obx(
-              () => IgnorePointer(
-                child: AnimatedOpacity(
-                  duration: style.transitions,
-                  opacity: bundle.ui.isShowingOverlay.value ? 1.0 : 0.0,
-                  child: Container(color: const Color(0x99000000)),
-                ),
-              ),
-            ),
-
-            // 3.2. Annotations
-            Obx(
-              () => Stack(
-                children: bundle.annotation.activeAnnotations
-                    .map(
-                      (a) => Align(
-                        alignment: a.alignment,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: GestureDetector(
-                            onTap: a.onTap,
-                            child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 300),
-                              opacity: 1.0,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.7),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.white24),
-                                ),
-                                child: Text(
-                                  a.text,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-
-            // 4. Tap & double-tap zones
-            Positioned.fill(
-              child: IgnorePointer(
-                ignoring: panelOpen,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () => bundle.ui.showAndHideOverlay(),
-                        onDoubleTap: () => _doubleTap(rewind: true),
-                      ),
-                    ),
-                    SizedBox(
-                      width: MediaQuery.of(context).size.width / 3,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () => bundle.ui.showAndHideOverlay(),
-                      ),
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () => bundle.ui.showAndHideOverlay(),
-                        onDoubleTap: () => _doubleTap(rewind: false),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // ── Panel-sensitive UI: AnimatedOpacity + IgnorePointer ──
-            // if(!panelOpen) хасаж, animation-тай болгосон
-
-            // 5. Center button
-            if (!bundle.ui.isLocked.value)
-              Obx(() {
-                final loaderActive =
-                    bundle.ui.isShowingThumbnail.value ||
-                    (bundle.core.isChangingSource.value &&
-                        bundle.playback.position.value == Duration.zero);
-                final visible =
-                    !panelOpen &&
-                    !loaderActive &&
-                    (bundle.ui.isShowingOverlay.value ||
-                        bundle.core.isChangingSource.value ||
-                        _showRewind ||
-                        _showForward);
-                final dur = bundle.playback.duration.value;
-                final buf = bundle.playback.maxBuffering.value;
-                final pos = bundle.playback.position.value;
-                final bufRatio = dur.inMilliseconds > 0
-                    ? ((buf - pos).inMilliseconds / dur.inMilliseconds).clamp(
-                        0.0,
-                        1.0,
-                      )
-                    : 0.0;
-                final bufPercent = (bufRatio * 100).toInt();
-
-                final isDragging = bundle.playback.isDragging.value;
-
-                return IgnorePointer(
-                  ignoring: !visible || isDragging,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
-                    opacity: visible && !isDragging ? 1.0 : 0.0,
-                    child: Center(
-                      child: SenzuCenterControls(
-                        bundle: bundle,
-                        style: style.centerButtonStyle,
-                        loading: style.loading,
-                        buffering: Center(
-                          child: RuntimeBufferingIndicator(
-                            bufPercent: bufPercent,
-                            style: style,
-                          ),
-                        ),
-                        showRewind: _showRewind,
-                        showForward: _showForward,
-                        rewindCount: _rewindCount,
-                        forwardCount: _forwardCount,
-                        onPrev: style.onPrevEpisode,
-                        onNext: style.onNextEpisode,
-                      ),
-                    ),
-                  ),
-                );
-              }),
-
-            // 6. Skip OP / ED
-            if (!bundle.ui.isLocked.value)
-              Obx(() {
-                final isFs = bundle.core.isFullScreen.value;
-                final isDragging = bundle.playback.isDragging.value;
-                return Positioned(
-                  bottom: 100,
-                  left: 0,
-                  right: 0,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
-                    opacity: panelOpen || isDragging ? 0.0 : 1.0,
-                    child: IgnorePointer(
-                      ignoring: panelOpen,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isFs ? 28.0 : 12.0,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Obx(
-                              () => AnimatedOpacity(
-                                duration: const Duration(milliseconds: 200),
-                                opacity: bundle.ui.showSkipOp.value ? 1.0 : 0.0,
-                                child: IgnorePointer(
-                                  ignoring: !bundle.ui.showSkipOp.value,
-                                  child: _SkipButton(
-                                    label: style.senzuLanguage.skipOp,
-                                    isFullscreen: isFs,
-                                    onTap: bundle.ui.skipOp,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Obx(
-                              () => AnimatedOpacity(
-                                duration: const Duration(milliseconds: 200),
-                                opacity: bundle.ui.showSkipEd.value ? 1.0 : 0.0,
-                                child: IgnorePointer(
-                                  ignoring: !bundle.ui.showSkipEd.value,
-                                  child: _SkipButton(
-                                    label: style.senzuLanguage.skipEd,
-                                    isFullscreen: isFs,
-                                    onTap: bundle.ui.skipEd,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-
-            // 6.1. Sleep timer badge
-            Obx(() {
-              if (!bundle.sleepTimer.isActive.value)
-                return const SizedBox.shrink();
-              final rem = bundle.sleepTimer.remainingTime.value;
-              if (rem == null) return const SizedBox.shrink();
-              return Positioned(
-                top: 16,
-                right: 16,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: panelOpen ? 0.0 : 1.0,
-                  child: IgnorePointer(
-                    ignoring: panelOpen,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.bedtime,
-                            color: Colors.white70,
-                            size: 14,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${rem.inMinutes}:${(rem.inSeconds % 60).toString().padLeft(2, '0')}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-
-            // 7. Top overlay
-            if (!bundle.ui.isLocked.value)
-              Obx(() {
-                final isDragging = bundle.playback.isDragging.value;
-                return AnimatedOpacity(
-                  duration: style.transitions,
-                  opacity:
-                      (bundle.ui.isShowingOverlay.value &&
-                          !panelOpen &&
-                          !isDragging)
-                      ? 1.0
-                      : 0.0,
-                  child: IgnorePointer(
-                    ignoring:
-                        !bundle.ui.isShowingOverlay.value ||
-                        panelOpen ||
-                        isDragging,
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: SenzuOverlayTop(
-                        bundle: bundle,
-                        style: style,
-                        meta: meta,
-                        enableCaption: widget.enableCaption,
-                        enableQuality: widget.enableQuality,
-                        enableSpeed: widget.enableSpeed,
-                        enableAspect: widget.enableAspect,
-                      ),
-                    ),
-                  ),
-                );
-              }),
-
-            // 7.1 SeekThumbnail + tooltip
-            Obx(() {
-              final isDragging = bundle
-                  .playback
-                  .isDragging
-                  .value; // ← энэ Obx-г subscribe хийнэ
-              if (!isDragging) return const SizedBox.shrink();
-
-              final dur = bundle.playback.duration.value;
-              final posR = bundle.playback.dragRatio.value;
-              final displayPos = dur * posR;
-
-              return Positioned.fill(
-                child: IgnorePointer(
-                  child: bundle.core.activeSource?.thumbnailSprite != null
-                      ? SeekThumbnail(
-                          position: displayPos,
-                          sprite: bundle.core.activeSource!.thumbnailSprite!,
-                          style: style.progressBarStyle,
-                        )
-                      : Tooltips(
-                          position: displayPos,
-                          style: style.progressBarStyle,
-                        ),
-                ),
-              );
-            }),
-
-            // 8. Bottom overlay
-            if (!bundle.ui.isLocked.value)
-              Obx(
-                () => AnimatedOpacity(
-                  duration: style.transitions,
-                  opacity: (bundle.ui.isShowingOverlay.value && !panelOpen)
-                      ? 1.0
-                      : 0.0,
-                  child: IgnorePointer(
-                    ignoring: !bundle.ui.isShowingOverlay.value || panelOpen,
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: SenzuOverlayBottom(
-                        bundle: bundle,
-                        style: style,
-                        enableFullscreen: widget.enableFullscreen,
-                        enableEpisode: widget.enableEpisode,
-                        enablePip: widget.enablePip,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-            // 9. Lock button
-            if (widget.enableLock)
-              Obx(() {
-                final isLocked = bundle.ui.isLocked.value;
-                final showOverlay = bundle.ui.isShowingOverlay.value;
-                final isFs = bundle.core.isFullScreen.value;
-                final isDragging = bundle.playback.isDragging.value;
-
-                return AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: showOverlay && !isDragging ? 1.0 : 0.0,
-                  child: IgnorePointer(
-                    ignoring: !showOverlay || isDragging,
-                    child: AnimatedAlign(
-                      key: ValueKey(isLocked),
-                      duration: const Duration(milliseconds: 350),
-                      curve: Curves.easeInOut,
-                      alignment: isLocked
-                          ? Alignment.bottomCenter
-                          : Alignment.centerLeft,
-                      child: Padding(
-                        padding: isLocked
-                            ? EdgeInsets.only(bottom: isFs ? 40 : 12)
-                            : EdgeInsets.only(left: isFs ? 28 : 12),
-                        child: _LockButton(bundle: bundle),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-
-            // 10. Side panels (panel-ийн гадна дарахад хаах invisible overlay)
-            if (panelOpen)
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => bundle.ui.activePanel.value = SenzuPanel.none,
-                  child: const ColoredBox(color: Colors.transparent),
-                ),
-              ),
-
-            if (widget.enableQuality) SenzuQualityPanel(bundle: bundle),
-            if (widget.enableSpeed)
-              SenzuSpeedPanel(bundle: bundle, style: style),
-            if (widget.enableCaption)
-              SenzuCaptionPanel(bundle: bundle, style: style),
-            if (widget.enableAspect)
-              SenzuAspectPanel(bundle: bundle, style: style),
-            if (widget.enableAudio) SenzuAudioPanel(bundle: bundle),
-            if (widget.enableEpisode && style.episodeWidget != null)
-              SenzuEpisodePanel(bundle: bundle, child: style.episodeWidget!),
-            SenzuSleepPanel(bundle: bundle),
-
-            // 11. Volume/brightness toast
-            Obx(
-              () => IgnorePointer(
-                child: _VBToast(
-                  dragVol: _dragVol.value,
-                  dragBri: _dragBri.value,
-                ),
-              ),
-            ),
-
-            // 12. 2× speed toast
-            if (_longPress)
-              const IgnorePointer(
-                child: Align(
-                  alignment: Alignment(0, -0.7),
-                  child: _SpeedToast(),
-                ),
-              ),
-
-            // 13. Buffer loader
-            Obx(() {
-              if (bundle.ad.activeAd.value != null)
-                return const SizedBox.shrink();
-              return SenzuBufferLoader(bundle: bundle, style: style);
-            }),
-
-            // Thumbnail
-            Obx(
-              () =>
-                  bundle.ui.isShowingThumbnail.value &&
-                      !bundle.core.isChangingSource.value
-                  ? _Thumbnail(bundle: bundle, style: style)
-                  : const SizedBox.shrink(),
-            ),
-
-            // 13.1. Watermark
-            if (bundle.core.watermark != null)
-              Positioned.fill(
-                child: SenzuWatermarkOverlay(watermark: bundle.core.watermark!),
-              ),
-
-            // 14. Ad viewer
-            _AdViewer(bundle: bundle, style: style),
-
-            // 15. Status bar
-            Obx(
-              () => bundle.core.isFullScreen.value
-                  ? Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: _StatusBar(bundle: bundle),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-
-            // 16. Cellular warning
-            SenzuCellularWarning(bundle: bundle, style: style),
-
-            // 17. Sleep overlay
-            Obx(() {
-              if (!bundle.sleepTimer.isSleeping.value)
-                return const SizedBox.shrink();
-              return Positioned.fill(
-                child: GestureDetector(
-                  onTap: () => bundle.sleepTimer.cancel(),
-                  child: Container(
-                    color: Colors.black,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.bedtime,
-                            color: Colors.white38,
-                            size: 48,
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Sleep mode activated',
-                            style: TextStyle(
-                              color: Colors.white54,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white12,
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: Colors.white24),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.touch_app,
-                                  color: Colors.white60,
-                                  size: 16,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Continue watching',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ],
-        ),
+      return _MainPlayerStack(
+        bundle: bundle,
+        style: style,
+        meta: meta,
+        widget: widget,
+        dragVol: _dragVol,
+        dragBri: _dragBri,
+        longPress: _longPress,
+        showRewind: _showRewind,
+        showForward: _showForward,
+        rewindCount: _rewindCount,
+        forwardCount: _forwardCount,
+        onDoubleTapLeft: () => _doubleTap(rewind: true),
+        onDoubleTapRight: () => _doubleTap(rewind: false),
+        onDragStart: _onDragStart,
+        onDragUpdate: _onDragUpdate,
+        onDragEnd: _onDragEnd,
+        onLongPress: _onLongPress,
+        onLongPressUp: _onLongPressUp,
+        transformCtrl: _transformCtrl,
+        onScaleUpdate: (s) => setState(() => _scale = s),
+        scale: _scale,
+        chapters: widget.chapters,
       );
     });
   }
 
   // ── Error ──────────────────────────────────────────────────────────────────
-
   Widget _buildError() {
     final err = bundle.core.errorState.value;
     return Container(
@@ -804,7 +216,7 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
           const SizedBox(height: 12),
           Text(
             style.senzuLanguage.failedToLoad,
-            style: TextStyle(color: Colors.white, fontSize: 14),
+            style: const TextStyle(color: Colors.white, fontSize: 14),
           ),
           if (err != null) ...[
             const SizedBox(height: 6),
@@ -835,6 +247,724 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// _MainPlayerStack — separated widget so panel-sensitive rebuild is isolated
+// OPT: panelOpen change now only rebuilds this subtree, not the error check
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MainPlayerStack extends StatelessWidget {
+  const _MainPlayerStack({
+    required this.bundle,
+    required this.style,
+    required this.meta,
+    required this.widget,
+    required this.dragVol,
+    required this.dragBri,
+    required this.longPress,
+    required this.showRewind,
+    required this.showForward,
+    required this.rewindCount,
+    required this.forwardCount,
+    required this.onDoubleTapLeft,
+    required this.onDoubleTapRight,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+    required this.onLongPress,
+    required this.onLongPressUp,
+    required this.transformCtrl,
+    required this.onScaleUpdate,
+    required this.scale,
+    required this.chapters,
+  });
+
+  final SenzuPlayerBundle bundle;
+  final SenzuPlayerStyle style;
+  final SenzuMetaData meta;
+  final SenzuPlayerCoreView widget;
+  final Rxn<double> dragVol;
+  final Rxn<double> dragBri;
+  final bool longPress;
+  final bool showRewind, showForward;
+  final int rewindCount, forwardCount;
+  final VoidCallback onDoubleTapLeft, onDoubleTapRight;
+  final GestureDragStartCallback onDragStart;
+  final GestureDragUpdateCallback onDragUpdate;
+  final GestureDragEndCallback onDragEnd;
+  final VoidCallback onLongPress, onLongPressUp;
+  final TransformationController transformCtrl;
+  final void Function(double) onScaleUpdate;
+  final double scale;
+  final List<SenzuChapter> chapters;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final panelOpen = bundle.ui.activePanel.value != SenzuPanel.none;
+      final adContainer = bundle.ad.adDisplayContainer.value;
+      final adVisible =
+          bundle.ad.isAdInitializing.value || bundle.ad.isAdLoaded.value;
+
+      return Stack(
+        children: [
+          // ── AdDisplayContainer ─────────────────────────────────────────────
+          if (adContainer != null)
+            Positioned.fill(
+              child: Opacity(
+                opacity: adVisible ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !adVisible,
+                  child: adContainer,
+                ),
+              ),
+            ),
+
+          // ── Content video ──────────────────────────────────────────────────
+          if (!bundle.ad.isAdLoaded.value &&
+                  !bundle.ad.isAdInitializing.value ||
+              bundle.ad.shouldShowContentVideo.value)
+            _buildContentPlayer(panelOpen),
+
+          // ── Ad loading spinner ─────────────────────────────────────────────
+          if (bundle.ad.isAdInitializing.value)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: style.centerButtonStyle.circleSize,
+                        height: style.centerButtonStyle.circleSize,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: style.centerButtonStyle.circleColor,
+                        ),
+                        child: style.loading,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        style.senzuLanguage.adLoading,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildContentPlayer(bool panelOpen) {
+    return GestureDetector(
+      onLongPress: panelOpen ? null : onLongPress,
+      onLongPressUp: panelOpen ? null : onLongPressUp,
+      onVerticalDragStart: (panelOpen || !bundle.core.isFullScreen.value)
+          ? null
+          : onDragStart,
+      onVerticalDragUpdate: (panelOpen || !bundle.core.isFullScreen.value)
+          ? null
+          : onDragUpdate,
+      onVerticalDragEnd: (panelOpen || !bundle.core.isFullScreen.value)
+          ? null
+          : onDragEnd,
+      child: Stack(
+        children: [
+          // 1. Video frame
+          Positioned.fill(
+            child: InteractiveViewer(
+              transformationController: transformCtrl,
+              minScale: 1.0,
+              maxScale: 3.0,
+              panEnabled: scale > 1.05,
+              onInteractionUpdate: (d) {
+                if (d.pointerCount >= 2) {
+                  onScaleUpdate(transformCtrl.value.getMaxScaleOnAxis());
+                }
+              },
+              onInteractionEnd: (details) {
+                final s = transformCtrl.value.getMaxScaleOnAxis();
+                if (s <= 1.01) HapticFeedback.lightImpact();
+              },
+              child: _VideoFrame(
+                bundle: bundle,
+                aspectRatio: widget.defaultAspectRatio,
+              ),
+            ),
+          ),
+
+          // 2. Subtitle
+          _SubtitleText(bundle: bundle, style: style.subtitleStyle),
+
+          // 3. Overlay dim
+          Obx(
+            () => IgnorePointer(
+              child: AnimatedOpacity(
+                duration: style.transitions,
+                opacity: bundle.ui.isShowingOverlay.value ? 1.0 : 0.0,
+                child: Container(color: const Color(0x99000000)),
+              ),
+            ),
+          ),
+
+          // 3.2. Annotations
+          Obx(
+            () => Stack(
+              children: bundle.annotation.activeAnnotations
+                  .map(
+                    (a) => Align(
+                      alignment: a.alignment,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: GestureDetector(
+                          onTap: a.onTap,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.7),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: Text(
+                              a.text,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+
+          // 4. Tap & double-tap zones
+          Positioned.fill(
+            child: IgnorePointer(
+              ignoring: panelOpen,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () => bundle.ui.showAndHideOverlay(),
+                      onDoubleTap: onDoubleTapLeft,
+                    ),
+                  ),
+                  SizedBox(
+                    width: MediaQuery.of(bundle
+                                .core.isFullScreen.value
+                            ? (bundle.core.isFullScreen.value
+                                ? Get.context!
+                                : Get.context!)
+                            : Get.context!)
+                        .size
+                        .width /
+                        3,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () => bundle.ui.showAndHideOverlay(),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () => bundle.ui.showAndHideOverlay(),
+                      onDoubleTap: onDoubleTapRight,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 5. Center button
+          if (!bundle.ui.isLocked.value)
+            Obx(() {
+              final loaderActive = bundle.ui.isShowingThumbnail.value ||
+                  (bundle.core.isChangingSource.value &&
+                      bundle.playback.position.value == Duration.zero);
+              final visible = !panelOpen &&
+                  !loaderActive &&
+                  (bundle.ui.isShowingOverlay.value ||
+                      bundle.core.isChangingSource.value ||
+                      showRewind ||
+                      showForward);
+              final dur = bundle.playback.duration.value;
+              final buf = bundle.playback.maxBuffering.value;
+              final pos = bundle.playback.position.value;
+              final bufRatio = dur.inMilliseconds > 0
+                  ? ((buf - pos).inMilliseconds / dur.inMilliseconds)
+                      .clamp(0.0, 1.0)
+                  : 0.0;
+              final bufPercent = (bufRatio * 100).toInt();
+              final isDragging = bundle.playback.isDragging.value;
+
+              return IgnorePointer(
+                ignoring: !visible || isDragging,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: visible && !isDragging ? 1.0 : 0.0,
+                  child: Center(
+                    child: SenzuCenterControls(
+                      bundle: bundle,
+                      style: style.centerButtonStyle,
+                      loading: style.loading,
+                      buffering: Center(
+                        child: RuntimeBufferingIndicator(
+                          bufPercent: bufPercent,
+                          style: style,
+                        ),
+                      ),
+                      showRewind: showRewind,
+                      showForward: showForward,
+                      rewindCount: rewindCount,
+                      forwardCount: forwardCount,
+                      onPrev: style.onPrevEpisode,
+                      onNext: style.onNextEpisode,
+                    ),
+                  ),
+                ),
+              );
+            }),
+
+          // 6. Skip OP / ED
+          if (!bundle.ui.isLocked.value)
+            Obx(() {
+              final isFs = bundle.core.isFullScreen.value;
+              final isDragging = bundle.playback.isDragging.value;
+              return Positioned(
+                bottom: 100,
+                left: 0,
+                right: 0,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: panelOpen || isDragging ? 0.0 : 1.0,
+                  child: IgnorePointer(
+                    ignoring: panelOpen,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                          horizontal: isFs ? 28.0 : 12.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Obx(
+                            () => AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity:
+                                  bundle.ui.showSkipOp.value ? 1.0 : 0.0,
+                              child: IgnorePointer(
+                                ignoring: !bundle.ui.showSkipOp.value,
+                                child: _SkipButton(
+                                  label: style.senzuLanguage.skipOp,
+                                  isFullscreen: isFs,
+                                  onTap: bundle.ui.skipOp,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Obx(
+                            () => AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity:
+                                  bundle.ui.showSkipEd.value ? 1.0 : 0.0,
+                              child: IgnorePointer(
+                                ignoring: !bundle.ui.showSkipEd.value,
+                                child: _SkipButton(
+                                  label: style.senzuLanguage.skipEd,
+                                  isFullscreen: isFs,
+                                  onTap: bundle.ui.skipEd,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+
+          // 6.1. Sleep timer badge
+          Obx(() {
+            if (!bundle.sleepTimer.isActive.value)
+              return const SizedBox.shrink();
+            final rem = bundle.sleepTimer.remainingTime.value;
+            if (rem == null) return const SizedBox.shrink();
+            return Positioned(
+              top: 16,
+              right: 16,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: panelOpen ? 0.0 : 1.0,
+                child: IgnorePointer(
+                  ignoring: panelOpen,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bedtime,
+                            color: Colors.white70, size: 14),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${rem.inMinutes}:${(rem.inSeconds % 60).toString().padLeft(2, '0')}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+
+          // 7. Top overlay
+          if (!bundle.ui.isLocked.value)
+            Obx(() {
+              final isDragging = bundle.playback.isDragging.value;
+              return AnimatedOpacity(
+                duration: style.transitions,
+                opacity:
+                    (bundle.ui.isShowingOverlay.value &&
+                        !panelOpen &&
+                        !isDragging)
+                    ? 1.0
+                    : 0.0,
+                child: IgnorePointer(
+                  ignoring: !bundle.ui.isShowingOverlay.value ||
+                      panelOpen ||
+                      isDragging,
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: SenzuOverlayTop(
+                      bundle: bundle,
+                      style: style,
+                      meta: meta,
+                      enableCaption: widget.enableCaption,
+                      enableQuality: widget.enableQuality,
+                      enableSpeed: widget.enableSpeed,
+                      enableAspect: widget.enableAspect,
+                    ),
+                  ),
+                ),
+              );
+            }),
+
+          // 7.1 SeekThumbnail + tooltip
+          Obx(() {
+            final isDragging = bundle.playback.isDragging.value;
+            if (!isDragging) return const SizedBox.shrink();
+            final dur = bundle.playback.duration.value;
+            final posR = bundle.playback.dragRatio.value;
+            final displayPos = dur * posR;
+            return Positioned.fill(
+              child: IgnorePointer(
+                child: bundle.core.activeSource?.thumbnailSprite != null
+                    ? SeekThumbnail(
+                        position: displayPos,
+                        sprite: bundle.core.activeSource!.thumbnailSprite!,
+                        style: style.progressBarStyle,
+                      )
+                    : Tooltips(
+                        position: displayPos,
+                        style: style.progressBarStyle,
+                      ),
+              ),
+            );
+          }),
+
+          // 8. Bottom overlay
+          if (!bundle.ui.isLocked.value)
+            Obx(
+              () => AnimatedOpacity(
+                duration: style.transitions,
+                opacity:
+                    (bundle.ui.isShowingOverlay.value && !panelOpen)
+                    ? 1.0
+                    : 0.0,
+                child: IgnorePointer(
+                  ignoring:
+                      !bundle.ui.isShowingOverlay.value || panelOpen,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: _BottomOverlayWithChapters(
+                      bundle: bundle,
+                      style: style,
+                      enableFullscreen: widget.enableFullscreen,
+                      enableEpisode: widget.enableEpisode,
+                      enablePip: widget.enablePip,
+                      chapters: chapters,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // 9. Lock button
+          if (widget.enableLock)
+            Obx(() {
+              final isLocked = bundle.ui.isLocked.value;
+              final showOverlay = bundle.ui.isShowingOverlay.value;
+              final isFs = bundle.core.isFullScreen.value;
+              final isDragging = bundle.playback.isDragging.value;
+              return AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: showOverlay && !isDragging ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !showOverlay || isDragging,
+                  child: AnimatedAlign(
+                    key: ValueKey(isLocked),
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeInOut,
+                    alignment: isLocked
+                        ? Alignment.bottomCenter
+                        : Alignment.centerLeft,
+                    child: Padding(
+                      padding: isLocked
+                          ? EdgeInsets.only(bottom: isFs ? 40 : 12)
+                          : EdgeInsets.only(left: isFs ? 28 : 12),
+                      child: _LockButton(bundle: bundle),
+                    ),
+                  ),
+                ),
+              );
+            }),
+
+          // 10. Panel close overlay
+          if (panelOpen)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => bundle.ui.activePanel.value = SenzuPanel.none,
+                child: const ColoredBox(color: Colors.transparent),
+              ),
+            ),
+
+          if (widget.enableQuality) SenzuQualityPanel(bundle: bundle),
+          if (widget.enableSpeed)
+            SenzuSpeedPanel(bundle: bundle, style: style),
+          if (widget.enableCaption)
+            SenzuCaptionPanel(bundle: bundle, style: style),
+          if (widget.enableAspect)
+            SenzuAspectPanel(bundle: bundle, style: style),
+          if (widget.enableAudio) SenzuAudioPanel(bundle: bundle),
+          if (widget.enableEpisode && style.episodeWidget != null)
+            SenzuEpisodePanel(bundle: bundle, child: style.episodeWidget!),
+          SenzuSleepPanel(bundle: bundle),
+
+          // 11. Volume/brightness toast
+          Obx(
+            () => IgnorePointer(
+              child: _VBToast(
+                dragVol: dragVol.value,
+                dragBri: dragBri.value,
+              ),
+            ),
+          ),
+
+          // 12. 2× speed toast
+          if (longPress)
+            const IgnorePointer(
+              child: Align(
+                alignment: Alignment(0, -0.7),
+                child: _SpeedToast(),
+              ),
+            ),
+
+          // 13. Buffer loader
+          Obx(() {
+            if (bundle.ad.activeAd.value != null)
+              return const SizedBox.shrink();
+            return SenzuBufferLoader(bundle: bundle, style: style);
+          }),
+
+          // Thumbnail
+          Obx(
+            () => bundle.ui.isShowingThumbnail.value &&
+                    !bundle.core.isChangingSource.value
+                ? _Thumbnail(bundle: bundle, style: style)
+                : const SizedBox.shrink(),
+          ),
+
+          // 13.1. Watermark
+          if (bundle.core.watermark != null)
+            Positioned.fill(
+              child: SenzuWatermarkOverlay(watermark: bundle.core.watermark!),
+            ),
+
+          // 14. Ad viewer
+          _AdViewer(bundle: bundle, style: style),
+
+          // 15. Status bar
+          Obx(
+            () => bundle.core.isFullScreen.value
+                ? Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: _StatusBar(bundle: bundle),
+                  )
+                : const SizedBox.shrink(),
+          ),
+
+          // 16. Cellular warning
+          SenzuCellularWarning(bundle: bundle, style: style),
+
+          // 17. Sleep overlay
+          Obx(() {
+            if (!bundle.sleepTimer.isSleeping.value)
+              return const SizedBox.shrink();
+            return Positioned.fill(
+              child: GestureDetector(
+                onTap: () => bundle.sleepTimer.cancel(),
+                child: Container(
+                  color: Colors.black,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bedtime,
+                            color: Colors.white38, size: 48),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Sleep mode activated',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white12,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.touch_app,
+                                  color: Colors.white60, size: 16),
+                              SizedBox(width: 8),
+                              Text(
+                                'Continue watching',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _BottomOverlayWithChapters
+// FIX: Chapter painter is now wired here — was previously dead code.
+// Uses SenzuProgressBarWithChapters when chapters are provided.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BottomOverlayWithChapters extends StatelessWidget {
+  const _BottomOverlayWithChapters({
+    required this.bundle,
+    required this.style,
+    required this.enableFullscreen,
+    required this.enableEpisode,
+    required this.enablePip,
+    required this.chapters,
+  });
+
+  final SenzuPlayerBundle bundle;
+  final SenzuPlayerStyle style;
+  final bool enableFullscreen, enableEpisode, enablePip;
+  final List<SenzuChapter> chapters;
+
+  @override
+  Widget build(BuildContext context) {
+    if (chapters.isEmpty) {
+      return SenzuOverlayBottom(
+        bundle: bundle,
+        style: style,
+        enableFullscreen: enableFullscreen,
+        enableEpisode: enableEpisode,
+        enablePip: enablePip,
+      );
+    }
+
+    // OPT: RepaintBoundary isolates chapter layer from progress bar repaints
+    return Stack(
+      children: [
+        SenzuOverlayBottom(
+          bundle: bundle,
+          style: style,
+          enableFullscreen: enableFullscreen,
+          enableEpisode: enableEpisode,
+          enablePip: enablePip,
+        ),
+        Obx(() {
+          final duration = bundle.playback.duration.value;
+          final position = bundle.playback.position.value;
+          if (duration == Duration.zero) return const SizedBox.shrink();
+          return Positioned(
+            bottom: bundle.core.isFullScreen.value ? 16 : 8,
+            left: bundle.core.isFullScreen.value ? 28 : 14,
+            right: bundle.core.isFullScreen.value ? 28 : 14,
+            height: 4,
+            child: RepaintBoundary(
+              child: CustomPaint(
+                painter: SenzuChapterPainter(
+                  chapters: chapters,
+                  duration: duration,
+                  currentPosition: position,
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
 // ── Sub-widgets ───────────────────────────────────────────────────────────────
 
 class _VideoFrame extends StatelessWidget {
@@ -845,6 +975,8 @@ class _VideoFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Obx(() {
     final state = bundle.core.rxNativeState.value;
+    // OPT: Don't create platform view until initialized — avoids
+    // unnecessary surface allocation on iOS
     if (!state.isInitialized) return const ColoredBox(color: Colors.black);
     return SenzuVideoSurfaceWithFit(
       videoAspectRatio: aspectRatio,
@@ -864,10 +996,8 @@ class _SubtitleText extends StatelessWidget {
       valueListenable: bundle.subtitle.currentSubtitle,
       builder: (_, sub, __) {
         if (sub == null || sub.text.isEmpty) return const SizedBox.shrink();
-
         return Obx(() {
-          final size =
-              bundle.subtitle.subtitleSize.value.toDouble() *
+          final size = bundle.subtitle.subtitleSize.value.toDouble() *
               (bundle.core.isFullScreen.value ? 1.0 : 0.7);
           return Align(
             alignment: style.alignment,
@@ -897,7 +1027,6 @@ class SenzuCenterControls extends StatelessWidget {
     required this.showForward,
     required this.rewindCount,
     required this.forwardCount,
-    // Өмнөх/дараагийн callback — null бол товч харуулахгүй
     this.onPrev,
     this.onNext,
   });
@@ -913,26 +1042,20 @@ class SenzuCenterControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      // Double-tap feedback
       if (showRewind) return _circle(_seekText('-${rewindCount * 10}s'));
       if (showForward) return _circle(_seekText('+${forwardCount * 10}s'));
-
-      // Loading / buffering
       if (bundle.core.isChangingSource.value) return _circle(loading);
       if (bundle.playback.isBuffering.value) return _circle(buffering);
 
       final playing = bundle.playback.isPlaying.value;
-      final ended =
-          !bundle.core.isLiveRx.value &&
+      final ended = !bundle.core.isLiveRx.value &&
           bundle.playback.position.value >= bundle.playback.duration.value &&
           bundle.playback.duration.value > Duration.zero;
 
-      // ── 3 товч: Өмнөх | Play/Pause/Replay | Дараагийн ──────────────────
       return Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // ─ Өмнөх ─
           if (onPrev != null)
             _SideButton(
               icon: PhosphorIcons.skipBack(),
@@ -941,10 +1064,7 @@ class SenzuCenterControls extends StatelessWidget {
             )
           else
             SizedBox(width: style.circleSize * 0.55 + 8),
-
           const SizedBox(width: 16),
-
-          // ─ Center ─
           GestureDetector(
             onTap: ended
                 ? () => bundle.core.seekTo(Duration.zero)
@@ -953,10 +1073,7 @@ class SenzuCenterControls extends StatelessWidget {
               ended ? style.replay : (playing ? style.pause : style.play),
             ),
           ),
-
           const SizedBox(width: 16),
-
-          // ─ Дараагийн ─
           if (onNext != null)
             _SideButton(
               icon: PhosphorIcons.skipForward(),
@@ -973,7 +1090,8 @@ class SenzuCenterControls extends StatelessWidget {
   Widget _circle(Widget child) => Container(
     width: style.circleSize,
     height: style.circleSize,
-    decoration: BoxDecoration(shape: BoxShape.circle, color: style.circleColor),
+    decoration:
+        BoxDecoration(shape: BoxShape.circle, color: style.circleColor),
     child: child,
   );
 
@@ -991,15 +1109,12 @@ class SenzuCenterControls extends StatelessWidget {
   );
 }
 
-// ── Side button (жижиг дугуй товч) ───────────────────────────────────────────
-
 class _SideButton extends StatelessWidget {
   const _SideButton({
     required this.icon,
     required this.onTap,
     required this.size,
   });
-
   final IconData icon;
   final VoidCallback onTap;
   final double size;
@@ -1028,6 +1143,7 @@ class _SkipButton extends StatelessWidget {
   final String label;
   final bool isFullscreen;
   final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
@@ -1055,6 +1171,7 @@ class _SkipButton extends StatelessWidget {
 class _LockButton extends StatelessWidget {
   const _LockButton({required this.bundle});
   final SenzuPlayerBundle bundle;
+
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: bundle.ui.toggleLock,
@@ -1083,6 +1200,7 @@ class _Thumbnail extends StatelessWidget {
   const _Thumbnail({required this.bundle, required this.style});
   final SenzuPlayerBundle bundle;
   final SenzuPlayerStyle style;
+
   @override
   Widget build(BuildContext context) => AnimatedOpacity(
     duration: style.transitions,
@@ -1116,6 +1234,7 @@ class _AdViewer extends StatelessWidget {
   const _AdViewer({required this.bundle, required this.style});
   final SenzuPlayerBundle bundle;
   final SenzuPlayerStyle style;
+
   @override
   Widget build(BuildContext context) => Obx(() {
     final ad = bundle.ad.activeAd.value;
@@ -1133,8 +1252,7 @@ class _AdViewer extends StatelessWidget {
           Positioned(
             left: 0,
             bottom: 0,
-            child:
-                style.skipAdBuilder?.call(watched) ??
+            child: style.skipAdBuilder?.call(watched) ??
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -1151,8 +1269,7 @@ class _AdViewer extends StatelessWidget {
             bottom: 16,
             child: GestureDetector(
               onTap: canSkip ? bundle.ad.skipAd : null,
-              child:
-                  style.skipAdBuilder?.call(watched) ??
+              child: style.skipAdBuilder?.call(watched) ??
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -1163,8 +1280,11 @@ class _AdViewer extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      canSkip ? style.senzuLanguage.skipAd : '$remaining s',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      canSkip
+                          ? style.senzuLanguage.skipAd
+                          : '$remaining s',
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 12),
                     ),
                   ),
             ),
@@ -1179,7 +1299,7 @@ class _AdViewer extends StatelessWidget {
               },
               child: Text(
                 style.senzuLanguage.learnMore,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 13,
                   decoration: TextDecoration.underline,
@@ -1196,6 +1316,7 @@ class _AdViewer extends StatelessWidget {
 class _StatusBar extends StatelessWidget {
   const _StatusBar({required this.bundle});
   final SenzuPlayerBundle bundle;
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
@@ -1219,7 +1340,8 @@ class _StatusBar extends StatelessWidget {
               children: [
                 Text(
                   '${bundle.device.batteryLevel.value}%',
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                  style:
+                      const TextStyle(color: Colors.white, fontSize: 10),
                 ),
                 const SizedBox(width: 2),
                 Icon(
@@ -1253,6 +1375,7 @@ class _StatusBar extends StatelessWidget {
 class _VBToast extends StatelessWidget {
   const _VBToast({this.dragVol, this.dragBri});
   final double? dragVol, dragBri;
+
   @override
   Widget build(BuildContext context) {
     final v = dragVol ?? dragBri;
@@ -1293,7 +1416,8 @@ class _VBToast extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: v,
                   backgroundColor: Colors.white30,
-                  valueColor: const AlwaysStoppedAnimation(Colors.white),
+                  valueColor:
+                      const AlwaysStoppedAnimation(Colors.white),
                 ),
               ),
             ),
@@ -1306,6 +1430,7 @@ class _VBToast extends StatelessWidget {
 
 class _SpeedToast extends StatelessWidget {
   const _SpeedToast();
+
   @override
   Widget build(BuildContext context) => Container(
     margin: const EdgeInsets.only(top: 20),

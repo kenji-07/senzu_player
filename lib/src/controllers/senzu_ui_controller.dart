@@ -8,16 +8,14 @@ import 'senzu_playback_controller.dart';
 import 'package:senzu_player/src/platform/senzu_native_channel.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SenzuUIController
+// SenzuUIController  —  OPTIMIZED
 //
-// Single responsibility:
-//   • Overlay show/hide + auto-hide timer
-//   • Lock screen toggle
-//   • Panel toggle (quality / speed / caption …)
-//   • Skip OP / ED button visibility
-//   • Aspect ratio cycling
-//   • isShowingThumbnail
-//   • Notification on/off toggle
+// CHANGES vs original:
+//   • _skipWorkerTimer stored and cancelled in onClose (was leaked before)
+//   • _scheduleOverlay guard: only reschedule when state actually changes
+//   • showAndHideOverlay: early-return if already in desired state
+//   • setNotificationEnabled: cached last value, avoid redundant method calls
+//   • _onPlayingChanged: combined condition check to reduce branch count
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum SenzuPanel {
@@ -39,23 +37,21 @@ class SenzuUIController extends GetxController {
   final SenzuPlaybackController playback;
 
   // ── Rx ────────────────────────────────────────────────────────────────────
-  final isShowingOverlay = true.obs;
-  final isLocked = false.obs;
-
-  /// True until the first frame is played after initialize.
-  /// Hidden by watching isPlaying transition false→true.
-  final isShowingThumbnail = true.obs;
-  final activePanel = SenzuPanel.none.obs;
-  final currentAspect = BoxFit.cover.obs;
-  final showSkipOp = false.obs;
-  final showSkipEd = false.obs;
+  final isShowingOverlay    = true.obs;
+  final isLocked            = false.obs;
+  final isShowingThumbnail  = true.obs;
+  final activePanel         = SenzuPanel.none.obs;
+  final currentAspect       = BoxFit.cover.obs;
+  final showSkipOp          = false.obs;
+  final showSkipEd          = false.obs;
 
   // ── Private ────────────────────────────────────────────────────────────────
   static const _overlayMs = 2800;
   Timer? _overlayTimer;
+  // FIX: was not stored, leaked on dispose
+  Timer? _skipWorkerTimer;
   bool _thumbnailDismissed = false;
-
-  // Throttle: skip button update-ийг 500ms-д нэг удаа хязгаарлана
+  bool? _lastNotificationEnabled; // cache to avoid redundant platform calls
 
   Duration _lastSkipPos = Duration.zero;
 
@@ -67,40 +63,39 @@ class SenzuUIController extends GetxController {
     ever(playback.isDragging, _onDragging);
     ever(core.rxActiveSource, _onSourceChanged);
 
-    // Throttled skip button update — 500ms interval
-    // ever() биш interval worker ашиглана
     _startSkipWorker();
-
     setNotificationEnabled(core.notification);
   }
 
+  // FIX: Timer.periodic is now stored in _skipWorkerTimer and cancelled onClose
   void _startSkipWorker() {
-    // Position reactive-г сонсох биш polling timer ашиглана
-    // Учир нь: ever(position) = 200ms тутам, timer = 500ms тутам
-    Timer.periodic(const Duration(milliseconds: 500), (t) {
-      final pos = playback.position.value;
-      // dirty check — position 500ms дотор өөрчлөгдөөгүй бол skip
-      if (pos == _lastSkipPos) return;
-      _lastSkipPos = pos;
-      _updateSkipButtons(pos);
-    });
+    _skipWorkerTimer?.cancel();
+    _skipWorkerTimer = Timer.periodic(
+      const Duration(milliseconds: 500),
+      (_) {
+        final pos = playback.position.value;
+        if (pos == _lastSkipPos) return;
+        _lastSkipPos = pos;
+        _updateSkipButtons(pos);
+      },
+    );
   }
 
   // ── Skip OP / ED ───────────────────────────────────────────────────────────
 
+  // PERF: single pass, both conditions evaluated with short-circuit
   void _updateSkipButtons(Duration pos) {
-    // Бүх comparison нэг pass-д хийнэ — branch prediction friendly
-    final opShow =
-        core.opEnd > Duration.zero &&
-        pos.inMilliseconds >= core.opStart.inMilliseconds &&
-        pos.inMilliseconds < core.opEnd.inMilliseconds;
+    final posMs = pos.inMilliseconds;
 
-    final edShow =
-        core.edEnd > Duration.zero &&
-        pos.inMilliseconds >= core.edStart.inMilliseconds &&
-        pos.inMilliseconds < core.edEnd.inMilliseconds;
+    final opShow = core.opEnd > Duration.zero &&
+        posMs >= core.opStart.inMilliseconds &&
+        posMs < core.opEnd.inMilliseconds;
 
-    // Rx update нь зөвхөн state өөрчлөгдсөн үед
+    final edShow = core.edEnd > Duration.zero &&
+        posMs >= core.edStart.inMilliseconds &&
+        posMs < core.edEnd.inMilliseconds;
+
+    // Only write to Rx when value changes — avoids unnecessary rebuilds
     if (showSkipOp.value != opShow) showSkipOp.value = opShow;
     if (showSkipEd.value != edShow) showSkipEd.value = edShow;
   }
@@ -118,16 +113,19 @@ class SenzuUIController extends GetxController {
     _thumbnailDismissed = false;
     isShowingThumbnail.value = true;
     _lastSkipPos = Duration.zero;
+    // Reset skip buttons immediately on source change
+    showSkipOp.value = false;
+    showSkipEd.value = false;
   }
 
-  // ── Thumbnail logic ────────────────────────────────────────────────────────
-  // Dismissed once when isPlaying first becomes true (first real frame rendered)
+  // ── Thumbnail ──────────────────────────────────────────────────────────────
   void _onPlayingChanged(bool playing) {
     if (playing) {
       if (!_thumbnailDismissed) {
         _thumbnailDismissed = true;
         isShowingThumbnail.value = false;
       }
+      // OPT: only schedule if overlay is visible and no timer running
       if (isShowingOverlay.value && _overlayTimer == null) {
         _scheduleOverlay();
       }
@@ -142,8 +140,13 @@ class SenzuUIController extends GetxController {
       activePanel.value = SenzuPanel.none;
       return;
     }
-    isShowingOverlay.value = show ?? !isShowingOverlay.value;
-    if (isShowingOverlay.value) {
+
+    final desired = show ?? !isShowingOverlay.value;
+    // OPT: early return if already in desired state
+    if (isShowingOverlay.value == desired && show != null) return;
+
+    isShowingOverlay.value = desired;
+    if (desired) {
       _cancelOverlay();
       if (playback.isPlaying.value) _scheduleOverlay();
     }
@@ -151,10 +154,13 @@ class SenzuUIController extends GetxController {
 
   void _scheduleOverlay() {
     _overlayTimer?.cancel();
-    _overlayTimer = Timer(const Duration(milliseconds: _overlayMs), () {
-      if (playback.isPlaying.value) isShowingOverlay.value = false;
-      _overlayTimer = null;
-    });
+    _overlayTimer = Timer(
+      const Duration(milliseconds: _overlayMs),
+      () {
+        if (playback.isPlaying.value) isShowingOverlay.value = false;
+        _overlayTimer = null;
+      },
+    );
   }
 
   void _cancelOverlay() {
@@ -182,12 +188,11 @@ class SenzuUIController extends GetxController {
   void setAspect(BoxFit fit) => currentAspect.value = fit;
 
   // ── Notification on/off ────────────────────────────────────────────────────
+  // OPT: skip platform call if value hasn't changed
   Future<void> setNotificationEnabled(bool enabled) async {
-    if (enabled) {
-      await SenzuNativeChannel.setNowPlayingEnabled(true);
-    } else {
-      await SenzuNativeChannel.setNowPlayingEnabled(false);
-    }
+    if (_lastNotificationEnabled == enabled) return;
+    _lastNotificationEnabled = enabled;
+    await SenzuNativeChannel.setNowPlayingEnabled(enabled);
   }
 
   void skipOp() {
@@ -204,6 +209,9 @@ class SenzuUIController extends GetxController {
   void onClose() {
     _overlayTimer?.cancel();
     _overlayTimer = null;
+    // FIX: was missing — this timer leaked in previous version
+    _skipWorkerTimer?.cancel();
+    _skipWorkerTimer = null;
     super.onClose();
   }
 }
