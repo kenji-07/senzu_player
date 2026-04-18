@@ -43,7 +43,7 @@ class ExampleHome extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SenzuPlayer'),
+        title: const Text('SenzuPlayer – v2.0'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(height: 1, color: Colors.white10),
@@ -194,21 +194,6 @@ class ExampleHome extends StatelessWidget {
                   mode: PlayerMode.sleepTimer,
                 )),
           ),
-
-          const SizedBox(height: 8),
-          // ── Feed ────────────────────────────────────────────────────────────
-          const _GroupLabel('Feed (Social)'),
-          _Card(
-            icon: Icons.video_library_outlined,
-            color: const Color(0xFF212121),
-            title: 'Feed Player',
-            subtitle: 'TikTok (PageView) · Instagram (ListView) · Auto-play',
-            badge: 'TikTok + IG',
-            onTap: () => Get.to(() => const ExamplePlayerPage(
-                  title: 'Feed',
-                  mode: PlayerMode.feed,
-                )),
-          ),
         ],
       ),
     );
@@ -340,14 +325,12 @@ class _Card extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
-    this.badge,
   });
   final IconData icon;
   final Color color;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-  final String? badge;
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -377,32 +360,13 @@ class _Card extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                        if (badge != null) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: color.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              badge!,
-                              style: TextStyle(color: color, fontSize: 9),
-                            ),
-                          ),
-                        ],
-                      ],
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(

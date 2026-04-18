@@ -12,8 +12,9 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.5.0
-  video_player: ^2.8.6
-  dio: ^5.9.0
+  get: ^4.7.3
+  cached_network_image: ^3.4.1
+
   senzu_player:
     path: "../"
 
