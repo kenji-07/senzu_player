@@ -1,3 +1,4 @@
+// lib/src/cast/senzu_cast_media_builder.dart
 class SenzuCastMedia {
   const SenzuCastMedia({
     required this.url,
@@ -9,6 +10,14 @@ class SenzuCastMedia {
     this.mimeType,
     this.positionMs = 0,
     this.isLive = false,
+    // ── Шинэ талбарууд ──
+    this.releaseDate,        // '2024-01-15'
+    this.studio,             // Студийн нэр
+    this.httpHeaders = const {},        // Video URL headers
+    this.subtitleHeaders = const {},    // Subtitle URL headers
+    this.availableSubtitles = const [], // Олон subtitle
+    this.availableAudioTracks = const [],
+    this.availableQualities = const [],
   });
 
   final String url;
@@ -20,8 +29,14 @@ class SenzuCastMedia {
   final String? mimeType;
   final int positionMs;
   final bool isLive;
+  final String? releaseDate;
+  final String? studio;
+  final Map<String, String> httpHeaders;
+  final Map<String, String> subtitleHeaders;
+  final List<CastSubtitleTrack> availableSubtitles;
+  final List<CastAudioTrack> availableAudioTracks;
+  final List<CastQualityOption> availableQualities;
 
-  /// URL-аас MIME type автоматаар тодорхойлно
   String get resolvedMimeType {
     if (mimeType != null) return mimeType!;
     if (url.contains('.m3u8')) return 'application/x-mpegURL';
@@ -31,14 +46,71 @@ class SenzuCastMedia {
   }
 
   Map<String, dynamic> toMap() => {
-    'url':             url,
-    'title':           title,
-    'description':     description,
-    'posterUrl':       posterUrl ?? '',
-    'subtitleUrl':     subtitleUrl ?? '',
+    'url':              url,
+    'title':            title,
+    'description':      description,
+    'posterUrl':        posterUrl ?? '',
+    'subtitleUrl':      subtitleUrl ?? '',
     'subtitleLanguage': subtitleLanguage,
-    'mimeType':        resolvedMimeType,
-    'positionMs':      positionMs,
-    'isLive':          isLive,
+    'mimeType':         resolvedMimeType,
+    'positionMs':       positionMs,
+    'isLive':           isLive,
+    'releaseDate':      releaseDate ?? '',
+    'studio':           studio ?? '',
+    'httpHeaders':      httpHeaders,
+    'subtitleHeaders':  subtitleHeaders,
+    'availableSubtitles':   availableSubtitles.map((s) => s.toMap()).toList(),
+    'availableAudioTracks': availableAudioTracks.map((a) => a.toMap()).toList(),
+    'availableQualities':   availableQualities.map((q) => q.toMap()).toList(),
+  };
+}
+
+class CastSubtitleTrack {
+  const CastSubtitleTrack({
+    required this.id,
+    required this.language,
+    required this.name,
+    required this.url,
+    this.headers = const {},
+  });
+  final int id;
+  final String language;
+  final String name;
+  final String url;
+  final Map<String, String> headers;
+
+  Map<String, dynamic> toMap() => {
+    'id': id, 'language': language,
+    'name': name, 'url': url, 'headers': headers,
+  };
+}
+
+class CastAudioTrack {
+  const CastAudioTrack({
+    required this.id,
+    required this.language,
+    required this.name,
+  });
+  final int id;
+  final String language;
+  final String name;
+
+  Map<String, dynamic> toMap() => {
+    'id': id, 'language': language, 'name': name,
+  };
+}
+
+class CastQualityOption {
+  const CastQualityOption({
+    required this.label,
+    required this.url,
+    this.headers = const {},
+  });
+  final String label;
+  final String url;
+  final Map<String, String> headers;
+
+  Map<String, dynamic> toMap() => {
+    'label': label, 'url': url, 'headers': headers,
   };
 }

@@ -111,55 +111,54 @@ class _DevicePickerSheetState extends State<_DevicePickerSheet> {
   StreamSubscription? _deviceSub;
 
   @override
-void initState() {
-  super.initState();
-  
-  // ← Энэ заавал байх ёстой
-  SenzuCastService.startListening();
-  
-  _deviceSub = SenzuCastService.devicesStream.listen((devices) {
+  void initState() {
+    super.initState();
+
+    // ← Энэ заавал байх ёстой
+    SenzuCastService.startListening();
+
+    _deviceSub = SenzuCastService.devicesStream.listen((devices) {
+      if (mounted) {
+        setState(() {
+          _devices = devices;
+          _loading = false;
+        });
+      }
+    });
+
+    _discover();
+  }
+
+  Future<void> _discover() async {
+    setState(() => _loading = true);
+
+    // Хэдийнэ олдсон device-уудыг шууд авах
+    final existing = await SenzuCastService.discoverDevices();
+    if (mounted && existing.isNotEmpty) {
+      setState(() {
+        _devices = existing;
+        _loading = false;
+      });
+      return;
+    }
+
+    // Шинэ device хайх — 5 секунд хүлээнэ
+    await Future.delayed(const Duration(seconds: 5));
+
+    final devices = await SenzuCastService.discoverDevices();
     if (mounted) {
       setState(() {
         _devices = devices;
         _loading = false;
       });
     }
-  });
-  
-  _discover();
-}
-
-Future<void> _discover() async {
-  setState(() => _loading = true);
-
-  // Хэдийнэ олдсон device-уудыг шууд авах
-  final existing = await SenzuCastService.discoverDevices();
-  if (mounted && existing.isNotEmpty) {
-    setState(() {
-      _devices = existing;
-      _loading = false;
-    });
-    return;
   }
-
-  // Шинэ device хайх — 5 секунд хүлээнэ
-  await Future.delayed(const Duration(seconds: 5));
-
-  final devices = await SenzuCastService.discoverDevices();
-  if (mounted) {
-    setState(() {
-      _devices = devices;
-      _loading = false;
-    });
-  }
-}
 
   @override
   void dispose() {
     _deviceSub?.cancel();
     super.dispose();
   }
-
 
   Future<void> _connect(SenzuCastDeviceInfo device) async {
     setState(() => _connectingId = device.deviceId);
@@ -370,6 +369,78 @@ class _CastConnectedSheet extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 20),
+            // Subtitle selector
+            if (castController.subtitleTracks.isNotEmpty) ...[
+              const Divider(color: Colors.white12),
+              const Text(
+                'Subtitle',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              Obx(
+                () => Wrap(
+                  spacing: 6,
+                  children: [
+                    _TrackChip(
+                      label: 'Off',
+                      selected:
+                          castController.activeSubtitleTrackId.value == null,
+                      onTap: castController.disableSubtitles,
+                    ),
+                    ...castController.subtitleTracks.map(
+                      (t) => _TrackChip(
+                        label: t.name,
+                        selected:
+                            castController.activeSubtitleTrackId.value == t.id,
+                        onTap: () => castController.setSubtitle(t.id),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // Quality selector
+            if (castController.qualityOptions.isNotEmpty) ...[
+              const Divider(color: Colors.white12),
+              const Text(
+                'Quality',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              Obx(
+                () => Wrap(
+                  spacing: 6,
+                  children: castController.qualityOptions
+                      .map(
+                        (q) => _TrackChip(
+                          label: q.label,
+                          selected:
+                              castController.activeQuality.value == q.label,
+                          onTap: () => castController.switchQuality(q.label),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ],
+
+            // Volume slider
+            Obx(
+              () => Row(
+                children: [
+                  const Icon(Icons.volume_up, color: Colors.white54, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Slider(
+                      value: castController.remoteState.value.volume,
+                      onChanged: castController.setCastVolume,
+                      activeColor: Colors.red,
+                      inactiveColor: Colors.white24,
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
             const SizedBox(height: 20),
 
@@ -489,5 +560,30 @@ class _ControlBtn extends StatelessWidget {
     onTap: onTap,
     borderRadius: BorderRadius.circular(24),
     child: Icon(icon, color: Colors.white, size: size),
+  );
+}
+
+class _TrackChip extends StatelessWidget {
+  const _TrackChip({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: selected ? Colors.red : Colors.white12,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(label,
+        style: TextStyle(
+          color: selected ? Colors.white : Colors.white70,
+          fontSize: 11,
+        ),
+      ),
+    ),
   );
 }

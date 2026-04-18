@@ -193,4 +193,31 @@ class SenzuCastService {
     final s = await _method.invokeMethod<String>('getCastState');
     return _parseCastState(s);
   }
+
+  static Future<void> setSubtitleTrack(int trackId) =>
+      _method.invokeMethod('setSubtitleTrack', {'trackId': trackId});
+
+  static Future<void> disableSubtitles() =>
+      _method.invokeMethod('disableSubtitles');
+
+  static Future<void> setAudioTrack(int trackId) =>
+      _method.invokeMethod('setAudioTrack', {'trackId': trackId});
+
+  static Future<bool> loadQuality(
+    String url, {
+    Map<String, String> headers = const {},
+    int positionMs = 0,
+  }) async {
+    try {
+      final result = await _method.invokeMethod<bool>('loadQuality', {
+        'url': url,
+        'headers': headers,
+        'positionMs': positionMs,
+      });
+      return result ?? false;
+    } on PlatformException catch (e) {
+      debugPrint('SenzuCast loadQuality error: ${e.message}');
+      return false;
+    }
+  }
 }

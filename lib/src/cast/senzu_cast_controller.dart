@@ -6,22 +6,33 @@ import 'senzu_cast_media_builder.dart';
 
 class SenzuCastController extends GetxController {
   // ── Rx State ──────────────────────────────────────────────────────────────
-  final castState        = SenzuCastState.notConnected.obs;
-  final remoteState      =  const SenzuCastRemoteState().obs;
+  final castState = SenzuCastState.notConnected.obs;
+  final remoteState = const SenzuCastRemoteState().obs;
   final availableDevices = RxList<SenzuCastDeviceInfo>([]);
-  final isLoading        = false.obs;
-  final errorMessage     = RxnString();
+  final isLoading = false.obs;
+  final errorMessage = RxnString();
+
+  final activeSubtitleTrackId = RxnInt();
+
+  /// Active audio track ID
+  final activeAudioTrackId = RxnInt();
+
+  /// Available tracks (loadMedia дуусмагц дүүргэнэ)
+  final subtitleTracks = RxList<CastSubtitleTrack>([]);
+  final audioTracks = RxList<CastAudioTrack>([]);
+  final qualityOptions = RxList<CastQualityOption>([]);
+  final activeQuality = RxnString();
 
   // ── Private ───────────────────────────────────────────────────────────────
-  StreamSubscription<SenzuCastState>?           _castStateSub;
-  StreamSubscription<SenzuCastRemoteState>?     _remoteStateSub;
-  StreamSubscription<List<SenzuCastDeviceInfo>>?_devicesSub;
+  StreamSubscription<SenzuCastState>? _castStateSub;
+  StreamSubscription<SenzuCastRemoteState>? _remoteStateSub;
+  StreamSubscription<List<SenzuCastDeviceInfo>>? _devicesSub;
 
   SenzuCastMedia? _currentMedia;
 
   // ── Computed ──────────────────────────────────────────────────────────────
-  bool get isCasting   => castState.value == SenzuCastState.connected;
-  bool get isConnecting=> castState.value == SenzuCastState.connecting;
+  bool get isCasting => castState.value == SenzuCastState.connected;
+  bool get isConnecting => castState.value == SenzuCastState.connecting;
 
   @override
   void onInit() {
@@ -81,6 +92,15 @@ class SenzuCastController extends GetxController {
       errorMessage.value = 'Cast холбогдоогүй байна';
       return false;
     }
+
+    // Track мэдээллийг шинэчилнэ
+    subtitleTracks.value = media.availableSubtitles;
+    audioTracks.value = media.availableAudioTracks;
+    qualityOptions.value = media.availableQualities;
+    activeQuality.value = media.availableQualities.isNotEmpty
+        ? media.availableQualities.first.label
+        : null;
+
     isLoading.value = true;
     errorMessage.value = null;
     _currentMedia = media;
@@ -101,7 +121,7 @@ class SenzuCastController extends GetxController {
     }
   }
 
-  Future<void> play()  => SenzuCastService.play();
+  Future<void> play() => SenzuCastService.play();
   Future<void> pause() => SenzuCastService.pause();
 
   Future<void> seekTo(Duration position) =>
@@ -124,15 +144,45 @@ class SenzuCastController extends GetxController {
     final pos = remoteState.value.positionMs;
     await castMedia(
       SenzuCastMedia(
-        url:          media.url,
-        title:        media.title,
-        description:  media.description,
-        posterUrl:    media.posterUrl,
-        subtitleUrl:  media.subtitleUrl,
-        positionMs:   pos,
-        isLive:       media.isLive,
+        url: media.url,
+        title: media.title,
+        description: media.description,
+        posterUrl: media.posterUrl,
+        subtitleUrl: media.subtitleUrl,
+        positionMs: pos,
+        isLive: media.isLive,
       ),
     );
+  }
+
+  Future<void> setSubtitle(int trackId) async {
+    await SenzuCastService.setSubtitleTrack(trackId);
+    activeSubtitleTrackId.value = trackId;
+  }
+
+  Future<void> disableSubtitles() async {
+    await SenzuCastService.disableSubtitles();
+    activeSubtitleTrackId.value = null;
+  }
+
+  Future<void> setAudioTrack(int trackId) async {
+    await SenzuCastService.setAudioTrack(trackId);
+    activeAudioTrackId.value = trackId;
+  }
+
+  Future<void> setCastVolume(double volume) =>
+      SenzuCastService.setVolume(volume);
+
+  Future<void> switchQuality(String label) async {
+    final q = qualityOptions.firstWhereOrNull((o) => o.label == label);
+    if (q == null) return;
+    final pos = remoteState.value.positionMs;
+    await SenzuCastService.loadQuality(
+      q.url,
+      headers: q.headers,
+      positionMs: pos,
+    );
+    activeQuality.value = label;
   }
 
   /// Local player-аас cast руу шилжих (position引き継ぐ)
@@ -141,13 +191,13 @@ class SenzuCastController extends GetxController {
     required Duration currentPosition,
   }) async {
     final mediaWithPos = SenzuCastMedia(
-      url:         media.url,
-      title:       media.title,
+      url: media.url,
+      title: media.title,
       description: media.description,
-      posterUrl:   media.posterUrl,
+      posterUrl: media.posterUrl,
       subtitleUrl: media.subtitleUrl,
-      positionMs:  currentPosition.inMilliseconds,
-      isLive:      media.isLive,
+      positionMs: currentPosition.inMilliseconds,
+      isLive: media.isLive,
     );
     await castMedia(mediaWithPos);
   }
