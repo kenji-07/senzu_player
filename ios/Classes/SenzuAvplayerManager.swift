@@ -5,16 +5,6 @@ import MediaPlayer
 
 /// Manages a single AVPlayer instance, wires it to the Flutter
 /// MethodChannel and EventChannel, and drives the [SenzuSurfaceViewFactory].
-///
-/// OPTIMIZATIONS vs original:
-///   • preferredMaximumResolution set from args (reduces unnecessary decode work)
-///   • preferredPeakBitRate cap added to prevent cellular overuse
-///   • automaticallyWaitsToMinimizeStalling = true for VOD, false for low-latency
-///   • AVPlayerItem preferredForwardBufferDuration set for smoother buffering
-///   • Memory pressure observer: pause + reduce buffer on low memory
-///   • readyObserver properly invalidated to prevent retain cycle
-///   • emitPlaybackState: throttled to positionIntervalSeconds (200ms)
-///   • HDR: CAEDRMetadata applied when supported (iOS 16+)
 ///   • isPlaybackLikelyToKeepUp observed for more accurate buffering state
 @objc public class SenzuAVPlayerManager: NSObject {
 

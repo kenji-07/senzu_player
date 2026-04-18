@@ -18,6 +18,13 @@
 	<string>example</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>NSBonjourServices</key>
+	<array>
+  	<string>_googlecast._tcp</string>
+  	<string>_CC1AD845._googlecast._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+    <string>Cast devices-г илрүүлэхэд ашиглана</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>

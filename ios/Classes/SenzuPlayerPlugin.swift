@@ -34,6 +34,12 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         registrar.register(
             SenzuSurfaceViewFactory(messenger: registrar.messenger()),
             withId: "senzu_player/surface")
+            
+        let castMethod = FlutterMethodChannel(name: "senzu_player/cast",
+                                       binaryMessenger: registrar.messenger())
+        let castEvent  = FlutterEventChannel(name: "senzu_player/cast_events",
+                                      binaryMessenger: registrar.messenger())
+        SenzuCastPlugin.register(with: registrar, method: castMethod, event: castEvent)
 
         // ScreenProtectorKit
         DispatchQueue.main.async {

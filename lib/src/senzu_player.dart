@@ -12,6 +12,7 @@ import 'package:senzu_player/src/data/models/senzu_player_config.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/data/models/senzu_metadata.dart';
 import 'package:senzu_player/src/platform/senzu_native_channel.dart';
+import 'package:senzu_player/src/cast/senzu_cast_controller.dart';
 
 // ── Barrel exports ────────────────────────────────────────────────────────────
 export 'package:senzu_player/src/data/models/ad_model.dart';
@@ -28,6 +29,7 @@ export 'package:senzu_player/src/data/models/senzu_player_config.dart';
 export 'package:senzu_player/src/data/models/senzu_thumbnail_sprite.dart';
 export 'package:senzu_player/src/data/language/language.dart';
 export 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
+export 'package:senzu_player/src/cast/senzu_cast_controller.dart';
 export 'package:senzu_player/src/data/models/senzu_metadata.dart';
 export 'package:senzu_player/src/controllers/senzu_ui_controller.dart'
     show SenzuPanel;
@@ -68,6 +70,7 @@ class SenzuPlayer extends StatefulWidget {
     this.imaAdTagUrl,
     this.annotations = const [],
     this.bundle,
+    this.castController,
   });
 
   final SenzuWatermark? watermark;
@@ -110,6 +113,7 @@ class SenzuPlayer extends StatefulWidget {
 
   final List<SenzuAnnotation> annotations;
   final SenzuPlayerBundle? bundle;
+  final SenzuCastController? castController;
 
   @override
   State<SenzuPlayer> createState() => _SenzuPlayerState();
@@ -188,6 +192,7 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
           defaultAspectRatio: widget.defaultAspectRatio,
           chapters: widget.chapters,
           enableSleep: widget.enableSleep,
+          castController: widget.castController,
         ),
       ),
     );
@@ -286,6 +291,7 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
                 defaultAspectRatio: widget.defaultAspectRatio,
                 chapters: widget.chapters,
                 enableSleep: widget.enableSleep,
+                castController: widget.castController,
               )
             : _loadingWidget(),
       );

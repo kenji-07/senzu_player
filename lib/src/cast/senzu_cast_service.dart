@@ -1,0 +1,183 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'senzu_cast_media_builder.dart';
+
+enum SenzuCastState {
+  notConnected,
+  connecting,
+  connected,
+  noDevicesAvailable,
+}
+
+enum SenzuCastSessionState {
+  idle,
+  loading,
+  playing,
+  paused,
+  buffering,
+  error,
+}
+
+class SenzuCastDeviceInfo {
+  const SenzuCastDeviceInfo({
+    required this.deviceId,
+    required this.deviceName,
+    this.modelName = '',
+  });
+
+  final String deviceId;
+  final String deviceName;
+  final String modelName;
+
+  factory SenzuCastDeviceInfo.fromMap(Map<dynamic, dynamic> m) =>
+      SenzuCastDeviceInfo(
+        deviceId:   m['deviceId']   as String? ?? '',
+        deviceName: m['deviceName'] as String? ?? 'Unknown',
+        modelName:  m['modelName']  as String? ?? '',
+      );
+}
+
+class SenzuCastRemoteState {
+  const SenzuCastRemoteState({
+    this.sessionState = SenzuCastSessionState.idle,
+    this.positionMs = 0,
+    this.durationMs = 0,
+    this.isPlaying = false,
+    this.volume = 1.0,
+    this.isMuted = false,
+    this.errorMessage,
+  });
+
+  final SenzuCastSessionState sessionState;
+  final int positionMs;
+  final int durationMs;
+  final bool isPlaying;
+  final double volume;
+  final bool isMuted;
+  final String? errorMessage;
+
+  factory SenzuCastRemoteState.fromMap(Map<dynamic, dynamic> m) =>
+      SenzuCastRemoteState(
+        sessionState: _parseSessionState(m['sessionState'] as String?),
+        positionMs:   (m['positionMs']  as num?)?.toInt()    ?? 0,
+        durationMs:   (m['durationMs']  as num?)?.toInt()    ?? 0,
+        isPlaying:    (m['isPlaying']   as bool?)            ?? false,
+        volume:       (m['volume']      as num?)?.toDouble() ?? 1.0,
+        isMuted:      (m['isMuted']     as bool?)            ?? false,
+        errorMessage:  m['errorMessage'] as String?,
+      );
+
+  static SenzuCastSessionState _parseSessionState(String? s) {
+    switch (s) {
+      case 'loading':   return SenzuCastSessionState.loading;
+      case 'playing':   return SenzuCastSessionState.playing;
+      case 'paused':    return SenzuCastSessionState.paused;
+      case 'buffering': return SenzuCastSessionState.buffering;
+      case 'error':     return SenzuCastSessionState.error;
+      default:          return SenzuCastSessionState.idle;
+    }
+  }
+}
+
+/// Platform Channel-ийн нэр
+class SenzuCastService {
+  SenzuCastService._();
+
+  static const _method = MethodChannel('senzu_player/cast');
+  static const _event  = EventChannel('senzu_player/cast_events');
+
+  static StreamSubscription<dynamic>? _eventSub;
+
+  // ── Stream controllers ────────────────────────────────────────────────────
+  static final _castStateCtrl =
+      StreamController<SenzuCastState>.broadcast();
+  static final _remoteStateCtrl =
+      StreamController<SenzuCastRemoteState>.broadcast();
+  static final _devicesCtrl =
+      StreamController<List<SenzuCastDeviceInfo>>.broadcast();
+
+  static Stream<SenzuCastState>          get castStateStream   => _castStateCtrl.stream;
+  static Stream<SenzuCastRemoteState>    get remoteStateStream => _remoteStateCtrl.stream;
+  static Stream<List<SenzuCastDeviceInfo>> get devicesStream   => _devicesCtrl.stream;
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  static void startListening() {
+    _eventSub ??= _event.receiveBroadcastStream().listen(
+      (event) {
+        final m = Map<dynamic, dynamic>.from(event as Map);
+        switch (m['type'] as String?) {
+          case 'castState':
+            _castStateCtrl.add(_parseCastState(m['state'] as String?));
+          case 'remoteState':
+            _remoteStateCtrl.add(SenzuCastRemoteState.fromMap(m));
+          case 'devices':
+            final raw = m['devices'] as List? ?? [];
+            _devicesCtrl.add(
+              raw.map((d) => SenzuCastDeviceInfo.fromMap(d as Map)).toList(),
+            );
+          default:
+            break;
+        }
+      },
+      onError: (e) => debugPrint('SenzuCastService error: $e'),
+    );
+  }
+
+  static void stopListening() {
+    _eventSub?.cancel();
+    _eventSub = null;
+  }
+
+  static SenzuCastState _parseCastState(String? s) {
+    switch (s) {
+      case 'connecting':        return SenzuCastState.connecting;
+      case 'connected':         return SenzuCastState.connected;
+      case 'noDevicesAvailable':return SenzuCastState.noDevicesAvailable;
+      default:                  return SenzuCastState.notConnected;
+    }
+  }
+
+  // ── Commands ──────────────────────────────────────────────────────────────
+
+  /// Device picker sheet нээнэ (native UI)
+  static Future<void> showDevicePicker() =>
+      _method.invokeMethod('showDevicePicker');
+
+  /// Cast session эхлүүлж media load хийнэ
+  static Future<bool> loadMedia(SenzuCastMedia media) async {
+    try {
+      final result = await _method.invokeMethod<bool>(
+        'loadMedia',
+        media.toMap(),
+      );
+      return result ?? false;
+    } on PlatformException catch (e) {
+      debugPrint('SenzuCast loadMedia error: ${e.message}');
+      return false;
+    }
+  }
+
+  static Future<void> play() =>
+      _method.invokeMethod('play');
+
+  static Future<void> pause() =>
+      _method.invokeMethod('pause');
+
+  static Future<void> seekTo(int positionMs) =>
+      _method.invokeMethod('seekTo', {'positionMs': positionMs});
+
+  static Future<void> stop() =>
+      _method.invokeMethod('stop');
+
+  static Future<void> setVolume(double volume) =>
+      _method.invokeMethod('setVolume', {'volume': volume});
+
+  static Future<void> disconnect() =>
+      _method.invokeMethod('disconnect');
+
+  static Future<SenzuCastState> getCastState() async {
+    final s = await _method.invokeMethod<String>('getCastState');
+    return _parseCastState(s);
+  }
+}

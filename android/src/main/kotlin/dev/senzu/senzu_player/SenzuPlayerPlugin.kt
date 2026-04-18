@@ -37,11 +37,17 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         appContext = binding.applicationContext
 
+        val castPlugin = SenzuCastPlugin(binding.applicationContext)
+
         methodChannel = MethodChannel(binding.binaryMessenger, "senzu_player/native")
         methodChannel.setMethodCallHandler(this)
+        MethodChannel(binding.binaryMessenger, "senzu_player/cast")
+        .setMethodCallHandler(castPlugin)
 
         eventChannel = EventChannel(binding.binaryMessenger, "senzu_player/events")
         eventChannel.setStreamHandler(this)
+        EventChannel(binding.binaryMessenger, "senzu_player/cast_events")
+        .setStreamHandler(castPlugin)
 
         exoManager = SenzuExoPlayerManager(
             context         = binding.applicationContext,

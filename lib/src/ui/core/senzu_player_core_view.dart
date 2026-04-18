@@ -18,6 +18,7 @@ import 'package:senzu_player/src/data/models/subtitle_model.dart';
 import 'package:senzu_player/src/data/models/senzu_metadata.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
 import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
+import 'package:senzu_player/src/cast/senzu_cast_controller.dart';
 
 class SenzuPlayerCoreView extends StatefulWidget {
   const SenzuPlayerCoreView({
@@ -37,6 +38,7 @@ class SenzuPlayerCoreView extends StatefulWidget {
     required this.defaultAspectRatio,
     required this.enableSleep,
     this.chapters = const [],
+    this.castController,
   });
 
   final SenzuPlayerBundle bundle;
@@ -54,6 +56,7 @@ class SenzuPlayerCoreView extends StatefulWidget {
       enableSleep,
       enableEpisode;
   final List<SenzuChapter> chapters;
+    final SenzuCastController? castController;
 
   @override
   State<SenzuPlayerCoreView> createState() => _SenzuPlayerCoreViewState();
@@ -184,6 +187,7 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
         onScaleUpdate: (s) => setState(() => _scale = s),
         scale: _scale,
         chapters: widget.chapters,
+        castController: widget.castController,
       );
     });
   }
@@ -260,6 +264,7 @@ class _MainPlayerStack extends StatelessWidget {
     required this.onScaleUpdate,
     required this.scale,
     required this.chapters,
+    required this.castController,
   });
 
   final SenzuPlayerBundle bundle;
@@ -280,6 +285,7 @@ class _MainPlayerStack extends StatelessWidget {
   final void Function(double) onScaleUpdate;
   final double scale;
   final List<SenzuChapter> chapters;
+  final SenzuCastController? castController;
 
   @override
   Widget build(BuildContext context) {
@@ -619,6 +625,7 @@ class _MainPlayerStack extends StatelessWidget {
                       enableQuality: widget.enableQuality,
                       enableSpeed: widget.enableSpeed,
                       enableAspect: widget.enableAspect,
+                      castController: widget.castController,
                     ),
                   ),
                 ),

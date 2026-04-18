@@ -18,7 +18,6 @@ Designed for streaming apps — supports HLS, DASH, DRM, live streams, ads, subt
 | **Subtitles** | VTT, SRT, encrypted (AES-128), HLS auto-detect |
 | **Ads** | Custom inline ads, IMA SDK (VAST/VMAP) |
 | **Live** | DVR, low-latency, auto-reconnect |
-| **Feed** | TikTok-style `PageView`, Instagram-style `ListView` |
 | **PiP** | iOS 14+ / Android 8+ |
 | **Lock screen** | Now Playing controls on iOS & Android |
 | **Chapters** | OP/ED skip buttons, progress bar markers |

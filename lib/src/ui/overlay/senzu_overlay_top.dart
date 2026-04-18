@@ -4,6 +4,8 @@ import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
 import 'package:senzu_player/src/data/models/senzu_metadata.dart';
+import 'package:senzu_player/src/cast/widgets/senzu_cast_button.dart';
+import 'package:senzu_player/src/cast/senzu_cast_controller.dart';
 
 class SenzuOverlayTop extends StatelessWidget {
   const SenzuOverlayTop({
@@ -16,10 +18,12 @@ class SenzuOverlayTop extends StatelessWidget {
     this.enableAudio = false,
     this.enableSpeed = true,
     this.enableAspect = true,
+    this.castController,
   });
 
   final SenzuPlayerBundle bundle;
   final SenzuPlayerStyle style;
+  final SenzuCastController? castController;
   final SenzuMetaData meta;
   final bool enableCaption;
   final bool enableQuality;
@@ -131,6 +135,8 @@ class SenzuOverlayTop extends StatelessWidget {
                     Icons.audiotrack,
                     () => bundle.ui.togglePanel(SenzuPanel.audio),
                   ),
+                if (castController != null)
+  SenzuCastButton(castController: castController!),
               ],
             );
           }),

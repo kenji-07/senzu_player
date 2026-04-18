@@ -12,6 +12,9 @@ import 'package:senzu_player/src/platform/senzu_native_channel.dart';
 import 'package:senzu_player/src/platform/senzu_native_video_controller.dart';
 import 'package:senzu_player/src/platform/senzu_native_video_state.dart';
 import 'package:senzu_player/src/platform/senzu_token_manager.dart';
+import 'package:senzu_player/src/cast/senzu_cast_controller.dart';
+import 'package:senzu_player/src/cast/senzu_cast_media_builder.dart';
+import 'package:senzu_player/src/cast/senzu_cast_service.dart';
 
 class SenzuPlayerErrorState {
   const SenzuPlayerErrorState({
@@ -73,6 +76,9 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   // ── Private ────────────────────────────────────────────────────────────────
   SenzuNativeVideoController? _native;
   StreamSubscription<SenzuNativeVideoState>? _stateSub;
+
+  // ── Cast integration ───────────────────────────────────────────────────────
+  SenzuCastController? _castController;
 
   bool? _explicitIsLive;
   bool _wasPlaying = false;
@@ -398,6 +404,61 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
         _native?.pause();
       }
     }
+  }
+
+  // ── Cast state ───────────────────────────────────────────────────────────
+  void setCastController(SenzuCastController ctrl) {
+    _castController = ctrl;
+    // Cast state өөрчлөгдөхөд local player зогсоох / эхлүүлэх
+    ever(ctrl.castState, _onCastStateChanged);
+  }
+
+  void _onCastStateChanged(SenzuCastState state) {
+    switch (state) {
+      case SenzuCastState.connected:
+        // Cast холбогдсон үед local player-г pause хийнэ
+        pause();
+      case SenzuCastState.notConnected:
+        // Cast тасарсан үед local player-г cast position-оос үргэлжлүүлнэ
+        final resumePos = _castController?.resumePosition ?? Duration.zero;
+        if (resumePos > Duration.zero) {
+          seekTo(resumePos).then((_) => play());
+        } else {
+          play();
+        }
+      default:
+        break;
+    }
+  }
+
+  /// Одоогийн source-г cast руу илгээх
+  Future<void> castCurrentSource() async {
+    final ctrl = _castController;
+    if (ctrl == null) return;
+    if (!ctrl.isCasting) {
+      await ctrl.showDevicePicker();
+      return;
+    }
+
+    final source = activeSource;
+    final sourceName = activeSourceName ?? '';
+    if (source == null) return;
+
+    final media = SenzuCastMedia(
+      url: source.dataSource,
+      title: sourceName,
+      description: '',
+      positionMs: rxNativeState.value.position.inMilliseconds,
+      isLive: isLive,
+      mimeType: source.protocol == VideoProtocol.dash
+          ? 'application/dash+xml'
+          : null,
+    );
+
+    await ctrl.switchToCast(
+      media: media,
+      currentPosition: rxNativeState.value.position,
+    );
   }
 
   // ── Playback ───────────────────────────────────────────────────────────────
