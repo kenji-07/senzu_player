@@ -1,0 +1,9 @@
+# Build cache
+build/ios/XCBuildData/PIFCache/
+
+# macOS
+.DS_Store
+
+key.jks
+*.jks
+*.keystore
