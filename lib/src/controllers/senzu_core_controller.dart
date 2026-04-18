@@ -1,22 +1,3 @@
-// lib/src/controllers/senzu_core_controller.dart
-//
-// CHANGES vs original:
-//   • initialize() signature: opStart/opEnd/edStart/edEnd параметрүүдийг УСТГАВ.
-//     OP/ED зөвхөн UIController-д байдаг (chapters through setChapters).
-//     Core нь OP/ED мэдэх шаардлагагүй — зөвхөн source URL, range, seekTo.
-//
-//   • _opStart/_opEnd/_edStart/_edEnd хувийн field-үүдийг УСТГАВ.
-//     opStart/opEnd/edStart/edEnd getter-уудыг УСТГАВ.
-//     setSkipRanges() method-г УСТГАВ.
-//     → Эдгээрийг UIController.setChapters() орлуулна.
-//
-//   • Бусад optimization-ууд хэвээр байна:
-//     - Race condition guard (_sourceGeneration)
-//     - _disposed flag
-//     - Token manager
-//     - Reconnect watcher
-//     - HDR, codec, network check
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -75,19 +56,19 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   final rxNativeState = Rx<SenzuNativeVideoState>(
     const SenzuNativeVideoState(),
   );
-  final rxSources       = Rxn<Map<String, VideoSource>>();
-  final rxActiveSource  = RxnString();
+  final rxSources = Rxn<Map<String, VideoSource>>();
+  final rxActiveSource = RxnString();
   final isChangingSource = false.obs;
-  final hasError        = false.obs;
-  final errorState      = Rxn<SenzuPlayerErrorState>();
-  final audioTracks     = RxList<SenzuAudioTrack>([]);
+  final hasError = false.obs;
+  final errorState = Rxn<SenzuPlayerErrorState>();
+  final audioTracks = RxList<SenzuAudioTrack>([]);
   final activeAudioTrack = RxnString();
-  final isHdrEnabled    = false.obs;
-  final networkType     = 'unknown'.obs;
+  final isHdrEnabled = false.obs;
+  final networkType = 'unknown'.obs;
   final showCellularWarning = false.obs;
-  final isLiveRx        = false.obs;
-  final pendingSeek     = Duration.zero.obs;
-  final isFullScreen    = false.obs;
+  final isLiveRx = false.obs;
+  final pendingSeek = Duration.zero.obs;
+  final isFullScreen = false.obs;
 
   // ── Private ────────────────────────────────────────────────────────────────
   SenzuNativeVideoController? _native;
@@ -112,11 +93,11 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   void Function(String)? onSourceChanged;
 
   // ── Getters ────────────────────────────────────────────────────────────────
-  SenzuNativeVideoState get nativeState  => rxNativeState.value;
-  Map<String, VideoSource>? get sources  => rxSources.value;
-  String? get activeSourceName           => rxActiveSource.value;
-  VideoSource? get activeSource          => rxSources.value?[rxActiveSource.value];
-  double get playbackSpeed               => _currentSpeed;
+  SenzuNativeVideoState get nativeState => rxNativeState.value;
+  Map<String, VideoSource>? get sources => rxSources.value;
+  String? get activeSourceName => rxActiveSource.value;
+  VideoSource? get activeSource => rxSources.value?[rxActiveSource.value];
+  double get playbackSpeed => _currentSpeed;
 
   bool get isLive {
     if (_explicitIsLive != null) return _explicitIsLive!;
@@ -125,16 +106,16 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   }
 
   Duration get beginRange {
-    final r   = activeSource?.range;
-    final b   = r?.begin ?? Duration.zero;
+    final r = activeSource?.range;
+    final b = r?.begin ?? Duration.zero;
     final dur = rxNativeState.value.duration;
     return (dur > Duration.zero && b >= dur) ? Duration.zero : b;
   }
 
   Duration get endRange {
     final dur = rxNativeState.value.duration;
-    final r   = activeSource?.range;
-    final e   = r?.end ?? dur;
+    final r = activeSource?.range;
+    final e = r?.end ?? dur;
     return e >= dur ? dur : e;
   }
 
@@ -160,9 +141,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
       });
     } else {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      Future.delayed(const Duration(milliseconds: 50), () {
-        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-      });
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     }
   }
 
@@ -194,8 +173,6 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   }
 
   // ── Initialize ─────────────────────────────────────────────────────────────
-  // CHANGED: opStart/opEnd/edStart/edEnd параметрүүдийг УСТГАВ.
-  // UIController.setChapters() нь OP/ED-г тусдаа авна.
   Future<void> initialize(
     Map<String, VideoSource> sourcesMap, {
     bool autoPlay = true,
@@ -208,7 +185,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
 
     rxSources.value = sourcesMap;
     _explicitIsLive = isLive;
-    isLiveRx.value  = isLive ?? false;
+    isLiveRx.value = isLive ?? false;
 
     if (secureMode) await SenzuNativeChannel.enableSecureMode();
 
@@ -271,11 +248,11 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
       return;
     }
 
-    errorState.value  = null;
-    hasError.value    = false;
+    errorState.value = null;
+    hasError.value = false;
     isChangingSource.value = true;
 
-    final lastPos   = rxNativeState.value.position;
+    final lastPos = rxNativeState.value.position;
     final lastSpeed = _currentSpeed;
 
     if (source.subtitle != null) {
@@ -389,7 +366,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
       return;
     }
 
-    rxNativeState.value    = initState;
+    rxNativeState.value = initState;
     isChangingSource.value = false;
     onSourceChanged?.call(name);
 
@@ -489,7 +466,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
 
   Future<void> _applySeek() async {
     if (pendingSeek.value == Duration.zero) return;
-    final cur    = rxNativeState.value.position;
+    final cur = rxNativeState.value.position;
     final target = cur + pendingSeek.value;
     pendingSeek.value = Duration.zero;
     await seekTo(target);
@@ -498,12 +475,16 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   // ── Audio ──────────────────────────────────────────────────────────────────
   Future<void> _loadAudioTracks() async {
     final raw = await SenzuNativeChannel.getAudioTracks();
-    audioTracks.value = raw.map((m) => SenzuAudioTrack(
-      id:        m['id']?.toString() ?? '',
-      name:      (m['label'] as String?) ?? (m['name'] as String?) ?? 'Track',
-      language:  m['language'] as String? ?? 'und',
-      isDefault: m['selected'] as bool? ?? false,
-    )).toList();
+    audioTracks.value = raw
+        .map(
+          (m) => SenzuAudioTrack(
+            id: m['id']?.toString() ?? '',
+            name: (m['label'] as String?) ?? (m['name'] as String?) ?? 'Track',
+            language: m['language'] as String? ?? 'und',
+            isDefault: m['selected'] as bool? ?? false,
+          ),
+        )
+        .toList();
     if (audioTracks.isNotEmpty) {
       activeAudioTrack.value = audioTracks
           .firstWhere((t) => t.isDefault, orElse: () => audioTracks.first)
@@ -518,7 +499,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
 
   // ── Fullscreen ─────────────────────────────────────────────────────────────
   Future<void> openOrCloseFullscreen() async {
-    HapticFeedback.lightImpact();
+    await HapticFeedback.lightImpact();
     isFullScreen.value = !isFullScreen.value;
     update();
   }

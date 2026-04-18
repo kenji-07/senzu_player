@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:senzu_player/src/data/language/language.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class SenzuProgressBarStyle {
   const SenzuProgressBarStyle({
@@ -51,36 +50,16 @@ class SenzuCenterButtonStyle {
     Widget? rewind,
     Widget? forward,
   }) : play =
-           play ??
-           Icon(
-             PhosphorIcons.play(PhosphorIconsStyle.fill),
-             color: Colors.white,
-             size: 32,
-           ),
-       pause =
-           pause ??
-           Icon(
-             PhosphorIcons.pause(PhosphorIconsStyle.fill),
-             color: Colors.white,
-             size: 32,
-           ),
+           play ?? const Icon(Icons.play_arrow, color: Colors.white, size: 32),
+       pause = pause ?? const Icon(Icons.pause, color: Colors.white, size: 32),
        replay =
-           replay ??
-           Icon(PhosphorIcons.arrowsClockwise(), color: Colors.white, size: 28),
+           replay ?? const Icon(Icons.replay, color: Colors.white, size: 28),
        rewind =
            rewind ??
-           Icon(
-             PhosphorIcons.rewind(PhosphorIconsStyle.fill),
-             color: Colors.white,
-             size: 12,
-           ),
+           const Icon(Icons.fast_rewind, color: Colors.white, size: 12),
        forward =
            forward ??
-           Icon(
-             PhosphorIcons.fastForward(PhosphorIconsStyle.fill),
-             color: Colors.white,
-             size: 12,
-           );
+           const Icon(Icons.fast_forward, color: Colors.white, size: 12);
 
   final double circleSize;
   final Color circleColor;

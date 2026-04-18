@@ -4,42 +4,17 @@ import 'package:get/get.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuBufferLoader
-//
-// iQIYI-style loading screen:
-//   • Logo / title centered top-half
-//   • Green progress bar (indeterminate while measuring, fills as buffer grows)
-//   • "Starting soon... X.XX MB/s" — speed calculated from buffer delta
-//   • Spinner bottom-center
-//
-// Logic:
-//   • Shown only on initial load (isChangingSource && pos==0) OR not initialized
-//   • MB/s = Δbuffered_bytes / Δtime  (approximated from Δbuffered_ms * bitrate)
-//     Since we don't have raw bytes, we approximate via buffered-duration delta:
-//     bitrate ≈ (Δbuffered_ms * avgBitrate) — but we don't have avgBitrate either.
-//     So instead we track Δbuffered_ms/Δtime_ms → "buffer speed ratio" then
-//     convert with a heuristic: 1 sec buffered/sec ≈ current_bandwidth_use.
-//     For a real MB/s we measure how much `maxBuffering` Duration increases per
-//     real-time second, then multiply by an assumed average segment bitrate.
-//     This is an approximation — for exact MB/s, native bandwidth reporting is needed.
-//
-//   • If the consumer wants exact MB/s, they can pass `downloadSpeedBytesPerSec`
-//     from a native speed observer. Otherwise the widget auto-estimates.
-// ─────────────────────────────────────────────────────────────────────────────
-
 class SenzuBufferLoader extends StatefulWidget {
   const SenzuBufferLoader({
     super.key,
     required this.bundle,
     required this.style,
     this.backgroundColor = const Color(0xFF0A0A0A),
+
     /// Optional: pass actual download speed from native (bytes/sec).
     /// If null, widget estimates from buffer progress delta.
     this.downloadSpeedBytesPerSec,
-    /// Your app logo/brand widget shown at top. Defaults to player title text.
-    this.logoWidget,
-    /// Brand color for progress bar & spinner. Defaults to green (iQIYI style).
+
     this.brandColor = const Color(0xFF00CA13),
   });
 
@@ -47,7 +22,6 @@ class SenzuBufferLoader extends StatefulWidget {
   final SenzuPlayerStyle style;
   final Color backgroundColor;
   final Stream<double>? downloadSpeedBytesPerSec;
-  final Widget? logoWidget;
   final Color brandColor;
 
   @override
@@ -76,7 +50,10 @@ class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat();
-    _shimmerAnim = CurvedAnimation(parent: _shimmerCtrl, curve: Curves.easeInOut);
+    _shimmerAnim = CurvedAnimation(
+      parent: _shimmerCtrl,
+      curve: Curves.easeInOut,
+    );
 
     _startSpeedTimer();
   }
@@ -101,13 +78,15 @@ class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
         const avgBytesPerContentSec = 600_000.0; // ~4.8 Mbps average
         final contentSecsDelta = deltaMs / 1000.0;
         final realSecsDelta = dtMs / 1000.0;
-        final bytesPerSec = (contentSecsDelta * avgBytesPerContentSec) / realSecsDelta;
+        final bytesPerSec =
+            (contentSecsDelta * avgBytesPerContentSec) / realSecsDelta;
         final mbps = bytesPerSec / (1024 * 1024);
 
         _speedSamples.add(mbps);
         if (_speedSamples.length > 4) _speedSamples.removeAt(0);
 
-        final avg = _speedSamples.reduce((a, b) => a + b) / _speedSamples.length;
+        final avg =
+            _speedSamples.reduce((a, b) => a + b) / _speedSamples.length;
 
         setState(() => _speedMbps = avg.clamp(0.0, 999.0));
       }
@@ -130,9 +109,11 @@ class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
       final isChangingSource = widget.bundle.core.isChangingSource.value;
       final isPlaying = widget.bundle.playback.isPlaying.value;
       final pos = widget.bundle.playback.position.value;
-      final isInitialized = widget.bundle.core.rxNativeState.value.isInitialized;
+      final isInitialized =
+          widget.bundle.core.rxNativeState.value.isInitialized;
 
-      final isInitialLoad = isChangingSource && !isPlaying && pos == Duration.zero;
+      final isInitialLoad =
+          isChangingSource && !isPlaying && pos == Duration.zero;
       final notYetReady = !isInitialized && !widget.bundle.core.hasError.value;
 
       if (!isInitialLoad && !notYetReady) return const SizedBox.shrink();
@@ -144,13 +125,12 @@ class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
           : 0.0;
 
       return Positioned.fill(
-        child: _IQIYILoadingOverlay(
+        child: LoadingOverlay(
           bufRatio: bufRatio,
           speedMbps: _speedMbps,
           shimmerAnim: _shimmerAnim,
           backgroundColor: widget.backgroundColor,
           brandColor: widget.brandColor,
-          logoWidget: widget.logoWidget,
           style: widget.style,
           bundle: widget.bundle,
         ),
@@ -159,16 +139,16 @@ class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
   }
 }
 
-// ── iQIYI-style overlay ────────────────────────────────────────────────────────
+// ── Overlay ────────────────────────────────────────────────────────
 
-class _IQIYILoadingOverlay extends StatelessWidget {
-  const _IQIYILoadingOverlay({
+class LoadingOverlay extends StatelessWidget {
+  const LoadingOverlay({
+    super.key,
     required this.bufRatio,
     required this.speedMbps,
     required this.shimmerAnim,
     required this.backgroundColor,
     required this.brandColor,
-    required this.logoWidget,
     required this.style,
     required this.bundle,
   });
@@ -178,7 +158,6 @@ class _IQIYILoadingOverlay extends StatelessWidget {
   final Animation<double> shimmerAnim;
   final Color backgroundColor;
   final Color brandColor;
-  final Widget? logoWidget;
   final SenzuPlayerStyle style;
   final SenzuPlayerBundle bundle;
 
@@ -186,149 +165,11 @@ class _IQIYILoadingOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: backgroundColor,
-      child: Column(
-        children: [
-          // ── Top half: Logo + progress ──────────────────────────────────
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo
-                logoWidget ??
-                    Text(
-                      bundle.core.rxNativeState.value.isInitialized
-                          ? ''
-                          : 'Loading',
-                      style: TextStyle(
-                        color: brandColor,
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2,
-                      ),
-                    ),
-
-                const SizedBox(height: 20),
-
-                // Progress bar
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: _GreenProgressBar(
-                    ratio: bufRatio,
-                    brandColor: brandColor,
-                    shimmerAnim: shimmerAnim,
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                // "Starting soon... X.XX MB/s"
-                _SpeedLabel(
-                  speedMbps: speedMbps,
-                  brandColor: brandColor,
-                  style: style,
-                ),
-              ],
-            ),
-          ),
-
-          // ── Bottom half: Spinner ───────────────────────────────────────
-          Expanded(
-            child: Center(
-              child: _GreenSpinner(brandColor: brandColor),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Green progress bar with shimmer ───────────────────────────────────────────
-
-class _GreenProgressBar extends StatelessWidget {
-  const _GreenProgressBar({
-    required this.ratio,
-    required this.brandColor,
-    required this.shimmerAnim,
-  });
-
-  final double ratio;
-  final Color brandColor;
-  final Animation<double> shimmerAnim;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 2.5,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(2),
-        child: Stack(
-          children: [
-            // Background track
-            Container(
-              color: brandColor.withValues(alpha: 0.18),
-            ),
-
-            // Filled portion
-            if (ratio > 0)
-              FractionallySizedBox(
-                widthFactor: ratio.clamp(0.0, 1.0),
-                child: Container(color: brandColor),
-              ),
-
-            // Indeterminate shimmer when ratio == 0
-            if (ratio == 0)
-              AnimatedBuilder(
-                animation: shimmerAnim,
-                builder: (_, __) {
-                  return FractionallySizedBox(
-                    widthFactor: 0.35,
-                    alignment: Alignment(
-                      (shimmerAnim.value * 2 - 1) * 1.6,
-                      0,
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.transparent,
-                            brandColor,
-                            brandColor,
-                            Colors.transparent,
-                          ],
-                          stops: const [0.0, 0.3, 0.7, 1.0],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-            // Shimmer at leading edge when loading
-            if (ratio > 0 && ratio < 1.0)
-              AnimatedBuilder(
-                animation: shimmerAnim,
-                builder: (_, __) => FractionallySizedBox(
-                  widthFactor: ratio.clamp(0.0, 1.0),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: FractionallySizedBox(
-                      widthFactor: 0.15,
-                      child: Opacity(
-                        opacity: shimmerAnim.value * 0.8,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Colors.transparent, Colors.white],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
+      child: Center(
+        child: _SpeedLabel(
+          speedMbps: speedMbps,
+          brandColor: brandColor,
+          style: style,
         ),
       ),
     );
@@ -369,27 +210,6 @@ class _SpeedLabel extends StatelessWidget {
   }
 }
 
-// ── Green spinner (iQIYI style — open circle) ─────────────────────────────────
-
-class _GreenSpinner extends StatelessWidget {
-  const _GreenSpinner({required this.brandColor});
-  final Color brandColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 36,
-      height: 36,
-      child: CircularProgressIndicator(
-        strokeWidth: 3.0,
-        valueColor: AlwaysStoppedAnimation<Color>(brandColor),
-        backgroundColor: brandColor.withValues(alpha: 0.15),
-        strokeCap: StrokeCap.round,
-      ),
-    );
-  }
-}
-
 // ── RuntimeBufferingIndicator (unchanged, used by center button) ───────────────
 
 class RuntimeBufferingIndicator extends StatelessWidget {
@@ -408,9 +228,15 @@ class RuntimeBufferingIndicator extends StatelessWidget {
       return Text(
         '$bufPercent%',
         style: const TextStyle(
-            color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
       );
     }
-    return const CircularProgressIndicator(strokeWidth: 1.6, color: Colors.white);
+    return const CircularProgressIndicator(
+      strokeWidth: 1.6,
+      color: Colors.white,
+    );
   }
 }

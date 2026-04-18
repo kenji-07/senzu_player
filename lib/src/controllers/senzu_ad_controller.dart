@@ -7,19 +7,6 @@ import 'package:senzu_player/src/platform/senzu_native_video_state.dart';
 import 'senzu_core_controller.dart';
 import 'senzu_playback_controller.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuAdController  —  OPTIMIZED
-//
-// CHANGES vs original:
-//   • _attachAdStreamListener: added guard to prevent double-subscription
-//   • skipAd: added _disposed guard to prevent use-after-dispose crash
-//   • _triggerAd: microtask order is now correct (show ad → pause content)
-//   • _adStreamSub properly cleaned up in onClose
-//   • Source change: full cleanup including _queuedAds + state reset
-//   • onInit: shouldShowContentVideo set to true only after checking IMA state
-//   • _findAd: position guard prevents negative seek range (to < from)
-// ─────────────────────────────────────────────────────────────────────────────
-
 class SenzuAdController extends GetxController {
   SenzuAdController({required this.core, required this.playback});
 
@@ -27,26 +14,25 @@ class SenzuAdController extends GetxController {
   final SenzuPlaybackController playback;
 
   // ── Rx ────────────────────────────────────────────────────────────────────
-  final activeAd                = Rxn<SenzuPlayerAd>();
-  final isAdActive              = false.obs;
-  final adTimeWatched           = Rxn<Duration>();
-  final shouldShowAd            = false.obs;
-  final isAdLoaded              = false.obs;
-  final isAdInitializing        = false.obs;
-  final shouldShowContentVideo  = false.obs;
-  final adDisplayContainer      = Rxn<AdDisplayContainer>();
-  final totalAds                = 0.obs;
+  final activeAd = Rxn<SenzuPlayerAd>();
+  final isAdActive = false.obs;
+  final adTimeWatched = Rxn<Duration>();
+  final shouldShowAd = false.obs;
+  final isAdLoaded = false.obs;
+  final isAdInitializing = false.obs;
+  final shouldShowContentVideo = false.obs;
+  final adDisplayContainer = Rxn<AdDisplayContainer>();
+  final totalAds = 0.obs;
+
+  final adsSeen = RxList<SenzuPlayerAd>([]);
 
   // ── Private ────────────────────────────────────────────────────────────────
   List<SenzuPlayerAd> _pendingAds = [];
-  final List<SenzuPlayerAd> adsSeen = [];
 
   String? _imaAdTagUrl;
   AdsLoader? _adsLoader;
   AdsManager? _adsManager;
   Timer? _adTimer;
-  // FIX: _adCheckTimer was referenced but _attachAdStreamListener replaced it —
-  // keep for IMA content progress only
   Timer? _contentProgressTimer;
   final _contentProgressProvider = ContentProgressProvider();
   bool _isProcessingAd = false;
@@ -61,15 +47,13 @@ class SenzuAdController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // Safe default: content visible until ad kicks in
     shouldShowContentVideo.value = true;
 
     core.onPendingAdsChanged = (ads) {
       if (_disposed) return;
       final filtered = ads.whereType<SenzuPlayerAd>().toList();
       totalAds.value = filtered.length;
-      _pendingAds =
-          filtered.where((a) => !adsSeen.any((s) => s == a)).toList();
+      _pendingAds = filtered.where((a) => !adsSeen.any((s) => s == a)).toList();
       _attachAdStreamListener();
     };
 
@@ -87,8 +71,6 @@ class SenzuAdController extends GetxController {
   }
 
   void _attachAdStreamListener() {
-    // FIX: guard double-subscription (was possible if onPendingAdsChanged
-    // called multiple times before first detach)
     if (_adStreamSub != null) return;
     if (_pendingAds.isEmpty) return;
 
@@ -131,7 +113,6 @@ class SenzuAdController extends GetxController {
     final to = pos;
     _lastCheckedPos = pos;
 
-    // FIX: skip backward seeks to avoid re-triggering ads
     if (to < from) return;
 
     final triggered = <SenzuPlayerAd>[];
@@ -194,7 +175,6 @@ class SenzuAdController extends GetxController {
   }
 
   Future<void> skipAd() async {
-    // FIX: guard against use-after-dispose
     if (_disposed || !isAdActive.value) return;
     _adTimer?.cancel();
     _isProcessingAd = false;
@@ -242,8 +222,7 @@ class SenzuAdController extends GetxController {
         isAdInitializing.value = false;
         _adsManager = data.manager;
         _adsManager!.setAdsManagerDelegate(
-          AdsManagerDelegate(
-              onAdEvent: _onAdEvent, onAdErrorEvent: _onAdError),
+          AdsManagerDelegate(onAdEvent: _onAdEvent, onAdErrorEvent: _onAdError),
         );
         _adsManager!.init(settings: AdsRenderingSettings());
       },
@@ -264,13 +243,13 @@ class SenzuAdController extends GetxController {
         isAdLoaded.value = true;
       case AdEventType.contentPauseRequested:
         await _pauseContent();
-        _adsManager?.start();
+        await _adsManager?.start();
       case AdEventType.contentResumeRequested:
         isAdLoaded.value = false;
         await _resumeContent();
       case AdEventType.allAdsCompleted:
-        _adsLoader?.contentComplete();
-        _adsManager?.destroy();
+        await _adsLoader?.contentComplete();
+        await _adsManager?.destroy();
         _adsManager = null;
         isAdLoaded.value = false;
         shouldShowContentVideo.value = true;
@@ -301,7 +280,7 @@ class SenzuAdController extends GetxController {
     shouldShowAd.value = true;
     _contentProgressTimer?.cancel();
     _contentProgressTimer = null;
-    core.pause();
+    await core.pause();
     await Future.microtask(() {});
   }
 

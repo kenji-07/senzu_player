@@ -128,7 +128,7 @@ extension SenzuDrmManager: AVContentKeySessionDelegate {
         do {
             let certData = try fetchCertificate()
 
-            // Asset ID — HLS URI scheme-аас ална
+            // Asset ID — HLS URI scheme-аас нугас ийн тас шаана.
             let assetId = keyRequest.identifier as? String ?? ""
             let assetIdData = assetId.data(using: .utf8) ?? Data()
 

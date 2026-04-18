@@ -1,5 +1,3 @@
-// android/src/main/kotlin/dev/senzu/senzu_player/SenzuExoPlayerManager.kt
-
 package dev.senzu.senzu_player
 
 import android.app.Activity
@@ -43,9 +41,6 @@ class SenzuExoPlayerManager(
     private val positionPollMs = 200L
     private var positionRunnable: Runnable? = null
 
-    // Texture — initialize бүрт шинээр үүсгэнэ
-    private var textureEntry: TextureRegistry.SurfaceTextureEntry? = null
-
     fun setActivity(act: Activity?) {
         activity = act
         if (act != null && pipManager == null) {
@@ -87,107 +82,92 @@ class SenzuExoPlayerManager(
 
     // ── initialize ─────────────────────────────────────────────────────────
     private fun initialize(args: Map<*, *>?, result: MethodChannel.Result) {
-        val url = args?.get("url") as? String
-            ?: run { result.error("BAD_ARGS", "url required", null); return }
+    val url = args?.get("url") as? String
+        ?: run { result.error("BAD_ARGS", "url required", null); return }
 
-        @Suppress("UNCHECKED_CAST")
-        val headers = (args["headers"] as? Map<String, String>) ?: emptyMap()
-        val drmConfig = SenzuWidevineConfig.from(args)
+    @Suppress("UNCHECKED_CAST")
+    val headers = (args["headers"] as? Map<String, String>) ?: emptyMap()
+    val drmConfig = SenzuWidevineConfig.from(args)
 
-        mainHandler.post {
-            // Хуучин player + texture-г цэвэрлэнэ
-            releasePlayerInternal()
+    mainHandler.post {
+        releasePlayerInternal()
 
-            // Шинэ texture entry үүсгэнэ
-            val entry = textureRegistry.createSurfaceTexture()
-            textureEntry = entry
+        val selector = DefaultTrackSelector(context)
+        trackSelector = selector
 
-            val selector = DefaultTrackSelector(context)
-            trackSelector = selector
+        val dataSourceFactory = DefaultHttpDataSource.Factory()
+            .setDefaultRequestProperties(headers)
+            .setConnectTimeoutMs(15_000)
+            .setReadTimeoutMs(15_000)
+            .setAllowCrossProtocolRedirects(true)
 
-            val dataSourceFactory = DefaultHttpDataSource.Factory()
-                .setDefaultRequestProperties(headers)
-                .setConnectTimeoutMs(15_000)
-                .setReadTimeoutMs(15_000)
-                .setAllowCrossProtocolRedirects(true)
-
-            val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory).apply {
-                if (drmConfig != null) {
-                    setDrmSessionManagerProvider { SenzuDrmManager.build(drmConfig) }
-                }
+        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory).apply {
+            if (drmConfig != null) {
+                setDrmSessionManagerProvider { SenzuDrmManager.build(drmConfig) }
             }
-
-            val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(15_000, 50_000, 2_500, 5_000)
-                .build()
-
-            val exo = ExoPlayer.Builder(context)
-                .setTrackSelector(selector)
-                .setMediaSourceFactory(mediaSourceFactory)
-                .setLoadControl(loadControl)
-                .build()
-
-            val surfaceTexture = entry.surfaceTexture()
-            if (surfaceTexture.isReleased) {
-                result.error("SURFACE_RELEASED", "SurfaceTexture has been released", null)
-                entry.release()
-                textureEntry = null
-                exo.release()
-                return@post
-            }
-            val surface = Surface(surfaceTexture)
-            exo.setVideoSurface(surface)
-
-            exo.addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(state: Int) {
-                    when (state) {
-                        Player.STATE_READY     -> emitPlaybackState()
-                        Player.STATE_BUFFERING -> emitPlaybackState(isBuffering = true)
-                        Player.STATE_ENDED     -> emitPlaybackState(isPlaying = false)
-                        else                   -> Unit
-                    }
-                }
-
-                override fun onIsPlayingChanged(playing: Boolean) {
-                    if (playing) startPositionPolling() else stopPositionPolling()
-                    emitPlaybackState()
-                    syncMediaSession()
-                }
-
-                override fun onPlayerError(error: PlaybackException) {
-                    stopPositionPolling()
-                    emitError(error.message ?: "ExoPlayer error")
-                }
-            })
-
-            val mediaItem = if (drmConfig != null) {
-                SenzuDrmManager.buildMediaItem(url, drmConfig)
-            } else {
-                MediaItem.fromUri(url)
-            }
-
-            exo.setMediaItem(mediaItem)
-            exo.prepare()
-
-            exo.addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(state: Int) {
-                    if (state == Player.STATE_READY) {
-                        exo.removeListener(this)
-                        result.success(mapOf(
-                            "durationMs" to exo.duration.coerceAtLeast(0L),
-                            "textureId"  to entry.id()
-                        ))
-                    }
-                }
-                override fun onPlayerError(error: PlaybackException) {
-                    exo.removeListener(this)
-                    result.error("INIT_ERROR", error.message, null)
-                }
-            })
-
-            player = exo
         }
+
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(15_000, 50_000, 2_500, 5_000)
+            .build()
+
+        val exo = ExoPlayer.Builder(context)
+            .setTrackSelector(selector)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
+            .build()
+
+        SenzuSurfacePlatformView.currentPlayer = exo
+
+        exo.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                when (state) {
+                    Player.STATE_READY     -> emitPlaybackState()
+                    Player.STATE_BUFFERING -> emitPlaybackState(isBuffering = true)
+                    Player.STATE_ENDED     -> emitPlaybackState(isPlaying = false)
+                    else                   -> Unit
+                }
+            }
+            override fun onIsPlayingChanged(playing: Boolean) {
+                if (playing) startPositionPolling() else stopPositionPolling()
+                emitPlaybackState()
+                syncMediaSession()
+            }
+            override fun onPlayerError(error: PlaybackException) {
+                stopPositionPolling()
+                emitError(error.message ?: "ExoPlayer error")
+            }
+        })
+
+        val mediaItem = if (drmConfig != null) {
+            SenzuDrmManager.buildMediaItem(url, drmConfig)
+        } else {
+            MediaItem.fromUri(url)
+        }
+
+        exo.setMediaItem(mediaItem)
+        exo.prepare()
+
+        // STATE_READY хүлээнэ
+        exo.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) {
+                    exo.removeListener(this)
+                    result.success(mapOf(
+                        "durationMs" to exo.duration.coerceAtLeast(0L)
+                        // textureId илгээхгүй — PlatformView ашиглана
+                    ))
+                }
+            }
+            override fun onPlayerError(error: PlaybackException) {
+                exo.removeListener(this)
+                result.error("INIT_ERROR", error.message, null)
+            }
+        })
+
+        player = exo
     }
+}
 
     // ── Playback controls ──────────────────────────────────────────────────
     private fun play(result: MethodChannel.Result) {
@@ -410,11 +390,9 @@ class SenzuExoPlayerManager(
 
     private fun releasePlayerInternal() {
         stopPositionPolling()
+        mediaSessionManager?.teardown() 
         player?.release()
         player = null
         trackSelector = null
-        // Texture-г энд release хийнэ — initialize бүрт шинийг авна
-        textureEntry?.release()
-        textureEntry = null
     }
 }

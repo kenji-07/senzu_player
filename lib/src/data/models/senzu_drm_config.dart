@@ -1,16 +1,4 @@
-/// FairPlay (iOS) / Widevine (Android) DRM тохиргоо.
-///
-/// Хэрэглээ:
-/// ```dart
-/// VideoSource.fromUrl(
-///   'https://...m3u8',
-///   drm: SenzuDrmConfig.fairPlay(
-///     licenseUrl: 'https://license.example.com/fps',
-///     certificateUrl: 'https://license.example.com/cert',
-///     headers: {'Authorization': 'Bearer ...'},
-///   ),
-/// )
-/// ```
+
 class SenzuDrmConfig {
   const SenzuDrmConfig.fairPlay({
     required this.licenseUrl,

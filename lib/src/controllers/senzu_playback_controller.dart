@@ -65,8 +65,4 @@ class SenzuPlaybackController extends GetxController {
   // ── Drag ──────────────────────────────────────────────────────────────────
   void setDragging(bool v) => isDragging.value = v;
 
-  @override
-  void onClose() {
-    super.onClose();
-  }
 }

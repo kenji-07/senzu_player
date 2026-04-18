@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 import 'package:senzu_player/src/data/models/video_source_model.dart';
 import 'package:senzu_player/src/data/models/senzu_annotation_model.dart';
@@ -42,10 +43,11 @@ class SenzuPlayer extends StatefulWidget {
     this.style,
     this.meta,
     this.chapters = const [],
-    
+
     this.defaultAspectRatio = 16 / 9,
     this.enableFullscreen = true,
     this.enableCaption = true,
+    this.enableSleep = true,
     this.enableQuality = true,
     this.enableAudio = false,
     this.enableSpeed = true,
@@ -92,6 +94,7 @@ class SenzuPlayer extends StatefulWidget {
       enableAspect,
       enableLock,
       enablePip,
+      enableSleep,
       enableEpisode;
 
   final bool notification;
@@ -121,11 +124,14 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
   bool _initialized = false;
   String? _initError;
 
+  // Fullscreen overlay
+  OverlayEntry? _overlayEntry;
+
   @override
   void initState() {
     super.initState();
     _style = widget.style ?? SenzuPlayerStyle();
-    _meta = widget.meta ?? SenzuMetaData();
+    _meta = widget.meta ?? const SenzuMetaData();
 
     if (widget.bundle != null) {
       _bundle = widget.bundle!;
@@ -147,11 +153,57 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
       _ownsBundle = true;
     }
 
+    // Listen to fullscreen changes to insert/remove overlay
+    ever(_bundle.core.isFullScreen, _onFullscreenChanged);
+
     _init();
+  }
+
+  void _onFullscreenChanged(bool isFs) {
+    if (isFs) {
+      _insertFullscreenOverlay();
+    } else {
+      _removeFullscreenOverlay();
+    }
+  }
+
+  void _insertFullscreenOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = OverlayEntry(
+      builder: (_) => Material(
+        color: Colors.black,
+        child: SenzuPlayerCoreView(
+          bundle: _bundle,
+          style: _style,
+          meta: _meta,
+          enableCaption: widget.enableCaption,
+          enableQuality: widget.enableQuality,
+          enableAudio: widget.enableAudio,
+          enableSpeed: widget.enableSpeed,
+          enableAspect: widget.enableAspect,
+          enableFullscreen: widget.enableFullscreen,
+          enablePip: widget.enablePip,
+          enableLock: widget.enableLock,
+          enableEpisode: widget.enableEpisode,
+          defaultAspectRatio: widget.defaultAspectRatio,
+          chapters: widget.chapters,
+          enableSleep: widget.enableSleep,
+        ),
+      ),
+    );
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _removeFullscreenOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
     if (_ownsBundle) {
       _bundle.dispose();
       if (widget.enablePip) SenzuNativeChannel.disablePip();
@@ -180,7 +232,7 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
         seekTo: widget.seekTo,
         isLive: widget.isLive,
       );
-      
+
       _bundle.ui.setChapters(widget.chapters);
 
       if (widget.enablePip) await SenzuNativeChannel.enablePip();
@@ -211,98 +263,108 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
   Widget build(BuildContext context) {
     if (_initError != null) return _errorWidget();
 
-    return AspectRatio(
-      aspectRatio: widget.defaultAspectRatio,
-      child: _initialized
-          ? SenzuPlayerCoreView(
-              bundle: _bundle,
-              style: _style,
-              meta: _meta,
-              enableCaption: widget.enableCaption,
-              enableQuality: widget.enableQuality,
-              enableAudio: widget.enableAudio,
-              enableSpeed: widget.enableSpeed,
-              enableAspect: widget.enableAspect,
-              enableFullscreen: widget.enableFullscreen,
-              enablePip: widget.enablePip,
-              enableLock: widget.enableLock,
-              enableEpisode: widget.enableEpisode,
-              defaultAspectRatio: widget.defaultAspectRatio,
-              chapters: widget.chapters,
-            )
-          : _loadingWidget(),
-    );
+    return Obx(() {
+      final isFs = _bundle.core.isFullScreen.value;
+      return AspectRatio(
+        aspectRatio: widget.defaultAspectRatio,
+        child: isFs
+            ? const ColoredBox(color: Colors.black)
+            : _initialized
+            ? SenzuPlayerCoreView(
+                bundle: _bundle,
+                style: _style,
+                meta: _meta,
+                enableCaption: widget.enableCaption,
+                enableQuality: widget.enableQuality,
+                enableAudio: widget.enableAudio,
+                enableSpeed: widget.enableSpeed,
+                enableAspect: widget.enableAspect,
+                enableFullscreen: widget.enableFullscreen,
+                enablePip: widget.enablePip,
+                enableLock: widget.enableLock,
+                enableEpisode: widget.enableEpisode,
+                defaultAspectRatio: widget.defaultAspectRatio,
+                chapters: widget.chapters,
+                enableSleep: widget.enableSleep,
+              )
+            : _loadingWidget(),
+      );
+    });
   }
 
   Widget _loadingWidget() => Stack(
-        children: [
-          if (_style.thumbnail != null) Positioned.fill(child: _style.thumbnail!),
-          Positioned(top: 16, left: 16, child: _BackBtn()),
-          Center(
-            child: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _style.centerButtonStyle.circleColor,
-              ),
-              child: _style.loading,
-            ),
+    children: [
+      if (_style.thumbnail != null) Positioned.fill(child: _style.thumbnail!),
+      Positioned(top: 16, left: 16, child: _BackBtn()),
+      Center(
+        child: Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _style.centerButtonStyle.circleColor,
           ),
-        ],
-      );
+          child: _style.loading,
+        ),
+      ),
+    ],
+  );
 
   Widget _errorWidget() => AspectRatio(
-        aspectRatio: widget.defaultAspectRatio,
-        child: Container(
-          color: Colors.black,
-          child: Stack(
-            children: [
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.white60, size: 48),
-                    const SizedBox(height: 12),
-                    Text(
-                      _style.senzuLanguage.failedToLoad,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                    const SizedBox(height: 6),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        _initError!,
-                        style: const TextStyle(color: Colors.white54, fontSize: 11),
-                        textAlign: TextAlign.center,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white24,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: _retry,
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: Text(_style.senzuLanguage.retry),
-                    ),
-                  ],
+    aspectRatio: widget.defaultAspectRatio,
+    child: Container(
+      color: Colors.black,
+      child: Stack(
+        children: [
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: Colors.white60,
+                  size: 48,
                 ),
-              ),
-              Positioned(top: 16, left: 16, child: _BackBtn()),
-            ],
+                const SizedBox(height: 12),
+                Text(
+                  _style.senzuLanguage.failedToLoad,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    _initError!,
+                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white24,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: _retry,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: Text(_style.senzuLanguage.retry),
+                ),
+              ],
+            ),
           ),
-        ),
-      );
+          Positioned(top: 16, left: 16, child: _BackBtn()),
+        ],
+      ),
+    ),
+  );
 }
 
 class _BackBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) => InkWell(
-        onTap: () => Navigator.of(context).maybePop(),
-        child: const Icon(Icons.chevron_left, color: Colors.white, size: 28),
-      );
+    onTap: () => Navigator.of(context).maybePop(),
+    child: const Icon(Icons.chevron_left, color: Colors.white, size: 28),
+  );
 }

@@ -290,12 +290,6 @@
       "languageVersion": "3.2"
     },
     {
-      "name": "phosphor_flutter",
-      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/phosphor_flutter-2.1.0",
-      "packageUri": "lib/",
-      "languageVersion": "2.12"
-    },
-    {
       "name": "platform",
       "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/platform-3.1.6",
       "packageUri": "lib/",
@@ -468,12 +462,6 @@
       "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/vector_math-2.2.0",
       "packageUri": "lib/",
       "languageVersion": "3.1"
-    },
-    {
-      "name": "visibility_detector",
-      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/visibility_detector-0.4.0+2",
-      "packageUri": "lib/",
-      "languageVersion": "2.12"
     },
     {
       "name": "vm_service",

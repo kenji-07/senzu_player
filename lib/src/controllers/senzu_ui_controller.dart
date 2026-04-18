@@ -26,11 +26,11 @@ class SenzuUIController extends GetxController {
   final SenzuPlaybackController playback;
 
   // ── Rx ────────────────────────────────────────────────────────────────────
-  final isShowingOverlay   = true.obs;
-  final isLocked           = false.obs;
+  final isShowingOverlay = true.obs;
+  final isLocked = false.obs;
   final isShowingThumbnail = true.obs;
-  final activePanel        = SenzuPanel.none.obs;
-  final currentAspect      = BoxFit.cover.obs;
+  final activePanel = SenzuPanel.none.obs;
+  final currentAspect = BoxFit.contain.obs;
 
   final activeSkipChapters = RxList<SenzuChapter>([]);
 
@@ -42,24 +42,16 @@ class SenzuUIController extends GetxController {
   bool? _lastNotificationEnabled;
   Duration _lastSkipPos = Duration.zero;
 
-  // CHANGED: opStart..edEnd → _chapters
   List<SenzuChapter> _chapters = const [];
-  // isSkippable chapters кэш — scan loop дотор filter хийхгүй
   List<SenzuChapter> _skippableChapters = const [];
 
   // ─────────────────────────────────────────────────────────────────────────
-  // setChapters — SenzuPlayer._init() дуусмагч дуудна
-  // CHANGED: Core controller-д op/ed params дамжуулахгүй болсон тул
-  //          UIController нь chapters list-аас skip range-г авна.
-  // ─────────────────────────────────────────────────────────────────────────
   void setChapters(List<SenzuChapter> chapters) {
     _chapters = chapters;
-    // isSkippable chapters-г pre-filter хийнэ — scan loop дотор filter хийхгүй
     _skippableChapters = chapters.where((c) => c.isSkippable).toList();
     activeSkipChapters.clear();
     _lastSkipPos = Duration.zero;
 
-    // Timer-г chapters байвал л эхлүүлнэ
     if (_skippableChapters.isNotEmpty) {
       _startSkipWorker();
     } else {
@@ -79,21 +71,16 @@ class SenzuUIController extends GetxController {
 
   void _startSkipWorker() {
     _skipWorkerTimer?.cancel();
-    _skipWorkerTimer = Timer.periodic(
-      const Duration(milliseconds: 500),
-      (_) {
-        final pos = playback.position.value;
-        if (pos == _lastSkipPos) return;
-        _lastSkipPos = pos;
-        _updateSkipButtons(pos);
-      },
-    );
+    _skipWorkerTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      final pos = playback.position.value;
+      if (pos == _lastSkipPos) return;
+      _lastSkipPos = pos;
+      _updateSkipButtons(pos);
+    });
   }
 
   // ── Skip chapters ──────────────────────────────────────────────────────────
-  //
-  // CHANGED: opStart..opEnd range check → isSkippable chapters scan
-  // O(k) — k = isSkippable chapter тоо (ихэвчлэн 1–2)
+
   void _updateSkipButtons(Duration pos) {
     if (_skippableChapters.isEmpty) return;
     final posMs = pos.inMilliseconds;
@@ -110,7 +97,8 @@ class SenzuUIController extends GetxController {
     }
 
     // Diff-based update — зөвхөн өөрчлөгдсөн үед Rx update
-    final changed = active.length != activeSkipChapters.length ||
+    final changed =
+        active.length != activeSkipChapters.length ||
         active.any((c) => !activeSkipChapters.contains(c));
     if (changed) activeSkipChapters.value = active;
   }
@@ -121,7 +109,6 @@ class SenzuUIController extends GetxController {
     return _chapters[idx + 1].startMs;
   }
 
-  // CHANGED: skipOp()/skipEd() → skipChapter(chapter)
   void skipChapter(SenzuChapter chapter) {
     final targetMs = chapter.skipToMs ?? _nextChapterStartMs(chapter);
     if (targetMs == null) return;
@@ -193,13 +180,10 @@ class SenzuUIController extends GetxController {
 
   void _scheduleOverlay() {
     _overlayTimer?.cancel();
-    _overlayTimer = Timer(
-      const Duration(milliseconds: _overlayMs),
-      () {
-        if (playback.isPlaying.value) isShowingOverlay.value = false;
-        _overlayTimer = null;
-      },
-    );
+    _overlayTimer = Timer(const Duration(milliseconds: _overlayMs), () {
+      if (playback.isPlaying.value) isShowingOverlay.value = false;
+      _overlayTimer = null;
+    });
   }
 
   void _cancelOverlay() {
@@ -215,7 +199,7 @@ class SenzuUIController extends GetxController {
   // ── Lock ───────────────────────────────────────────────────────────────────
   Future<void> toggleLock() async {
     isLocked.value = !isLocked.value;
-    HapticFeedback.lightImpact();
+    await HapticFeedback.lightImpact();
     if (isLocked.value) {
       await SenzuNativeChannel.enableWakelock();
     } else {

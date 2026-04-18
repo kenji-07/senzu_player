@@ -25,7 +25,7 @@ class VideoSource {
     this.protocol = VideoProtocol.hls,
   });
 
-  final String dataSource; 
+  final String dataSource;
   final List<SenzuPlayerAd>? ads;
   final Map<String, SenzuPlayerSubtitle>? subtitle;
   final String initialSubtitle;
@@ -41,7 +41,7 @@ class VideoSource {
   @Deprecated('Use initialSubtitle instead.')
   String get intialSubtitle => initialSubtitle;
 
-  // ── fromUrl (шинэ үндсэн constructor) ────────────────────────────────────
+  // ── fromUrl (үндсэн constructor) ────────────────────────────────────
   static VideoSource fromUrl(
     String url, {
     Map<String, String>? httpHeaders,
@@ -55,21 +55,20 @@ class VideoSource {
     String? forceCodec,
     VideoProtocol protocol = VideoProtocol.hls,
     final SenzuDrmConfig? drm,
-  }) =>
-      VideoSource(
-        dataSource: url,
-        httpHeaders: httpHeaders,
-        ads: ads,
-        subtitle: subtitle,
-        initialSubtitle: initialSubtitle,
-        range: range,
-        thumbnailSprite: thumbnailSprite,
-        isLowLatency: isLowLatency,
-        targetLatencyMs: targetLatencyMs,
-        forceCodec: forceCodec,
-        protocol: protocol,
-        drm: drm
-      );
+  }) => VideoSource(
+    dataSource: url,
+    httpHeaders: httpHeaders,
+    ads: ads,
+    subtitle: subtitle,
+    initialSubtitle: initialSubtitle,
+    range: range,
+    thumbnailSprite: thumbnailSprite,
+    isLowLatency: isLowLatency,
+    targetLatencyMs: targetLatencyMs,
+    forceCodec: forceCodec,
+    protocol: protocol,
+    drm: drm,
+  );
 
   // ── fromDashUrl ───────────────────────────────────────────────────────────
   static VideoSource fromDashUrl(
@@ -80,17 +79,16 @@ class VideoSource {
     String initialSubtitle = '',
     Tween<Duration>? range,
     final SenzuDrmConfig? drm,
-  }) =>
-      VideoSource(
-        dataSource: url,
-        protocol: VideoProtocol.dash,
-        httpHeaders: httpHeaders,
-        ads: ads,
-        subtitle: subtitle,
-        initialSubtitle: initialSubtitle,
-        range: range,
-        drm: drm
-      );
+  }) => VideoSource(
+    dataSource: url,
+    protocol: VideoProtocol.dash,
+    httpHeaders: httpHeaders,
+    ads: ads,
+    subtitle: subtitle,
+    initialSubtitle: initialSubtitle,
+    range: range,
+    drm: drm,
+  );
 
   // ── fromFile ───────────────────────────────────────────────────────────────
   static VideoSource fromFile(
@@ -100,21 +98,22 @@ class VideoSource {
     String initialSubtitle = '',
     Tween<Duration>? range,
     SenzuThumbnailSprite? thumbnailSprite,
-  }) =>
-      VideoSource(
-        dataSource: filePath,
-        protocol: VideoProtocol.mp4,
-        ads: ads,
-        subtitle: subtitle,
-        initialSubtitle: initialSubtitle,
-        range: range,
-        thumbnailSprite: thumbnailSprite,
-      );
+  }) => VideoSource(
+    dataSource: filePath,
+    protocol: VideoProtocol.mp4,
+    ads: ads,
+    subtitle: subtitle,
+    initialSubtitle: initialSubtitle,
+    range: range,
+    thumbnailSprite: thumbnailSprite,
+  );
 
   // ── fromAsset ──────────────────────────────────────────────────────────────
   // Asset playback native layer-д дэмжихгүй тул file path болгон хөрвүүлнэ.
   // Хэрэглэгч өөрөө asset-г file-д copy хийж path дамжуулах шаардлагатай.
-  @Deprecated('Asset playback is not supported by the native player. Use fromFile instead.')
+  @Deprecated(
+    'Asset playback is not supported by the native player. Use fromFile instead.',
+  )
   static VideoSource fromAsset(
     String assetPath, {
     String package = '',
@@ -123,16 +122,15 @@ class VideoSource {
     String initialSubtitle = '',
     Tween<Duration>? range,
     SenzuThumbnailSprite? thumbnailSprite,
-  }) =>
-      VideoSource(
-        dataSource: assetPath,
-        protocol: VideoProtocol.mp4,
-        ads: ads,
-        subtitle: subtitle,
-        initialSubtitle: initialSubtitle,
-        range: range,
-        thumbnailSprite: thumbnailSprite,
-      );
+  }) => VideoSource(
+    dataSource: assetPath,
+    protocol: VideoProtocol.mp4,
+    ads: ads,
+    subtitle: subtitle,
+    initialSubtitle: initialSubtitle,
+    range: range,
+    thumbnailSprite: thumbnailSprite,
+  );
 
   // ── fromNetworkVideoSources ───────────────────────────────────────────────
   static Map<String, VideoSource> fromNetworkVideoSources(
@@ -144,20 +142,21 @@ class VideoSource {
     Map<String, String>? httpHeaders,
     SenzuThumbnailSprite? thumbnailSprite,
     final SenzuDrmConfig? drm,
-  }) =>
-      sources.map((k, url) => MapEntry(
-            k,
-            VideoSource(
-              dataSource: url,
-              initialSubtitle: initialSubtitle,
-              subtitle: subtitle,
-              ads: ads,
-              range: range,
-              httpHeaders: httpHeaders,
-              thumbnailSprite: thumbnailSprite,
-              drm: drm
-            ),
-          ));
+  }) => sources.map(
+    (k, url) => MapEntry(
+      k,
+      VideoSource(
+        dataSource: url,
+        initialSubtitle: initialSubtitle,
+        subtitle: subtitle,
+        ads: ads,
+        range: range,
+        httpHeaders: httpHeaders,
+        thumbnailSprite: thumbnailSprite,
+        drm: drm,
+      ),
+    ),
+  );
 
   // ── fromM3u8PlaylistUrl ───────────────────────────────────────────────────
   static Future<Map<String, VideoSource>> fromM3u8PlaylistUrl(
@@ -181,24 +180,28 @@ class VideoSource {
     Map<String, SenzuPlayerSubtitle>? resolvedSubs = subtitle;
 
     if (autoSubtitle && subtitle == null) {
-      final r =
-          await _parseSubs(content, m3u8, httpHeaders, initialSubtitleLang);
+      final r = await _parseSubs(
+        content,
+        m3u8,
+        httpHeaders,
+        initialSubtitleLang,
+      );
       if (r.subtitles.isNotEmpty) {
         resolvedSubs = r.subtitles;
         resolvedInitial = r.initialName;
       }
     }
 
-    VideoSource _b(String url) => VideoSource(
-          dataSource: url,
-          initialSubtitle: resolvedInitial,
-          subtitle: resolvedSubs,
-          ads: ads,
-          range: range,
-          httpHeaders: httpHeaders,
-          thumbnailSprite: thumbnailSprite,
-          drm: drm
-        );
+    VideoSource bb(String url) => VideoSource(
+      dataSource: url,
+      initialSubtitle: resolvedInitial,
+      subtitle: resolvedSubs,
+      ads: ads,
+      range: range,
+      httpHeaders: httpHeaders,
+      thumbnailSprite: thumbnailSprite,
+      drm: drm,
+    );
 
     final sorted = sourceUrls.entries.toList()
       ..sort((a, b) {
@@ -209,11 +212,11 @@ class VideoSource {
       });
 
     final result = <String, VideoSource>{};
-    if (descending) result['Auto'] = _b(m3u8);
+    if (descending) result['Auto'] = bb(m3u8);
     for (final e in sorted) {
-      result[formatter?.call(e.key) ?? e.key] = _b(e.value);
+      result[formatter?.call(e.key) ?? e.key] = bb(e.value);
     }
-    if (!descending) result['Auto'] = _b(m3u8);
+    if (!descending) result['Auto'] = bb(m3u8);
     return result;
   }
 
@@ -228,9 +231,10 @@ class VideoSource {
     final urlRx = RegExp(r'^https?://', caseSensitive: false);
     final bRx = RegExp(r'(.*)\r?/');
     final varRx = RegExp(
-        r'#EXT-X-STREAM-INF:(?:.*,RESOLUTION=(\d+x\d+))?,?(.*)\r?\n(.*)',
-        caseSensitive: false,
-        multiLine: true);
+      r'#EXT-X-STREAM-INF:(?:.*,RESOLUTION=(\d+x\d+))?,?(.*)\r?\n(.*)',
+      caseSensitive: false,
+      multiLine: true,
+    );
     final result = <String, String>{};
     for (final m in varRx.allMatches(content)) {
       final raw = m.group(3) ?? '', q = m.group(1) ?? '';
@@ -242,15 +246,20 @@ class VideoSource {
     return result;
   }
 
-  static Future<_SubRes> _parseSubs(String content, String baseUrl,
-      Map<String, String>? h, String initLang) async {
+  static Future<_SubRes> _parseSubs(
+    String content,
+    String baseUrl,
+    Map<String, String>? h,
+    String initLang,
+  ) async {
     final trackRx = RegExp(
-        r'#EXT-X-MEDIA:TYPE=SUBTITLES'
-        r'(?:[^"\n]*,LANGUAGE="([^"]*)")?'
-        r'(?:[^"\n]*,NAME="([^"]*)")?'
-        r'(?:[^"\n]*,URI="([^"]*)")?',
-        caseSensitive: false,
-        multiLine: true);
+      r'#EXT-X-MEDIA:TYPE=SUBTITLES'
+      r'(?:[^"\n]*,LANGUAGE="([^"]*)")?'
+      r'(?:[^"\n]*,NAME="([^"]*)")?'
+      r'(?:[^"\n]*,URI="([^"]*)")?',
+      caseSensitive: false,
+      multiLine: true,
+    );
     final urlRx = RegExp(r'^https?://', caseSensitive: false);
     final bRx = RegExp(r'(.*)\r?/');
     final subs = <String, SenzuPlayerSubtitle>{};
@@ -295,11 +304,16 @@ class VideoSource {
   }
 
   static Future<String> _mergeVtt(
-      String playlist, String plUrl, Map<String, String>? h) async {
+    String playlist,
+    String plUrl,
+    Map<String, String>? h,
+  ) async {
     final urlRx = RegExp(r'^https?://', caseSensitive: false);
     final bRx = RegExp(r'(.*)\r?/');
-    final segRx =
-        RegExp(r'#EXTINF:([\d.]+),?\r?\n([^\r\n#][^\r\n]*)', multiLine: true);
+    final segRx = RegExp(
+      r'#EXTINF:([\d.]+),?\r?\n([^\r\n#][^\r\n]*)',
+      multiLine: true,
+    );
     final base = bRx.firstMatch(plUrl)?.group(0) ?? '';
     var off = Duration.zero;
     final futures = segRx.allMatches(playlist).map((m) {
@@ -314,7 +328,10 @@ class VideoSource {
   }
 
   static Future<_Seg> _fetchSeg(
-      String url, Map<String, String>? h, Duration off) async {
+    String url,
+    Map<String, String>? h,
+    Duration off,
+  ) async {
     try {
       final r = await http.get(Uri.parse(url), headers: h ?? {});
       return _Seg(r.statusCode == 200 ? utf8.decode(r.bodyBytes) : '', off);
@@ -326,7 +343,8 @@ class VideoSource {
   static String _combine(List<_Seg> segs) {
     final buf = StringBuffer('WEBVTT\n\n');
     final tsRx = RegExp(
-        r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})');
+      r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})',
+    );
     var idx = 1;
     for (final seg in segs) {
       if (seg.content.isEmpty) continue;
@@ -334,9 +352,13 @@ class VideoSource {
       var i = 0;
       if (lines.isNotEmpty && lines[0].startsWith('WEBVTT')) {
         i = 1;
-        while (i < lines.length && lines[i].trim().isEmpty) i++;
+        while (i < lines.length && lines[i].trim().isEmpty) {
+          i++;
+        }
         if (i < lines.length && lines[i].startsWith('NOTE')) {
-          while (i < lines.length && lines[i].trim().isNotEmpty) i++;
+          while (i < lines.length && lines[i].trim().isNotEmpty) {
+            i++;
+          }
         }
       }
       final cue = StringBuffer();
@@ -372,10 +394,11 @@ class VideoSource {
   static Duration _pts(String ts) {
     final p = ts.split(':'), sm = p[2].split('.');
     return Duration(
-        hours: int.parse(p[0]),
-        minutes: int.parse(p[1]),
-        seconds: int.parse(sm[0]),
-        milliseconds: int.parse(sm.length > 1 ? sm[1] : '0'));
+      hours: int.parse(p[0]),
+      minutes: int.parse(p[1]),
+      seconds: int.parse(sm[0]),
+      milliseconds: int.parse(sm.length > 1 ? sm[1] : '0'),
+    );
   }
 
   static String _fts(Duration d) =>

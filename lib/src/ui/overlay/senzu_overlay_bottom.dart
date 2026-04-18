@@ -15,7 +15,6 @@ class SenzuOverlayBottom extends StatelessWidget {
     this.enableFullscreen = true,
     this.enablePip = false,
     this.enableEpisode = false,
-    // CHANGED: chapters параметр нэмсэн
     this.chapters = const [],
   });
 
@@ -82,13 +81,13 @@ class SenzuOverlayBottom extends StatelessWidget {
                     const Spacer(),
 
                     _Btn(
-                      icon: Icon(Icons.headphones, color: Colors.white, size: 20),
+                      icon: const Icon(Icons.headphones, color: Colors.white, size: 20),
                       onTap: () => bundle.ui.togglePanel(SenzuPanel.audio),
                     ),
                     if (enablePip) SenzuPipButton(bundle: bundle),
                     if (enableEpisode && style.episodeWidget != null)
                       _Btn(
-                        icon: Icon(Icons.view_list, color: Colors.white, size: 20),
+                        icon: const Icon(Icons.view_list, color: Colors.white, size: 20),
                         onTap: () => bundle.ui.togglePanel(SenzuPanel.episode),
                       ),
                     if (enableFullscreen)

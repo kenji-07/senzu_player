@@ -1,5 +1,3 @@
-// ios/Classes/SenzuSurfaceViewFactory.swift — full refactor
-
 import Flutter
 import UIKit
 import AVFoundation

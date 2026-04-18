@@ -14,20 +14,17 @@ class SenzuAnnotationController extends GetxController {
 
   final activeAnnotations = RxList<SenzuAnnotation>([]);
 
-  // Sorted index: appearAt-р эрэмбэлсэн — binary search боломжтой
   late final List<_AnnotationEntry> _sorted;
 
   // Throttle: annotation-г 250ms-д нэг удаа шалгана
   Timer? _scanTimer;
 
-  // Last known active set — Set<String> ашиглавал diff O(n) биш O(1)
   final Set<String> _activeIds = {};
 
   @override
   void onInit() {
     super.onInit();
 
-    // Pre-process: sorted index үүсгэнэ
     _sorted = annotations
         .map((a) => _AnnotationEntry(
               annotation: a,
@@ -46,7 +43,7 @@ class SenzuAnnotationController extends GetxController {
   void _startScanTimer() {
     _scanTimer?.cancel();
     _scanTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
-      if (!playback.isPlaying.value) return; // pause үед skip
+      if (!playback.isPlaying.value) return; 
       _scan(playback.position.value);
     });
   }
@@ -54,8 +51,6 @@ class SenzuAnnotationController extends GetxController {
   void _scan(Duration pos) {
     final posMs = pos.inMilliseconds;
 
-    // Binary search: appearAt <= pos болох эхний annotation-г олно
-    // Энэ нь scan range-г O(n) → O(log n + k) болгоно (k = active count)
     final startIdx = _lowerBound(posMs);
     if (startIdx < 0) {
       _updateActive(const []);
@@ -63,16 +58,14 @@ class SenzuAnnotationController extends GetxController {
     }
 
     final active = <SenzuAnnotation>[];
-    // startIdx-ээс forward scan — disappearAt > pos болох annotation цуглуулна
     for (int i = startIdx; i < _sorted.length; i++) {
       final e = _sorted[i];
-      if (e.appearMs > posMs) break; // Sorted тул энд зогсоно
+      if (e.appearMs > posMs) break; 
       if (e.disappearMs > posMs) {
         active.add(e.annotation);
       }
     }
 
-    // Backward scan: startIdx-ийн өмнө appearAt <= pos болох зарим annotation байж болно
     for (int i = startIdx - 1; i >= 0; i--) {
       final e = _sorted[i];
       if (e.disappearMs <= posMs) break;
@@ -84,12 +77,11 @@ class SenzuAnnotationController extends GetxController {
     _updateActive(active);
   }
 
-  // Diff-based update: зөвхөн өөрчлөгдсөн үед RxList update хийнэ
   void _updateActive(List<SenzuAnnotation> newActive) {
     final newIds = newActive.map((a) => a.id).toSet();
     if (newIds.length == _activeIds.length &&
         newIds.every(_activeIds.contains)) {
-      return; // No change — rebuild skip
+      return;
     }
     _activeIds
       ..clear()
@@ -97,7 +89,6 @@ class SenzuAnnotationController extends GetxController {
     activeAnnotations.value = newActive;
   }
 
-  // Lower bound: appearAt <= posMs болох хамгийн сүүлийн idx
   int _lowerBound(int posMs) {
     if (_sorted.isEmpty) return -1;
     int lo = 0, hi = _sorted.length - 1, result = -1;
@@ -120,8 +111,6 @@ class SenzuAnnotationController extends GetxController {
   }
 }
 
-// Internal sorted entry — annotation-г double wrap хийхгүйн тулд
-// ms-р pre-compute хийнэ
 class _AnnotationEntry {
   const _AnnotationEntry({
     required this.annotation,

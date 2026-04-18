@@ -1,20 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Sprite sheet thumbnail preview for the seek bar.
-///
-/// thumbWidth / thumbHeight аргументуудыг устгасан —
-/// тэдгээрийн оронд sprite sheet URL-аас автоматаар тооцоолно.
-/// (CachedNetworkImage + ImageInfo ашиглан)
-///
-/// Хэрэглээ:
-/// ```dart
-/// SenzuThumbnailSprite(
-///   url: 'https://...sprite.jpg',
-///   columns: 10,
-///   rows: 10,
-///   intervalSec: 5,
-/// )
-/// ```
 class SenzuThumbnailSprite {
   const SenzuThumbnailSprite({
     required this.url,
@@ -37,7 +22,6 @@ class SenzuThumbnailSprite {
   /// Sprite sheet-ийн нийт хэмжээ мэдэгдэж байвал нэг thumbnail-ийн хэмжээг
   /// буцаана. Мэдэгдэхгүй бол null.
   ///
-  /// senzu_progress_bar.dart дотор ImageInfo ашиглан шийднэ.
   double? get thumbWidth  => _thumbWidth;
   double? get thumbHeight => _thumbHeight;
 

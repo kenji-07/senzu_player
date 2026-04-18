@@ -3,19 +3,6 @@ import 'package:flutter/services.dart';
 import 'senzu_native_video_state.dart';
 import 'senzu_native_channel.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuNativeVideoController  —  OPTIMIZED
-//
-// CHANGES vs original:
-//   • _disposed flag prevents use-after-dispose crashes
-//   • initialize(): drm map only sent when non-empty (avoids native null-parse)
-//   • dispose(): sequential — cancel sub THEN close stream (prevents events
-//     arriving at a closed sink)
-//   • _emit(): double-check isClosed before add (belt-and-suspenders)
-//   • play/pause/seekTo: return early when _disposed to prevent MethodChannel
-//     calls after disposePlayer has been called on native side
-// ─────────────────────────────────────────────────────────────────────────────
-
 class SenzuNativeVideoController {
   static const _methodChannel = MethodChannel('senzu_player/native');
 
@@ -45,8 +32,6 @@ class SenzuNativeVideoController {
   Future<SenzuNativeVideoState> initialize({
     required String url,
     Map<String, String> headers = const {},
-    // FIX: was always sent as {} — native side couldn't distinguish
-    // "no DRM" from "DRM with empty config". Now only sent when non-empty.
     Map<String, dynamic> drm = const {},
     String title  = '',
     String artist = '',
@@ -63,9 +48,6 @@ class SenzuNativeVideoController {
       'artwork': artwork ?? '',
       'isLive':  isLive,
     };
-
-    // FIX: Only include drm key when there's actual DRM config.
-    // Native Swift code checks for nil, not empty map.
     if (drm.isNotEmpty) {
       args['drm'] = drm;
     }
@@ -115,8 +97,6 @@ class SenzuNativeVideoController {
     if (_disposed) return;
     _disposed = true;
 
-    // FIX: cancel subscription BEFORE closing stream to prevent
-    // events landing in a closed sink and throwing StateError
     await _eventSub?.cancel();
     _eventSub = null;
 

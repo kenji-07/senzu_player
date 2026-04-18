@@ -2,17 +2,6 @@ import 'dart:async';
 import 'package:get/get.dart';
 import 'package:senzu_player/src/platform/senzu_native_channel.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuDeviceController
-//
-// Single responsibility:
-//   • System volume / brightness
-//   • Battery level + state
-//   • Native event stream listener
-//   • Mute toggle
-// ─────────────────────────────────────────────────────────────────────────────
-
-
 class SenzuDeviceController extends GetxController {
   final volume       = 1.0.obs;
   final brightness   = 0.5.obs;

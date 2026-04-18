@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
@@ -92,7 +91,7 @@ class SenzuOverlayTop extends StatelessWidget {
               children: [
                 // Sleep timer
                 _Btn(
-                  PhosphorIcons.timer(),
+                  Icons.bedtime_outlined,
                   () => bundle.ui.togglePanel(SenzuPanel.sleep),
                 ),
 
@@ -101,35 +100,35 @@ class SenzuOverlayTop extends StatelessWidget {
                 // Aspect ratio
                 if (enableAspect)
                   _Btn(
-                    PhosphorIcons.frameCorners(),
+                    Icons.aspect_ratio,
                     () => bundle.ui.togglePanel(SenzuPanel.aspect),
                   ),
 
                 // Speed (not available for live)
                 if (enableSpeed && !isLive)
                   _Btn(
-                    PhosphorIcons.gauge(),
+                    Icons.speed,
                     () => bundle.ui.togglePanel(SenzuPanel.speed),
                   ),
 
                 // Captions
                 if (enableCaption)
                   _Btn(
-                    PhosphorIcons.closedCaptioning(),
+                    Icons.closed_caption,
                     () => bundle.ui.togglePanel(SenzuPanel.caption),
                   ),
 
                 // Quality
                 if (enableQuality)
                   _Btn(
-                    PhosphorIcons.highDefinition(),
+                    Icons.hd,
                     () => bundle.ui.togglePanel(SenzuPanel.quality),
                   ),
 
                 // Audio tracks
                 if (enableAudio)
                   _Btn(
-                    PhosphorIcons.fileAudio(),
+                    Icons.audiotrack,
                     () => bundle.ui.togglePanel(SenzuPanel.audio),
                   ),
               ],

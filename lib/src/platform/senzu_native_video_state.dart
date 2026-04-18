@@ -1,7 +1,4 @@
-// lib/src/platform/senzu_native_video_state.dart
 
-/// Mirrors the EventChannel "playback" event schema from native.
-///
 /// Field names are intentionally identical to those read by
 /// [SenzuPlaybackController._onFrame] so that controller needs zero changes.
 class SenzuNativeVideoState {

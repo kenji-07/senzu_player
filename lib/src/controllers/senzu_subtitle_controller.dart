@@ -5,19 +5,6 @@ import 'package:senzu_player/src/data/models/subtitle_model.dart';
 import 'senzu_core_controller.dart';
 import 'senzu_playback_controller.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuSubtitleController
-//
-// Single responsibility:
-//   • Listen to position (from PlaybackController via ever())
-//   • Find matching SubtitleData using binary search
-//   • Expose currentSubtitle ValueNotifier for UI
-//
-// NOTE: Subtitles are rendered by Flutter overlay (not AVPlayer).
-//       AVPlayer native subtitle tracks (.srt embedded in HLS) are separate;
-//       this controller handles external .vtt/.srt files passed via VideoSource.
-// ─────────────────────────────────────────────────────────────────────────────
-
 class SenzuSubtitleController extends GetxController {
   SenzuSubtitleController({
     required this.core,
@@ -43,16 +30,13 @@ class SenzuSubtitleController extends GetxController {
   void onInit() {
     super.onInit();
 
-    // Listen to position changes from PlaybackController
     ever(playback.position, _onPosition);
 
-    // Listen to source changes to clear cache
     ever(core.rxActiveSource, (_) {
       _lastFound = null;
       currentSubtitle.value = null;
     });
 
-    // Wire subtitle change requests from CoreController
     core.onSubtitleChangeRequested = (subtitle, name) {
       changeSubtitle(subtitle: subtitle as SenzuPlayerSubtitle?, name: name);
     };

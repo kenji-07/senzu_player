@@ -55,8 +55,8 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
     final dur = bundle.playback.duration.value;
     if (dur.inMilliseconds == 0) return;
 
-    final currentMs =
-        (dur.inMilliseconds * bundle.playback.dragRatio.value).round();
+    final currentMs = (dur.inMilliseconds * bundle.playback.dragRatio.value)
+        .round();
     final currentSec = currentMs ~/ 1000;
 
     // ── 1. Second-tick haptic (light) ────────────────────────────────────
@@ -180,8 +180,18 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
                 alignment: AlignmentDirectional.centerStart,
                 clipBehavior: Clip.none,
                 children: [
-                  _Bar(w: _totalW, ratio: 1.0, color: s.backgroundColor, style: s),
-                  _Bar(w: _totalW, ratio: bufR, color: s.bufferedColor, style: s),
+                  _Bar(
+                    w: _totalW,
+                    ratio: 1.0,
+                    color: s.backgroundColor,
+                    style: s,
+                  ),
+                  _Bar(
+                    w: _totalW,
+                    ratio: bufR,
+                    color: s.bufferedColor,
+                    style: s,
+                  ),
                   _Bar(w: _totalW, ratio: posR, color: s.color, style: s),
                   _Dot(
                     posRatio: posR,
@@ -262,15 +272,27 @@ class SenzuChapterPainter extends CustomPainter {
         _activePaint
           ..color = activeChapterColor
           ..strokeWidth = markerWidth + 0.5;
-        canvas.drawLine(Offset(x, top), Offset(x, top + markerHeight), _activePaint);
+        canvas.drawLine(
+          Offset(x, top),
+          Offset(x, top + markerHeight),
+          _activePaint,
+        );
 
         _glowPaint.color = activeChapterColor.withValues(alpha: 0.28);
-        canvas.drawCircle(Offset(x, size.height / 2), markerWidth * 2.5, _glowPaint);
+        canvas.drawCircle(
+          Offset(x, size.height / 2),
+          markerWidth * 2.5,
+          _glowPaint,
+        );
       } else {
         _normalPaint
           ..color = markerColor
           ..strokeWidth = markerWidth;
-        canvas.drawLine(Offset(x, top), Offset(x, top + markerHeight), _normalPaint);
+        canvas.drawLine(
+          Offset(x, top),
+          Offset(x, top + markerHeight),
+          _normalPaint,
+        );
       }
     }
   }
@@ -284,7 +306,7 @@ class SenzuChapterPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRebuildSemantics(SenzuChapterPainter old) => false;
+  bool shouldRebuildSemantics(SenzuChapterPainter oldDelegate) => false;
 }
 
 class _ChapterPainterCache {
@@ -378,6 +400,7 @@ class _Dot extends StatelessWidget {
 
 class SeekThumbnail extends StatelessWidget {
   const SeekThumbnail({
+    super.key,
     required this.position,
     required this.sprite,
     required this.style,
@@ -401,7 +424,11 @@ class SeekThumbnail extends StatelessWidget {
           placeholder: (_, __) => const SizedBox.shrink(),
           errorWidget: (_, __, ___) => Container(
             color: Colors.black45,
-            child: const Icon(Icons.image_not_supported, color: Colors.white38, size: 24),
+            child: const Icon(
+              Icons.image_not_supported,
+              color: Colors.white38,
+              size: 24,
+            ),
           ),
         ),
         Align(
@@ -435,7 +462,7 @@ class SeekThumbnail extends StatelessWidget {
 }
 
 class Tooltips extends StatelessWidget {
-  const Tooltips({required this.position, required this.style});
+  const Tooltips({super.key, required this.position, required this.style});
   final Duration position;
   final SenzuProgressBarStyle style;
 

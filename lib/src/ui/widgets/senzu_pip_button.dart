@@ -1,13 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/platform/senzu_native_channel.dart';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuPipButton
-//
-// Floating PiP button — shown in overlay top bar when PiP is supported.
-// Tapping enters Picture-in-Picture mode.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class SenzuPipButton extends StatefulWidget {
   const SenzuPipButton({super.key, required this.bundle});
@@ -47,8 +41,8 @@ class _SenzuPipButtonState extends State<SenzuPipButton> {
         child: Icon(
           _active
               ? Icons
-                    .picture_as_pdf // or any "exit PiP" icon
-              : Icons.pin_drop,
+                    .picture_in_picture_alt_outlined 
+              : Icons.picture_in_picture_alt_rounded,
           color: Colors.white,
           size: 20,
         ),
@@ -56,7 +50,6 @@ class _SenzuPipButtonState extends State<SenzuPipButton> {
     );
   }
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SenzuPipOverlay
@@ -66,8 +59,9 @@ class _SenzuPipButtonState extends State<SenzuPipButton> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SenzuPipOverlay extends StatelessWidget {
-  const SenzuPipOverlay({super.key, this.onTap});
+  const SenzuPipOverlay({super.key, this.onTap, required this.style});
   final VoidCallback? onTap;
+  final SenzuPlayerStyle style;
 
   @override
   Widget build(BuildContext context) {
@@ -90,18 +84,18 @@ class SenzuPipOverlay extends StatelessWidget {
                 color: Colors.black87,
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.picture_in_picture_alt,
                     color: Colors.white,
                     size: 16,
                   ),
-                  SizedBox(width: 6),
+                  const SizedBox(width: 6),
                   Text(
-                    'Back to player',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
+                    style.senzuLanguage.backToPlayer,
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ],
               ),

@@ -35,10 +35,10 @@ class SenzuPlayerSubtitle {
     this.url_, {
     this.type = SubtitleType.webvtt,
     Map<String, String>? headers,
-  })  : initType = SubtitleInitializeType.network,
-        keyHex = null,
-        ivHex = null,
-        content = '' {
+  }) : initType = SubtitleInitializeType.network,
+       keyHex = null,
+       ivHex = null,
+       content = '' {
     if (headers != null) _headers.addAll(headers);
   }
 
@@ -47,9 +47,9 @@ class SenzuPlayerSubtitle {
     this.url_, {
     this.type = SubtitleType.webvtt,
     Map<String, String>? headers,
-  })  : initType = SubtitleInitializeType.string,
-        keyHex = null,
-        ivHex = null {
+  }) : initType = SubtitleInitializeType.string,
+       keyHex = null,
+       ivHex = null {
     if (headers != null) _headers.addAll(headers);
   }
 
@@ -59,8 +59,8 @@ class SenzuPlayerSubtitle {
     required this.ivHex,
     this.type = SubtitleType.webvtt,
     Map<String, String>? headers,
-  })  : initType = SubtitleInitializeType.decrypt,
-        content = '' {
+  }) : initType = SubtitleInitializeType.decrypt,
+       content = '' {
     if (headers != null) _headers.addAll(headers);
   }
 
@@ -98,19 +98,23 @@ class SenzuPlayerSubtitle {
         ? RegExp(
             r'(\d+)?\n(?:(\d{1,}):)?(?:(\d{1,2}):)?(\d{1,2})[.,]+(\d+)\s*-->\s*(?:(\d{1,2}):)?(?:(\d{1,2}):)?(\d{1,2}).(\d+)(?:.*(?:\r?(?!\r?).*)*)\n(.*(?:\r?\n(?!\r?\n).*)*)',
             caseSensitive: false,
-            multiLine: true)
+            multiLine: true,
+          )
         : RegExp(
             r'((\d{2}):(\d{2}):(\d{2})\,(\d+)) +--> +((\d{2}):(\d{2}):(\d{2})\,(\d{3})).*[\r\n]+\s*((?:(?!\r?\n\r?).)*(\r\n|\r|\n)(?:.*))',
             caseSensitive: false,
-            multiLine: true);
+            multiLine: true,
+          );
 
     for (final m in re.allMatches(content)) {
-      _subs.add(SubtitleData(
-        start: _dur(m, 2, 3, 4, 5),
-        end: _dur(m, 6, 7, 8, 9),
-        text: _strip(m.group(10) ?? '').trim(),
-        url: url_,
-      ));
+      _subs.add(
+        SubtitleData(
+          start: _dur(m, 2, 3, 4, 5),
+          end: _dur(m, 6, 7, 8, 9),
+          text: _strip(m.group(10) ?? '').trim(),
+          url: url_,
+        ),
+      );
     }
   }
 
@@ -144,45 +148,58 @@ class SenzuPlayerSubtitle {
   String _decryptCdn(String text, String kHex, String iHex) {
     String decoded;
     try {
-      decoded =
-          utf8.decode(base64Decode(text.trim().replaceAll(RegExp(r'\s+'), '')));
+      decoded = utf8.decode(
+        base64Decode(text.trim().replaceAll(RegExp(r'\s+'), '')),
+      );
     } catch (_) {
       decoded = text;
     }
-    final lines =
-        decoded.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n');
+    final lines = decoded
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n')
+        .split('\n');
     final key = _hb(kHex), iv = _hb(iHex);
-    if (key.length != 16 || iv.length != 16)
+    if (key.length != 16 || iv.length != 16) {
       throw ArgumentError('key/iv must be 16 bytes');
+    }
 
-    final tsRx =
-        RegExp(r'^\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}$');
+    final tsRx = RegExp(
+      r'^\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}$',
+    );
     bool isHex(String s) =>
         s.isNotEmpty &&
         s.length % 2 == 0 &&
         RegExp(r'^[0-9a-fA-F]+$').hasMatch(s);
     bool isCueId(String s) => s.length == 32 && isHex(s);
 
-    return lines.map((line) {
-      final t = line.trim();
-      if (t.isEmpty || t == 'WEBVTT' || tsRx.hasMatch(t) || isCueId(t))
-        return line;
-      if (isHex(t)) {
-        try {
-          return _aes(t, key, iv);
-        } catch (_) {}
-      }
-      return line;
-    }).join('\n');
+    return lines
+        .map((line) {
+          final t = line.trim();
+          if (t.isEmpty || t == 'WEBVTT' || tsRx.hasMatch(t) || isCueId(t)) {
+            return line;
+          }
+          if (isHex(t)) {
+            try {
+              return _aes(t, key, iv);
+            } catch (_) {}
+          }
+          return line;
+        })
+        .join('\n');
   }
 
   String _aes(String hex, Uint8List key, Uint8List iv) {
-    final c =
-        PaddedBlockCipherImpl(PKCS7Padding(), CBCBlockCipher(AESEngine()));
+    final c = PaddedBlockCipherImpl(
+      PKCS7Padding(),
+      CBCBlockCipher(AESEngine()),
+    );
     c.init(
-        false,
-        PaddedBlockCipherParameters<ParametersWithIV<KeyParameter>, Null>(
-            ParametersWithIV(KeyParameter(key), iv), null));
+      false,
+      PaddedBlockCipherParameters<ParametersWithIV<KeyParameter>, Null>(
+        ParametersWithIV(KeyParameter(key), iv),
+        null,
+      ),
+    );
     return utf8.decode(c.process(_hb(hex)), allowMalformed: true);
   }
 

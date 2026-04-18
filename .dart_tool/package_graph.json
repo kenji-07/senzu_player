@@ -12,10 +12,8 @@
         "get",
         "http",
         "interactive_media_ads",
-        "phosphor_flutter",
         "pointycastle",
-        "url_launcher",
-        "visibility_detector"
+        "url_launcher"
       ],
       "devDependencies": [
         "flutter_lints",
@@ -48,13 +46,6 @@
       ]
     },
     {
-      "name": "visibility_detector",
-      "version": "0.4.0+2",
-      "dependencies": [
-        "flutter"
-      ]
-    },
-    {
       "name": "cached_network_image",
       "version": "3.4.1",
       "dependencies": [
@@ -63,13 +54,6 @@
         "flutter",
         "flutter_cache_manager",
         "octo_image"
-      ]
-    },
-    {
-      "name": "phosphor_flutter",
-      "version": "2.1.0",
-      "dependencies": [
-        "flutter"
       ]
     },
     {

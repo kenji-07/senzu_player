@@ -13,7 +13,6 @@ import io.flutter.plugin.common.EventChannel
 /**
  * SenzuPipManager — Android Picture-in-Picture удирдлага
  *
- * iOS-тэй адил функциональ байдлыг хангана:
  *   • enablePip / disablePip
  *   • enterPip / exitPip
  *   • isPipSupported

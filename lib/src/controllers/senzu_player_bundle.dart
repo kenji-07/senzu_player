@@ -91,7 +91,7 @@ class SenzuPlayerBundle {
     annotation.onInit();
     sleepTimer.onInit();
     device.onInit();
-    log('🔴 SenzuPlayerBundle.create() called');
+    log('SENZU PLAYER BUNDLE CREATE');
 
     return SenzuPlayerBundle._(
       core: core,
@@ -107,7 +107,7 @@ class SenzuPlayerBundle {
   }
 
   void dispose() {
-    log('🔴 SenzuPlayerBundle.dispose() called');
+    log('SENZU PLAYER BUNDLE DESPOSE');
     device.onClose();
     ui.onClose();
     stream.onClose();
@@ -117,6 +117,5 @@ class SenzuPlayerBundle {
     core.onClose();
     sleepTimer.onClose();
     annotation.onClose();
-    log('🔴 Core disposed — video should be null');
   }
 }

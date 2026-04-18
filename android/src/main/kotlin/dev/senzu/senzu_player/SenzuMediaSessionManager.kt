@@ -20,13 +20,6 @@ import java.util.concurrent.Executors
 
 /**
  * SenzuMediaSessionManager — Android Now Playing / Lock Screen Controls
- *
- * iOS MPNowPlayingInfoCenter + MPRemoteCommandCenter-тэй тэнцэх функциональ байдал:
- *   • Lock screen metadata (title, artist, artwork, duration)
- *   • Play / Pause / Skip Forward / Skip Backward / Seek remote commands
- *   • Notification-с хуулдаг media controls (Android foreground service шаардлагагүй)
- *
- * androidx.media:media dependency шаардлагатай (build.gradle-д аль хэдийн байгаа).
  */
 class SenzuMediaSessionManager(
     private val context: Context,
@@ -292,5 +285,6 @@ class SenzuMediaSessionManager(
         mediaSession?.isActive = false
         mediaSession?.release()
         mediaSession = null
+        isPlaying = false 
     }
 }

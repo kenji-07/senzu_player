@@ -44,7 +44,7 @@ class SenzuSleepTimerController extends GetxController
     _savedVolume = device.volume.value;
     _savedBrightness = device.brightness.value;
 
-    core.pause();
+    await core.pause();
     await SenzuNativeChannel.disableWakelock();
 
     _fadeCtrl?.dispose();
@@ -53,10 +53,7 @@ class SenzuSleepTimerController extends GetxController
       duration: const Duration(seconds: 3),
     );
 
-    _fadeAnim = CurvedAnimation(
-      parent: _fadeCtrl!,
-      curve: Curves.easeIn,
-    );
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl!, curve: Curves.easeIn);
 
     _fadeCtrl!.addListener(() {
       final t = _fadeAnim!.value;
@@ -73,6 +70,9 @@ class SenzuSleepTimerController extends GetxController
         isSleeping.value = true;
       }
     });
+
+    // force pause
+    await core.pause();
 
     await _fadeCtrl!.forward();
   }

@@ -1,7 +1,24 @@
 # Changelog
 
-## [1.0.0] - 2026-04-xx
+All notable changes to **senzu_player** will be documented in this file.
 
-### Added
+This project adheres to [Semantic Versioning](https://semver.org/).
 
-- Initial release of **SenzuPlayer**.
+---
+
+## [1.0.0] - 2026-04-18
+
+### 🎉 Initial Release
+
+#### Core Player
+- Native **AVPlayer** (iOS) and **ExoPlayer / Media3** (Android) backend
+- HLS, DASH, and MP4 playback support
+- Adaptive Bitrate (ABR) streaming with automatic quality switching
+- Configurable buffer thresholds (`minBufferSec`, `maxBufferSec`)
+- Looping, seek, playback speed (0.25× – 2.0×)
+- Range-limited playback via `Tween<Duration>` (clip start/end)
+
+#### DRM
+- **FairPlay** (iOS) via `AVContentKeySession`
+- **Widevine** (Android) via `DefaultDrmSessionManager`
+- Custom license/certificate URLs with arbitrary headers
