@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'dart:async';
 import '../senzu_cast_controller.dart';
 import '../senzu_cast_service.dart';
 
@@ -21,14 +22,22 @@ class SenzuCastButton extends StatelessWidget {
       final state = castController.castState.value;
 
       final (icon, color, tooltip) = switch (state) {
-        SenzuCastState.connected =>
-          (Icons.cast_connected, Colors.lightBlueAccent, 'Cast холбогдсон'),
-        SenzuCastState.connecting =>
-          (Icons.cast,           Colors.orangeAccent,    'Холбогдож байна...'),
-        SenzuCastState.noDevicesAvailable =>
-          (Icons.cast,           Colors.white38,         'Төхөөрөмж олдсонгүй'),
-        _ =>
-          (Icons.cast,           iconColor,              'Cast хийх'),
+        SenzuCastState.connected => (
+          Icons.cast_connected,
+          Colors.lightBlueAccent,
+          'Cast холбогдсон',
+        ),
+        SenzuCastState.connecting => (
+          Icons.cast,
+          Colors.orangeAccent,
+          'Холбогдож байна...',
+        ),
+        SenzuCastState.noDevicesAvailable => (
+          Icons.cast,
+          Colors.white38,
+          'Төхөөрөмж олдсонгүй',
+        ),
+        _ => (Icons.cast, iconColor, 'Cast хийх'),
       };
 
       return Tooltip(
@@ -40,7 +49,7 @@ class SenzuCastButton extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             child: state == SenzuCastState.connecting
                 ? SizedBox(
-                    width:  iconSize,
+                    width: iconSize,
                     height: iconSize,
                     child: CircularProgressIndicator(
                       strokeWidth: 1.8,
@@ -58,8 +67,20 @@ class SenzuCastButton extends StatelessWidget {
     if (state == SenzuCastState.connected) {
       _showConnectedSheet(context);
     } else {
-      castController.showDevicePicker();
+      _showDevicePickerSheet(context);
     }
+  }
+
+  // ── Device Picker Sheet ───────────────────────────────────────────────────
+  void _showDevicePickerSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _DevicePickerSheet(castController: castController),
+    );
   }
 
   void _showConnectedSheet(BuildContext context) {
@@ -74,6 +95,221 @@ class SenzuCastButton extends StatelessWidget {
   }
 }
 
+// ── Device Picker Sheet ───────────────────────────────────────────────────────
+class _DevicePickerSheet extends StatefulWidget {
+  const _DevicePickerSheet({required this.castController});
+  final SenzuCastController castController;
+
+  @override
+  State<_DevicePickerSheet> createState() => _DevicePickerSheetState();
+}
+
+class _DevicePickerSheetState extends State<_DevicePickerSheet> {
+  List<SenzuCastDeviceInfo> _devices = [];
+  bool _loading = true;
+  String? _connectingId;
+  StreamSubscription? _deviceSub;
+
+  @override
+void initState() {
+  super.initState();
+  
+  // ← Энэ заавал байх ёстой
+  SenzuCastService.startListening();
+  
+  _deviceSub = SenzuCastService.devicesStream.listen((devices) {
+    if (mounted) {
+      setState(() {
+        _devices = devices;
+        _loading = false;
+      });
+    }
+  });
+  
+  _discover();
+}
+
+Future<void> _discover() async {
+  setState(() => _loading = true);
+
+  // Хэдийнэ олдсон device-уудыг шууд авах
+  final existing = await SenzuCastService.discoverDevices();
+  if (mounted && existing.isNotEmpty) {
+    setState(() {
+      _devices = existing;
+      _loading = false;
+    });
+    return;
+  }
+
+  // Шинэ device хайх — 5 секунд хүлээнэ
+  await Future.delayed(const Duration(seconds: 5));
+
+  final devices = await SenzuCastService.discoverDevices();
+  if (mounted) {
+    setState(() {
+      _devices = devices;
+      _loading = false;
+    });
+  }
+}
+
+  @override
+  void dispose() {
+    _deviceSub?.cancel();
+    super.dispose();
+  }
+
+
+  Future<void> _connect(SenzuCastDeviceInfo device) async {
+    setState(() => _connectingId = device.deviceId);
+    await SenzuCastService.connectToDevice(device.deviceId);
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Title + refresh
+          Row(
+            children: [
+              const Icon(Icons.cast, color: Colors.white70, size: 20),
+              const SizedBox(width: 10),
+              const Text(
+                'Cast хийх төхөөрөмж',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: _discover,
+                icon: const Icon(
+                  Icons.refresh,
+                  color: Colors.white54,
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Content
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Column(
+                children: [
+                  CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white54,
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    'Төхөөрөмж хайж байна...',
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                ],
+              ),
+            )
+          else if (_devices.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Column(
+                children: [
+                  Icon(Icons.cast, color: Colors.white24, size: 48),
+                  SizedBox(height: 12),
+                  Text(
+                    'Төхөөрөмж олдсонгүй',
+                    style: TextStyle(color: Colors.white54, fontSize: 13),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Chromecast нэг WiFi дотор байгаа эсэхийг шалгана уу',
+                    style: TextStyle(color: Colors.white38, fontSize: 11),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _devices.length,
+              itemBuilder: (_, i) {
+                final device = _devices[i];
+                final isConnecting = _connectingId == device.deviceId;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.cast,
+                      color: Colors.white70,
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(
+                    device.deviceName,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  subtitle: device.modelName.isNotEmpty
+                      ? Text(
+                          device.modelName,
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 11,
+                          ),
+                        )
+                      : null,
+                  trailing: isConnecting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: Colors.lightBlueAccent,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.chevron_right,
+                          color: Colors.white38,
+                          size: 20,
+                        ),
+                  onTap: isConnecting ? null : () => _connect(device),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Connected Sheet (өмнөх кодоос хэвээр) ────────────────────────────────────
 class _CastConnectedSheet extends StatelessWidget {
   const _CastConnectedSheet({required this.castController});
   final SenzuCastController castController;
@@ -91,7 +327,8 @@ class _CastConnectedSheet extends StatelessWidget {
           children: [
             // Handle bar
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: Colors.white24,
                 borderRadius: BorderRadius.circular(2),
@@ -102,8 +339,11 @@ class _CastConnectedSheet extends StatelessWidget {
             // Device info
             Row(
               children: [
-                const Icon(Icons.cast_connected,
-                    color: Colors.lightBlueAccent, size: 24),
+                const Icon(
+                  Icons.cast_connected,
+                  color: Colors.lightBlueAccent,
+                  size: 24,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -121,7 +361,9 @@ class _CastConnectedSheet extends StatelessWidget {
                         Text(
                           device!.modelName,
                           style: const TextStyle(
-                            color: Colors.white54, fontSize: 12),
+                            color: Colors.white54,
+                            fontSize: 12,
+                          ),
                         ),
                     ],
                   ),
@@ -135,14 +377,17 @@ class _CastConnectedSheet extends StatelessWidget {
             if (remote.durationMs > 0) ...[
               SliderTheme(
                 data: SliderTheme.of(context).copyWith(
-                  activeTrackColor:   Colors.red,
+                  activeTrackColor: Colors.red,
                   inactiveTrackColor: Colors.white24,
-                  thumbColor:         Colors.red,
-                  trackHeight:        3,
+                  thumbColor: Colors.red,
+                  trackHeight: 3,
                   overlayShape: SliderComponentShape.noOverlay,
                 ),
                 child: Slider(
-                  value: (remote.positionMs / remote.durationMs).clamp(0.0, 1.0),
+                  value: (remote.positionMs / remote.durationMs).clamp(
+                    0.0,
+                    1.0,
+                  ),
                   onChanged: (v) {
                     final posMs = (v * remote.durationMs).toInt();
                     castController.seekTo(Duration(milliseconds: posMs));
@@ -154,10 +399,20 @@ class _CastConnectedSheet extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(_fmt(Duration(milliseconds: remote.positionMs)),
-                        style: const TextStyle(color: Colors.white54, fontSize: 11)),
-                    Text(_fmt(Duration(milliseconds: remote.durationMs)),
-                        style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                    Text(
+                      _fmt(Duration(milliseconds: remote.positionMs)),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 11,
+                      ),
+                    ),
+                    Text(
+                      _fmt(Duration(milliseconds: remote.durationMs)),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 11,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -176,7 +431,9 @@ class _CastConnectedSheet extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 _ControlBtn(
-                  icon: remote.isPlaying ? Icons.pause_circle : Icons.play_circle,
+                  icon: remote.isPlaying
+                      ? Icons.pause_circle
+                      : Icons.play_circle,
                   size: 48,
                   onTap: remote.isPlaying
                       ? castController.pause

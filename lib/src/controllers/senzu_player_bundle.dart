@@ -12,6 +12,7 @@ import 'package:senzu_player/src/data/models/senzu_player_config.dart';
 import 'package:senzu_player/src/data/models/senzu_token_provider.dart';
 import 'package:senzu_player/src/data/models/senzu_watermark.dart';
 import 'package:senzu_player/src/data/models/senzu_annotation_model.dart';
+import 'package:senzu_player/src/cast/senzu_cast_controller.dart';
 
 class SenzuPlayerBundle {
   SenzuPlayerBundle._({
@@ -48,7 +49,7 @@ class SenzuPlayerBundle {
     SenzuDataPolicy dataPolicy = const SenzuDataPolicy(),
     SenzuTokenConfig? tokenConfig,
     List<SenzuAnnotation> annotations = const [],
-    
+    SenzuCastController? castController,
   }) {
     final core = SenzuCoreController(
       looping: looping,
@@ -57,7 +58,7 @@ class SenzuPlayerBundle {
       onQualityChanged: onQualityChanged,
       dataPolicy: dataPolicy,
       tokenConfig: tokenConfig,
-      notification: notification
+      notification: notification,
     );
 
     final playback = SenzuPlaybackController(core: core);
@@ -79,8 +80,11 @@ class SenzuPlayerBundle {
       annotations: annotations,
     );
 
+    if (castController != null) {
+      core.setCastController(castController);
+    }
+
     core.isAdActiveCallback = () => ad.isAdActive.value;
-    
 
     core.onInit();
     playback.onInit();

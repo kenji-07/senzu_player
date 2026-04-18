@@ -217,44 +217,49 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
   }
 
   Future<void> _init() async {
-    try {
-      _bundle.ui.isShowingThumbnail.value = _style.thumbnail != null;
+  try {
+    _bundle.ui.isShowingThumbnail.value = _style.thumbnail != null;
 
-      final bool hasAdTagUrl =
-          widget.imaAdTagUrl != null && widget.imaAdTagUrl!.isNotEmpty;
-
-      if (hasAdTagUrl) {
-        _bundle.ad.setImaAdTagUrl(widget.imaAdTagUrl!);
-        _bundle.ad.setupAdDisplayContainer();
-      } else {
-        _bundle.ad.isAdLoaded.value = false;
-        _bundle.ad.isAdInitializing.value = false;
-      }
-
-      await _bundle.core.initialize(
-        widget.source,
-        autoPlay: widget.autoPlay,
-        seekTo: widget.seekTo,
-        isLive: widget.isLive,
-      );
-
-      _bundle.ui.setChapters(widget.chapters);
-
-      if (widget.enablePip) await SenzuNativeChannel.enablePip();
-
-      if (!mounted) return;
-      setState(() {
-        _initialized = true;
-        _initError = null;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _initialized = false;
-        _initError = e.toString();
-      });
+    // Cast controller-г core-тэй холбох ← нэмэх
+    if (widget.castController != null) {
+      _bundle.core.setCastController(widget.castController!);
     }
+
+    final bool hasAdTagUrl =
+        widget.imaAdTagUrl != null && widget.imaAdTagUrl!.isNotEmpty;
+
+    if (hasAdTagUrl) {
+      _bundle.ad.setImaAdTagUrl(widget.imaAdTagUrl!);
+      _bundle.ad.setupAdDisplayContainer();
+    } else {
+      _bundle.ad.isAdLoaded.value = false;
+      _bundle.ad.isAdInitializing.value = false;
+    }
+
+    await _bundle.core.initialize(
+      widget.source,
+      autoPlay: widget.autoPlay,
+      seekTo: widget.seekTo,
+      isLive: widget.isLive,
+    );
+
+    _bundle.ui.setChapters(widget.chapters);
+
+    if (widget.enablePip) await SenzuNativeChannel.enablePip();
+
+    if (!mounted) return;
+    setState(() {
+      _initialized = true;
+      _initError = null;
+    });
+  } catch (e) {
+    if (!mounted) return;
+    setState(() {
+      _initialized = false;
+      _initError = e.toString();
+    });
   }
+}
 
   Future<void> _retry() async {
     setState(() {

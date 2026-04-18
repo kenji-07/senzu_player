@@ -1,10 +1,15 @@
 package dev.senzu.senzu_player
 
+import android.app.Activity
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import androidx.fragment.app.FragmentActivity
 import com.google.android.gms.cast.MediaInfo
 import com.google.android.gms.cast.MediaLoadRequestData
 import com.google.android.gms.cast.MediaMetadata
 import com.google.android.gms.cast.MediaTrack
+import com.google.android.gms.cast.framework.CastButtonFactory
 import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManagerListener
@@ -12,8 +17,6 @@ import com.google.android.gms.cast.framework.media.RemoteMediaClient
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import android.os.Handler
-import android.os.Looper
 
 class SenzuCastPlugin(private val context: Context) :
     MethodChannel.MethodCallHandler,
@@ -21,9 +24,48 @@ class SenzuCastPlugin(private val context: Context) :
 
     private var eventSink: EventChannel.EventSink? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Activity reference — setActivity() via plugin binding
+    private var activity: Activity? = null
+
     private var castContext: CastContext? = null
     private var currentSession: CastSession? = null
     private var pollingRunnable: Runnable? = null
+    private var initialized = false
+
+    // ── Activity binding ──────────────────────────────────────────────────
+    fun setActivity(act: Activity?) {
+        activity = act
+        if (act != null && !initialized) {
+            initCast()
+        }
+    }
+
+    // ── CastContext init — main thread шаардлагатай ───────────────────────
+    private fun initCast() {
+        mainHandler.post {
+            try {
+                val cc = CastContext.getSharedInstance(context)
+                castContext = cc
+                initialized = true
+
+                // Одоо хүчинтэй session байвал авна
+                val existing = cc.sessionManager.currentCastSession
+                if (existing != null) {
+                    currentSession = existing
+                    emitCastState("connected")
+                    startPolling()
+                }
+
+                cc.sessionManager.addSessionManagerListener(
+                    sessionListener, CastSession::class.java
+                )
+            } catch (e: Exception) {
+                android.util.Log.w("SenzuCast", "Cast init skipped: ${e.message}")
+                // Cast SDK байхгүй эсвэл Google Play Services дэмжихгүй
+            }
+        }
+    }
 
     // ── Session Listener ──────────────────────────────────────────────────
     private val sessionListener = object : SessionManagerListener<CastSession> {
@@ -54,46 +96,17 @@ class SenzuCastPlugin(private val context: Context) :
         override fun onSessionSuspended(session: CastSession, reason: Int) {}
     }
 
-    fun init() {
-        mainHandler.post {
-            try {
-                castContext = CastContext.getSharedInstance(context)
-                castContext?.sessionManager?.addSessionManagerListener(
-                    sessionListener, CastSession::class.java
-                )
-                currentSession = castContext?.sessionManager?.currentCastSession
-            } catch (e: Exception) {
-                android.util.Log.e("SenzuCast", "Cast init failed: ${e.message}")
-            }
-        }
-    }
-
     // ── MethodCallHandler ─────────────────────────────────────────────────
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        // Cast SDK инициализ болоогүй бол зарим command-г gracefully handle хийнэ
         when (call.method) {
-            "showDevicePicker" -> {
-                // MediaRouter dialog нээнэ
-                mainHandler.post {
-                    val fragmentManager =
-                        (context as? androidx.fragment.app.FragmentActivity)
-                            ?.supportFragmentManager
-                    fragmentManager?.let {
-                        androidx.mediarouter.app.MediaRouteChooserDialogFragment()
-                            .show(it, "SenzuCastPicker")
-                    }
-                }
-                result.success(null)
-            }
-            "loadMedia" -> {
-                val args = call.arguments as? Map<*, *>
-                loadMedia(args, result)
-            }
-            "play"  -> { currentSession?.remoteMediaClient?.play();   result.success(null) }
-            "pause" -> { currentSession?.remoteMediaClient?.pause();  result.success(null) }
-            "stop"  -> { currentSession?.remoteMediaClient?.stop();   result.success(null) }
-            "seekTo" -> {
-                val posMs = (call.arguments as? Map<*, *>)
-                    ?.get("positionMs") as? Int ?: 0
+            "showDevicePicker" -> showDevicePicker(result)
+            "loadMedia"        -> loadMedia(call.arguments as? Map<*, *>, result)
+            "play"             -> { currentSession?.remoteMediaClient?.play();  result.success(null) }
+            "pause"            -> { currentSession?.remoteMediaClient?.pause(); result.success(null) }
+            "stop"             -> { currentSession?.remoteMediaClient?.stop();  result.success(null) }
+            "seekTo"           -> {
+                val posMs = (call.arguments as? Map<*, *>)?.get("positionMs") as? Int ?: 0
                 currentSession?.remoteMediaClient?.seek(
                     RemoteMediaClient.SeekOptions.Builder()
                         .setPosition(posMs.toLong())
@@ -102,7 +115,9 @@ class SenzuCastPlugin(private val context: Context) :
                 result.success(null)
             }
             "disconnect" -> {
-                castContext?.sessionManager?.endCurrentSession(true)
+                mainHandler.post {
+                    castContext?.sessionManager?.endCurrentSession(true)
+                }
                 result.success(null)
             }
             "getCastState" -> {
@@ -113,27 +128,67 @@ class SenzuCastPlugin(private val context: Context) :
         }
     }
 
+    // ── Device Picker ─────────────────────────────────────────────────────
+    private fun showDevicePicker(result: MethodChannel.Result) {
+        mainHandler.post {
+            val act = activity
+            if (act == null) {
+                result.error("NO_ACTIVITY", "Activity not available", null)
+                return@post
+            }
+            try {
+                val cc = castContext ?: run {
+                    // Lazy init хийнэ
+                    CastContext.getSharedInstance(context).also {
+                        castContext = it
+                        initialized = true
+                        it.sessionManager.addSessionManagerListener(
+                            sessionListener, CastSession::class.java
+                        )
+                    }
+                }
+
+                if (act is FragmentActivity) {
+                    // MediaRouteChooserDialog нь FragmentActivity шаардана
+                    val dialog = androidx.mediarouter.app.MediaRouteChooserDialogFragment()
+                    dialog.routeSelector = cc.mergedSelector ?: run {
+                        result.error("NO_SELECTOR", "Cast selector not ready", null)
+                        return@post
+                    }
+                    dialog.show(act.supportFragmentManager, "SenzuCastPicker")
+                    result.success(null)
+                } else {
+                    // Fallback: system cast dialog
+                    cc.sessionManager.startSession(act, null)
+                    result.success(null)
+                }
+            } catch (e: Exception) {
+                result.error("CAST_ERROR", e.message, null)
+            }
+        }
+    }
+
+    // ── Load Media ────────────────────────────────────────────────────────
     private fun loadMedia(args: Map<*, *>?, result: MethodChannel.Result) {
         val session = currentSession
         if (session == null) {
-            result.success(false)
+            result.error("NO_SESSION", "Cast session not connected", null)
             return
         }
-        val url         = args?.get("url")         as? String ?: return result.success(false)
-        val title       = args["title"]             as? String ?: ""
-        val description = args["description"]       as? String ?: ""
-        val posterUrl   = args["posterUrl"]         as? String ?: ""
-        val mimeType    = args["mimeType"]          as? String ?: "video/mp4"
-        val positionMs  = (args["positionMs"]       as? Int)?.toLong() ?: 0L
-        val subtitleUrl = args["subtitleUrl"]       as? String ?: ""
-        val subtitleLang= args["subtitleLanguage"]  as? String ?: "en"
+
+        val url          = args?.get("url")            as? String ?: run { result.success(false); return }
+        val title        = args["title"]                as? String ?: ""
+        val description  = args["description"]          as? String ?: ""
+        val mimeType     = args["mimeType"]             as? String ?: resolveMime(url)
+        val positionMs   = ((args["positionMs"]         as? Number)?.toLong()) ?: 0L
+        val subtitleUrl  = args["subtitleUrl"]          as? String ?: ""
+        val subtitleLang = args["subtitleLanguage"]     as? String ?: "en"
 
         val metadata = MediaMetadata(MediaMetadata.MEDIA_TYPE_MOVIE).apply {
             putString(MediaMetadata.KEY_TITLE,    title)
             putString(MediaMetadata.KEY_SUBTITLE, description)
         }
 
-        // Subtitle track
         val tracks = mutableListOf<MediaTrack>()
         if (subtitleUrl.isNotEmpty()) {
             tracks.add(
@@ -151,25 +206,39 @@ class SenzuCastPlugin(private val context: Context) :
             .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
             .setContentType(mimeType)
             .setMetadata(metadata)
-            .setMediaTracks(tracks)
+            .apply { if (tracks.isNotEmpty()) setMediaTracks(tracks) }
             .build()
 
         val loadRequest = MediaLoadRequestData.Builder()
             .setMediaInfo(mediaInfo)
             .setCurrentTime(positionMs)
             .setAutoplay(true)
-            .setActiveTrackIds(if (tracks.isNotEmpty()) longArrayOf(1L) else null)
+            .apply {
+                if (tracks.isNotEmpty()) setActiveTrackIds(longArrayOf(1L))
+            }
             .build()
 
-        session.remoteMediaClient?.load(loadRequest)
-            ?.setResultCallback { result.success(true) }
-            ?: result.success(false)
+        mainHandler.post {
+            session.remoteMediaClient?.load(loadRequest)
+                ?.setResultCallback { result.success(true) }
+                ?: result.success(false)
+        }
     }
 
-    // ── Event emission ─────────────────────────────────────────────────────
+    private fun resolveMime(url: String) = when {
+        url.contains(".m3u8") -> "application/x-mpegURL"
+        url.contains(".mpd")  -> "application/dash+xml"
+        url.contains(".mp4")  -> "video/mp4"
+        else                  -> "video/mp4"
+    }
+
+    // ── EventChannel StreamHandler ────────────────────────────────────────
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         eventSink = events
-        init()
+        // Activity байвал init хийнэ, үгүй бол setActivity() дуудагдах үед хийнэ
+        if (activity != null && !initialized) {
+            initCast()
+        }
     }
 
     override fun onCancel(arguments: Any?) {
@@ -177,6 +246,7 @@ class SenzuCastPlugin(private val context: Context) :
         stopPolling()
     }
 
+    // ── Event helpers ─────────────────────────────────────────────────────
     private fun emitCastState(state: String) {
         mainHandler.post {
             eventSink?.success(mapOf("type" to "castState", "state" to state))
@@ -186,7 +256,7 @@ class SenzuCastPlugin(private val context: Context) :
     private fun emitRemoteState() {
         val client = currentSession?.remoteMediaClient ?: return
         val status = client.mediaStatus ?: return
-        val info   = mapOf(
+        val info = mapOf(
             "type"         to "remoteState",
             "sessionState" to when (status.playerState) {
                 RemoteMediaClient.PLAYER_STATE_PLAYING   -> "playing"
@@ -204,7 +274,7 @@ class SenzuCastPlugin(private val context: Context) :
         mainHandler.post { eventSink?.success(info) }
     }
 
-    // ── Position polling (200ms) ───────────────────────────────────────────
+    // ── Polling ───────────────────────────────────────────────────────────
     private fun startPolling() {
         stopPolling()
         pollingRunnable = object : Runnable {
@@ -219,5 +289,17 @@ class SenzuCastPlugin(private val context: Context) :
     private fun stopPolling() {
         pollingRunnable?.let { mainHandler.removeCallbacks(it) }
         pollingRunnable = null
+    }
+
+    // ── Cleanup ───────────────────────────────────────────────────────────
+    fun dispose() {
+        stopPolling()
+        try {
+            castContext?.sessionManager?.removeSessionManagerListener(
+                sessionListener, CastSession::class.java
+            )
+        } catch (_: Exception) {}
+        eventSink = null
+        activity = null
     }
 }

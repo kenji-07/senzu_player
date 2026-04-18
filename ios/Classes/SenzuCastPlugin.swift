@@ -24,6 +24,8 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         method.setMethodCallHandler(instance.handle)
         event.setStreamHandler(instance)
         GCKCastContext.sharedInstance().sessionManager.add(instance)
+        GCKCastContext.sharedInstance().discoveryManager.add(instance)
+        GCKCastContext.sharedInstance().discoveryManager.startDiscovery()
     }
 
     // ── MethodChannel ──────────────────────────────────────────────────────
@@ -31,6 +33,48 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         let args = call.arguments as? [String: Any]
 
         switch call.method {
+
+        case "discoverDevices":
+            let discoveryManager = GCKCastContext.sharedInstance().discoveryManager
+            let count = discoveryManager.deviceCount
+            print("SenzuCast: discovery count = \(count)")
+            print("SenzuCast: passiveScan = \(discoveryManager.passiveScan)")
+    
+            var devices: [[String: Any]] = []
+            for i in 0..<count {
+                let device = discoveryManager.device(at: i)
+                print("SenzuCast: found device = \(device.friendlyName ?? "?") id=\(device.deviceID)")
+                devices.append([
+                    "deviceId":   device.deviceID,
+                    "deviceName": device.friendlyName ?? "Unknown",
+                    "modelName":  device.modelName ?? "",
+                ])
+            }
+            result(devices)
+
+        case "connectToDevice":
+            let deviceId = args?["deviceId"] as? String ?? ""
+            let discoveryManager = GCKCastContext.sharedInstance().discoveryManager
+            var found = false
+            for i in 0..<discoveryManager.deviceCount {
+                let device = discoveryManager.device(at: i)
+                if device.deviceID == deviceId {
+                    found = true
+                    DispatchQueue.main.async {
+                        GCKCastContext.sharedInstance().sessionManager
+                            .startSession(with: device)
+                    }
+                    result(nil)
+                    break
+                }
+            }
+            if !found {
+                result(FlutterError(
+                    code: "DEVICE_NOT_FOUND",
+                    message: "Device \(deviceId) not found",
+                    details: nil
+                ))
+            }
 
         case "showDevicePicker":
             DispatchQueue.main.async {
@@ -212,6 +256,51 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
     private func stopPolling() {
         pollingTimer?.invalidate()
         pollingTimer = nil
+    }
+}
+
+// SenzuCastPlugin.swift доод хэсэгт нэмэх
+extension SenzuCastPlugin: GCKDiscoveryManagerListener {
+
+    public func didInsert(
+        _ device: GCKDevice,
+        at index: UInt
+    ) {
+        print("SenzuCast: device inserted = \(device.friendlyName ?? "?")")
+        emitDeviceList()
+    }
+
+    public func didUpdate(
+        _ device: GCKDevice,
+        at index: UInt
+    ) {
+        emitDeviceList()
+    }
+
+    public func didRemove(
+        _ device: GCKDevice,
+        at index: UInt
+    ) {
+        emitDeviceList()
+    }
+
+    private func emitDeviceList() {
+        let dm = GCKCastContext.sharedInstance().discoveryManager
+        var devices: [[String: Any]] = []
+        for i in 0..<dm.deviceCount {
+            let d = dm.device(at: i)
+            devices.append([
+                "deviceId":   d.deviceID,
+                "deviceName": d.friendlyName ?? "Unknown",
+                "modelName":  d.modelName ?? "",
+            ])
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.eventSink?([
+                "type":    "devices",
+                "devices": devices
+            ] as [String: Any])
+        }
     }
 }
 

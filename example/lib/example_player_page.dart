@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'dart:developer';
 import 'package:senzu_player/senzu_player.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,6 +73,7 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
         onQualityChanged: (q) => debugPrint('[ABR] Quality → $q'),
       );
     }
+    log('Cast controller created: $_cast');
   }
 
   @override
@@ -82,6 +84,7 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
       overlays: SystemUiOverlay.values,
     );
     _externalBundle?.dispose();
+    _cast?.onClose();
     super.dispose();
   }
 

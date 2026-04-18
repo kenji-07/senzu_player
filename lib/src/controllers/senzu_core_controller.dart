@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'dart:developer';
 
 import 'package:senzu_player/src/data/models/video_source_model.dart';
 import 'package:senzu_player/src/data/models/senzu_player_config.dart';
@@ -414,10 +415,12 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   }
 
   void _onCastStateChanged(SenzuCastState state) {
-    switch (state) {
+    log('SenzuCast: state changed → $state'); 
+    switch (state)  {
       case SenzuCastState.connected:
         // Cast холбогдсон үед local player-г pause хийнэ
         pause();
+         castCurrentSource(); 
       case SenzuCastState.notConnected:
         // Cast тасарсан үед local player-г cast position-оос үргэлжлүүлнэ
         final resumePos = _castController?.resumePosition ?? Duration.zero;
