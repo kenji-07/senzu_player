@@ -6,6 +6,7 @@ import AVFoundation
 import Network
 import VideoToolbox
 import ScreenProtectorKit
+import GoogleCast
 
 public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
@@ -34,12 +35,38 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         registrar.register(
             SenzuSurfaceViewFactory(messenger: registrar.messenger()),
             withId: "senzu_player/surface")
-            
-        let castMethod = FlutterMethodChannel(name: "senzu_player/cast",
-                                       binaryMessenger: registrar.messenger())
-        let castEvent  = FlutterEventChannel(name: "senzu_player/cast_events",
-                                      binaryMessenger: registrar.messenger())
-        SenzuCastPlugin.register(with: registrar, method: castMethod, event: castEvent)
+
+        // ── Google Cast SDK initialize ─────────────────────────────────────
+        // AppDelegate.swift-д хийхгүйгээр plugin дотроо initialize хийнэ.
+        // isSharedInstanceInitialized шалгаж давхар init-аас сэргийлнэ.
+        DispatchQueue.main.async {
+            if !GCKCastContext.isSharedInstanceInitialized() {
+                let criteria = GCKDiscoveryCriteria(
+                    applicationID: kGCKDefaultMediaReceiverApplicationID
+                )
+                let options = GCKCastOptions(discoveryCriteria: criteria)
+                options.physicalVolumeButtonsWillControlDeviceVolume = true
+                options.startDiscoveryAfterFirstTapOnCastButton = false
+                GCKCastContext.setSharedInstanceWith(options)
+                GCKCastContext.sharedInstance().useDefaultExpandedMediaControls = true
+                print("SenzuPlayer: GCKCastContext initialized successfully")
+            } else {
+                print("SenzuPlayer: GCKCastContext already initialized, skipping")
+            }
+
+            // Cast channels-г initialize болсны дараа register хийнэ
+            let castMethod = FlutterMethodChannel(
+                name: "senzu_player/cast",
+                binaryMessenger: registrar.messenger())
+            let castEvent = FlutterEventChannel(
+                name: "senzu_player/cast_events",
+                binaryMessenger: registrar.messenger())
+            SenzuCastPlugin.register(
+                with: registrar,
+                method: castMethod,
+                event: castEvent)
+        }
+        // ──────────────────────────────────────────────────────────────────
 
         // ScreenProtectorKit
         DispatchQueue.main.async {
@@ -192,7 +219,6 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                          eventSink events: @escaping FlutterEventSink) -> FlutterError? {
         // Guard against double-listen
         if isStreamActive {
-            // Cancel previous observers before setting new sink
             NotificationCenter.default.removeObserver(self)
         }
 
@@ -227,8 +253,6 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     }
 
     public func onCancel(withArguments arguments: Any?) -> FlutterError? {
-        // Only tear down if stream is actually active — prevents the
-        // "No active stream to cancel" PlatformException.
         guard isStreamActive else { return nil }
         isStreamActive = false
 
@@ -271,7 +295,6 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         guard isStreamActive else { return }
         guard let info = n.userInfo,
               let reasonVal = info[AVAudioSessionRouteChangeReasonKey] as? UInt else { return }
-        // Headphones unplugged → pause is expected behavior
         if reasonVal == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue {
             eventSink?(["type": "audioRouteChange", "reason": "deviceUnavailable"])
         }
