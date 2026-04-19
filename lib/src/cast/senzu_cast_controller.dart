@@ -4,14 +4,7 @@ import 'package:get/get.dart';
 import 'senzu_cast_service.dart';
 import 'senzu_cast_media_builder.dart';
 
-enum SenzuCastPanel {
-  caption,
-  quality,
-  episode,
-  audio,
-  cast,
-  none,
-}
+enum SenzuCastPanel { caption, quality, episode, audio, cast, none }
 
 class SenzuCastController extends GetxController {
   // ── Rx State ──────────────────────────────────────────────────────────────
@@ -48,7 +41,7 @@ class SenzuCastController extends GetxController {
   bool get isConnecting => castState.value == SenzuCastState.connecting;
 
   String? get connectedDeviceName =>
-    availableDevices.firstWhereOrNull((_) => isCasting)?.deviceName;
+      availableDevices.firstWhereOrNull((_) => isCasting)?.deviceName;
 
   @override
   void onInit() {
@@ -91,7 +84,9 @@ class SenzuCastController extends GetxController {
 
   // ── Panel ──────────────────────────────────────────────────────────────────
   void toggleCastPanel(SenzuCastPanel panel) {
-    activePanel.value = activePanel.value == panel ? SenzuCastPanel.none : panel;
+    activePanel.value = activePanel.value == panel
+        ? SenzuCastPanel.none
+        : panel;
   }
 
   // ── Device Discovery & Connection ─────────────────────────────────────────
@@ -137,11 +132,15 @@ class SenzuCastController extends GetxController {
       return false;
     }
 
-    // Track мэдээллийг шинэчилнэ
     subtitleTracks.value = media.availableSubtitles;
     audioTracks.value = media.availableAudioTracks;
     qualityOptions.value = media.availableQualities;
-    if (activeQuality.value == null && media.availableQualities.isNotEmpty) {
+
+    // ✅ Шинэ медиа load хийхэд active state-г reset хийнэ
+    activeSubtitleTrackId.value = null;
+    activeAudioTrackId.value = null;
+
+    if (media.availableQualities.isNotEmpty) {
       activeQuality.value = media.availableQualities.first.label;
     }
 
@@ -183,10 +182,10 @@ class SenzuCastController extends GetxController {
 
   /// Subtitle track солих — шинэ loadMedia биш, setActiveTrackIDs ашиглана
   Future<void> setSubtitle(int trackId) async {
-    await SenzuCastService.setSubtitleTrack(trackId);
+    // ✅ Эхлээд state шинэчилнэ (UI шууд харагдана)
     activeSubtitleTrackId.value = trackId;
-    // Audio track идэвхтэй байвал хамт явуулна
-    final activeIds = [trackId];
+
+    final activeIds = <int>[trackId];
     if (activeAudioTrackId.value != null) {
       activeIds.add(activeAudioTrackId.value!);
     }
@@ -194,9 +193,9 @@ class SenzuCastController extends GetxController {
   }
 
   Future<void> disableSubtitles() async {
-    await SenzuCastService.disableSubtitles();
+    // ✅ State-г эхлээд reset хийнэ
     activeSubtitleTrackId.value = null;
-    // Audio track байвал хадгална
+
     if (activeAudioTrackId.value != null) {
       await SenzuCastService.setActiveTracks([activeAudioTrackId.value!]);
     } else {
@@ -206,8 +205,10 @@ class SenzuCastController extends GetxController {
 
   /// Audio track солих — setActiveTrackIDs ашиглана
   Future<void> setAudioTrack(int trackId) async {
+    // ✅ State-г эхлээд шинэчилнэ
     activeAudioTrackId.value = trackId;
-    final activeIds = [trackId];
+
+    final activeIds = <int>[trackId];
     if (activeSubtitleTrackId.value != null) {
       activeIds.add(activeSubtitleTrackId.value!);
     }
@@ -221,13 +222,18 @@ class SenzuCastController extends GetxController {
   Future<void> switchQuality(String label) async {
     final q = qualityOptions.firstWhereOrNull((o) => o.label == label);
     if (q == null) return;
+
+    // ✅ Эхлээд UI шинэчилнэ
+    activeQuality.value = label;
+
     final pos = remoteState.value.positionMs;
     final ok = await SenzuCastService.loadQuality(
       q.url,
       headers: q.headers,
       positionMs: pos,
     );
-    if (ok) activeQuality.value = label;
+    // Load амжилтгүй бол rollback хийнэ
+    if (!ok) activeQuality.value = null;
   }
 
   Future<void> switchToCast({

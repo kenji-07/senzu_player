@@ -106,9 +106,24 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
       // ── Multi Audio ───────────────────────────────────────────────────────
       case PlayerMode.multiAudio:
         return VideoSource.fromNetworkVideoSources({
-          'Auto': _Urls.hlsBipbop,
+          '480p': _Urls.hlsBipbop,
           '720p': _Urls.hlsMux,
-        });
+        },
+        subtitle: {
+            'English': SenzuPlayerSubtitle.network(
+              'https://vjs.zencdn.net/v/oceans.vtt',
+              type: SubtitleType.webvtt,
+            ),
+            'Mongolia': SenzuPlayerSubtitle.network(
+              'https://raw.githubusercontent.com/videojs/video.js/main/docs/examples/shared/example-captions.vtt',
+              type: SubtitleType.webvtt,
+            ),
+            'Test': SenzuPlayerSubtitle.network(
+              'https://raw.githubusercontent.com/shaka-project/shaka-player/main/test/test/assets/text-clip.vtt',
+              type: SubtitleType.webvtt,
+            ),
+          },
+          initialSubtitle: 'English',);
 
       // ── Seek Thumbnail ────────────────────────────────────────────────────
       case PlayerMode.seekThumbnail:

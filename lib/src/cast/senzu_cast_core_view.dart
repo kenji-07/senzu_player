@@ -135,14 +135,14 @@ class _CastActiveView extends StatelessWidget {
     return Stack(
       children: [
         // ── Poster / background ─────────────────────────────────────────────
-        Positioned.fill(
-          child: CachedNetworkImage(
-            imageUrl: castController.currentPosterUrl!,
-            fit: BoxFit.contain,
-            placeholder: (_, __) => const ColoredBox(color: Colors.black),
-            errorWidget: (_, __, ___) => const ColoredBox(color: Colors.black),
-          ),
-        ),
+        // Positioned.fill(
+        //   child: CachedNetworkImage(
+        //     imageUrl: castController.currentPosterUrl!,
+        //     fit: BoxFit.contain,
+        //     placeholder: (_, __) => const ColoredBox(color: Colors.black),
+        //     errorWidget: (_, __, ___) => const ColoredBox(color: Colors.black),
+        //   ),
+        // ),
 
         // ── Tap + double-tap zones ──────────────────────────────────────────
         Positioned.fill(
@@ -711,7 +711,6 @@ class _CastProgressBarState extends State<_CastProgressBar> {
   }
 }
 
-
 // ── Cast-aware side panels ────────────────────────────────────────────────────
 class _CastQualityPanel extends StatelessWidget {
   const _CastQualityPanel({required this.style, required this.castController});
@@ -762,13 +761,15 @@ class _CastCaptionPanel extends StatelessWidget {
           _PanelItem(
             label: style.senzuLanguage.none,
             selected: activeId == null,
-            onTap: castController.disableSubtitles,
+            onTap: activeId == null ? null : castController.disableSubtitles,
           ),
           ...tracks.map(
             (t) => _PanelItem(
               label: t.name,
               selected: activeId == t.id,
-              onTap: () => castController.setSubtitle(t.id),
+              onTap: activeId == t.id
+                  ? null
+                  : () => castController.setSubtitle(t.id),
             ),
           ),
         ],
@@ -808,7 +809,6 @@ class _CastAudioPanel extends StatelessWidget {
 // ── Side panel shell ──────────────────────────────────────────────────────────
 class _CastSidePanel extends StatelessWidget {
   const _CastSidePanel({
-   
     required this.castController,
     required this.style,
     required this.panel,
