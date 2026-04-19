@@ -41,10 +41,14 @@ class SenzuCastController extends GetxController {
   StreamSubscription<List<SenzuCastDeviceInfo>>? _devicesSub;
 
   SenzuCastMedia? _currentMedia;
+  String? get currentPosterUrl => _currentMedia?.posterUrl;
 
   // ── Computed ──────────────────────────────────────────────────────────────
   bool get isCasting => castState.value == SenzuCastState.connected;
   bool get isConnecting => castState.value == SenzuCastState.connecting;
+
+  String? get connectedDeviceName =>
+    availableDevices.firstWhereOrNull((_) => isCasting)?.deviceName;
 
   @override
   void onInit() {
@@ -57,11 +61,11 @@ class SenzuCastController extends GetxController {
   void _subscribeStreams() {
     _castStateSub = SenzuCastService.castStateStream.listen((state) {
       castState.value = state;
-      if (state == SenzuCastState.connected && _currentMedia != null) {
-        _reloadCurrentMedia();
-      }
+      // Cast холбогдоход одоогийн медиаг дахин load хийхгүй —
+      // SenzuCoreController._onCastStateChanged castCurrentSource() дуудна.
       if (state == SenzuCastState.notConnected) {
         remoteState.value = const SenzuCastRemoteState();
+        _currentMedia = null;
       }
     });
 
@@ -91,8 +95,6 @@ class SenzuCastController extends GetxController {
   }
 
   // ── Device Discovery & Connection ─────────────────────────────────────────
-
-  /// Төхөөрөмж хайх (panel нээгдэхэд автоматаар дуудна)
   Future<void> discoverDevices() async {
     isDiscovering.value = true;
     try {
@@ -107,7 +109,6 @@ class SenzuCastController extends GetxController {
     }
   }
 
-  /// Тодорхой төхөөрөмжид холбогдох
   Future<void> connectToDevice(SenzuCastDeviceInfo device) async {
     connectingDeviceId.value = device.deviceId;
     try {
@@ -120,7 +121,6 @@ class SenzuCastController extends GetxController {
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
-
   Future<void> showDevicePicker() async {
     errorMessage.value = null;
     try {
@@ -130,18 +130,20 @@ class SenzuCastController extends GetxController {
     }
   }
 
+  /// Cast руу медиа илгээх — track мэдээллийг хадгална, дахин load хийнэ
   Future<bool> castMedia(SenzuCastMedia media) async {
     if (!isCasting) {
       errorMessage.value = 'Cast холбогдоогүй байна';
       return false;
     }
 
+    // Track мэдээллийг шинэчилнэ
     subtitleTracks.value = media.availableSubtitles;
     audioTracks.value = media.availableAudioTracks;
     qualityOptions.value = media.availableQualities;
-    activeQuality.value = media.availableQualities.isNotEmpty
-        ? media.availableQualities.first.label
-        : null;
+    if (activeQuality.value == null && media.availableQualities.isNotEmpty) {
+      activeQuality.value = media.availableQualities.first.label;
+    }
 
     isLoading.value = true;
     errorMessage.value = null;
@@ -179,51 +181,53 @@ class SenzuCastController extends GetxController {
     _currentMedia = null;
   }
 
-  Future<void> _reloadCurrentMedia() async {
-    final media = _currentMedia;
-    if (media == null) return;
-    final pos = remoteState.value.positionMs;
-    await castMedia(
-      SenzuCastMedia(
-        url: media.url,
-        title: media.title,
-        description: media.description,
-        posterUrl: media.posterUrl,
-        subtitleUrl: media.subtitleUrl,
-        positionMs: pos,
-        isLive: media.isLive,
-      ),
-    );
-  }
-
+  /// Subtitle track солих — шинэ loadMedia биш, setActiveTrackIDs ашиглана
   Future<void> setSubtitle(int trackId) async {
     await SenzuCastService.setSubtitleTrack(trackId);
     activeSubtitleTrackId.value = trackId;
+    // Audio track идэвхтэй байвал хамт явуулна
+    final activeIds = [trackId];
+    if (activeAudioTrackId.value != null) {
+      activeIds.add(activeAudioTrackId.value!);
+    }
+    await SenzuCastService.setActiveTracks(activeIds);
   }
 
   Future<void> disableSubtitles() async {
     await SenzuCastService.disableSubtitles();
     activeSubtitleTrackId.value = null;
+    // Audio track байвал хадгална
+    if (activeAudioTrackId.value != null) {
+      await SenzuCastService.setActiveTracks([activeAudioTrackId.value!]);
+    } else {
+      await SenzuCastService.setActiveTracks([]);
+    }
   }
 
+  /// Audio track солих — setActiveTrackIDs ашиглана
   Future<void> setAudioTrack(int trackId) async {
-    await SenzuCastService.setAudioTrack(trackId);
     activeAudioTrackId.value = trackId;
+    final activeIds = [trackId];
+    if (activeSubtitleTrackId.value != null) {
+      activeIds.add(activeSubtitleTrackId.value!);
+    }
+    await SenzuCastService.setActiveTracks(activeIds);
   }
 
   Future<void> setCastVolume(double volume) =>
       SenzuCastService.setVolume(volume);
 
+  /// Чанар солих — loadQuality дуудна (position хадгалж)
   Future<void> switchQuality(String label) async {
     final q = qualityOptions.firstWhereOrNull((o) => o.label == label);
     if (q == null) return;
     final pos = remoteState.value.positionMs;
-    await SenzuCastService.loadQuality(
+    final ok = await SenzuCastService.loadQuality(
       q.url,
       headers: q.headers,
       positionMs: pos,
     );
-    activeQuality.value = label;
+    if (ok) activeQuality.value = label;
   }
 
   Future<void> switchToCast({
@@ -236,8 +240,16 @@ class SenzuCastController extends GetxController {
       description: media.description,
       posterUrl: media.posterUrl,
       subtitleUrl: media.subtitleUrl,
+      mimeType: media.mimeType,
       positionMs: currentPosition.inMilliseconds,
       isLive: media.isLive,
+      httpHeaders: media.httpHeaders,
+      subtitleHeaders: media.subtitleHeaders,
+      availableSubtitles: media.availableSubtitles,
+      availableAudioTracks: media.availableAudioTracks,
+      availableQualities: media.availableQualities,
+      releaseDate: media.releaseDate,
+      studio: media.studio,
     );
     await castMedia(mediaWithPos);
   }

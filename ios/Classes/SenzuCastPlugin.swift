@@ -54,17 +54,13 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
 
         switch call.method {
 
+        // ── Device discovery ───────────────────────────────────────────────
         case "discoverDevices":
             let dm = GCKCastContext.sharedInstance().discoveryManager
-
             if !dm.discoveryActive {
                 dm.passiveScan = false
                 dm.startDiscovery()
-                print("SenzuCast: Restarted discovery")
             }
-
-            print("SenzuCast: discoveryActive=\(dm.discoveryActive), deviceCount=\(dm.deviceCount)")
-
             if dm.deviceCount == 0 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                     result(self.buildDeviceList(dm))
@@ -82,8 +78,7 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
                 if device.deviceID == deviceId {
                     found = true
                     DispatchQueue.main.async {
-                        GCKCastContext.sharedInstance().sessionManager
-                            .startSession(with: device)
+                        GCKCastContext.sharedInstance().sessionManager.startSession(with: device)
                     }
                     result(nil)
                     break
@@ -93,8 +88,7 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
                 result(FlutterError(
                     code: "DEVICE_NOT_FOUND",
                     message: "Device \(deviceId) not found",
-                    details: nil
-                ))
+                    details: nil))
             }
 
         case "showDevicePicker":
@@ -103,6 +97,7 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
             }
             result(nil)
 
+        // ── Media ──────────────────────────────────────────────────────────
         case "loadMedia":
             loadMedia(args: args, result: result)
 
@@ -125,20 +120,20 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
             castSession?.remoteMediaClient?.seek(with: options)
             result(nil)
 
-        case "disconnect":
-            sessionManager.endSessionAndStopCasting(true)
-            result(nil)
+        // ── Quality / URL reload ───────────────────────────────────────────
+        case "loadQuality":
+            loadQuality(args: args, result: result)
 
-        case "getCastState":
-            let state = castSession != nil ? "connected" : "notConnected"
-            result(state)
-
+        // ── Track selection ────────────────────────────────────────────────
+        // setSubtitleTrack — хуучин API, доор setActiveTracks ашиглана
         case "setSubtitleTrack":
             let trackId = args?["trackId"] as? Int ?? 0
             castSession?.remoteMediaClient?.setActiveTrackIDs([NSNumber(value: trackId)])
             result(nil)
 
         case "disableSubtitles":
+            // Audio track идэвхтэй байвал хадгалах хэрэгтэй бол
+            // setActiveTracks ашиглана. Энд бүгдийг унтраана.
             castSession?.remoteMediaClient?.setActiveTrackIDs([])
             result(nil)
 
@@ -147,13 +142,29 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
             castSession?.remoteMediaClient?.setActiveTrackIDs([NSNumber(value: trackId)])
             result(nil)
 
-        case "setCastVolume":
+        // ── setActiveTracks — subtitle + audio хоёуланг нэг дор ───────────
+        // Flutter-с [subtitleId, audioId] хэлбэрийн массив ирнэ.
+        // Хоосон массив бол бүх track-г унтраана.
+        case "setActiveTracks":
+            let rawIds = args?["trackIds"] as? [Int] ?? []
+            let nsIds = rawIds.map { NSNumber(value: $0) }
+            castSession?.remoteMediaClient?.setActiveTrackIDs(nsIds)
+            result(nil)
+
+        // ── Volume ─────────────────────────────────────────────────────────
+        case "setVolume":
             let volume = args?["volume"] as? Double ?? 1.0
             castSession?.setDeviceVolume(Float(volume))
             result(nil)
 
-        case "loadQuality":
-            loadQuality(args: args, result: result)
+        // ── Session ────────────────────────────────────────────────────────
+        case "disconnect":
+            sessionManager.endSessionAndStopCasting(true)
+            result(nil)
+
+        case "getCastState":
+            let state = castSession != nil ? "connected" : "notConnected"
+            result(state)
 
         default:
             result(FlutterMethodNotImplemented)

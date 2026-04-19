@@ -74,7 +74,6 @@ class SenzuCastRemoteState {
   }
 }
 
-/// Platform Channel-ийн нэр
 class SenzuCastService {
   SenzuCastService._();
 
@@ -156,12 +155,9 @@ class SenzuCastService {
   }
 
   // ── Commands ──────────────────────────────────────────────────────────────
-
-  /// Device picker sheet нээнэ (native UI)
   static Future<void> showDevicePicker() =>
       _method.invokeMethod('showDevicePicker');
 
-  /// Cast session эхлүүлж media load хийнэ
   static Future<bool> loadMedia(SenzuCastMedia media) async {
     try {
       final result = await _method.invokeMethod<bool>(
@@ -194,14 +190,20 @@ class SenzuCastService {
     return _parseCastState(s);
   }
 
+  /// Subtitle track идэвхжүүлэх (setActiveTrackIDs дуудна)
   static Future<void> setSubtitleTrack(int trackId) =>
       _method.invokeMethod('setSubtitleTrack', {'trackId': trackId});
 
   static Future<void> disableSubtitles() =>
       _method.invokeMethod('disableSubtitles');
 
+  /// Audio track идэвхжүүлэх (setActiveTrackIDs дуудна)
   static Future<void> setAudioTrack(int trackId) =>
       _method.invokeMethod('setAudioTrack', {'trackId': trackId});
+
+  /// Subtitle + audio хоёуланг нэг дор тохируулах — [trackIds] хоосон бол бүгдийг унтраана
+  static Future<void> setActiveTracks(List<int> trackIds) =>
+      _method.invokeMethod('setActiveTracks', {'trackIds': trackIds});
 
   static Future<bool> loadQuality(
     String url, {

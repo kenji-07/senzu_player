@@ -433,45 +433,47 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     switch (state) {
       case SenzuCastState.connected:
         isCastActive.value = true;
-        pause();
+        // Local player-г dispose хийнэ — cast горимд native player хэрэггүй
+        _releaseNative();
         castCurrentSource();
+
       case SenzuCastState.notConnected:
         if (isCastActive.value) {
           isCastActive.value = false;
-          // Cast-аас resume position авч player-г дахин эхлүүлнэ
-          final resumePos =
-              _castController?.resumePosition ?? Duration.zero;
+          final resumePos = _castController?.resumePosition ?? Duration.zero;
           _resumeLocalPlayback(resumePos);
         }
+
       default:
         break;
     }
   }
 
-  /// Cast тасарсан үед local player-г resume position-оос үргэлжлүүлнэ
+  /// Cast тасарсан үед source-г дахин initialize хийж resume position-оос тоглуулна
   Future<void> _resumeLocalPlayback(Duration resumePos) async {
     if (_disposed) return;
-    // Native player аль хэдийн байгаа бол seek хийж play
-    if (rxNativeState.value.isInitialized) {
-      if (resumePos > Duration.zero) {
-        await seekTo(resumePos);
-      }
-      await play();
-      return;
-    }
-    // Player байхгүй бол source-г дахин initialize хийнэ
+
     final srcs = rxSources.value;
     if (srcs == null || srcs.isEmpty) return;
+
     final name = rxActiveSource.value ?? srcs.keys.first;
     final src = srcs[name];
     if (src == null) return;
+
+    // Native player байхгүй тул changeSource дахин initialize хийнэ
     await changeSource(
       name: name,
       source: src,
       inheritPosition: false,
       autoPlay: false,
     );
-    if (resumePos > Duration.zero) await seekTo(resumePos);
+
+    if (_disposed) return;
+
+    // Resume position-оос эхлүүлнэ
+    if (resumePos > Duration.zero) {
+      await seekTo(resumePos + beginRange);
+    }
     await play();
   }
 
@@ -496,46 +498,49 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     final subtitleMap = source.subtitle ?? {};
     final castSubtitles = subtitleMap.entries
         .where((e) => e.value.url_.isNotEmpty)
-        .mapIndexed((i, e) => CastSubtitleTrack(
-              id: i,
-              language: e.key,
-              name: e.key,
-              url: e.value.url_,
-              headers: source.httpHeaders ?? {},
-            ))
+        .mapIndexed(
+          (i, e) => CastSubtitleTrack(
+            id: i,
+            language: e.key,
+            name: e.key,
+            url: e.value.url_,
+            headers: source.httpHeaders ?? {},
+          ),
+        )
         .toList();
 
     // Audio tracks
     final castAudio = audioTracks
-        .mapIndexed((i, t) => CastAudioTrack(
-              id: i,
-              language: t.language,
-              name: t.name,
-            ))
+        .mapIndexed(
+          (i, t) => CastAudioTrack(id: i, language: t.language, name: t.name),
+        )
         .toList();
 
     // Quality options
     final srcs = rxSources.value ?? {};
     final castQualities = srcs.entries
-        .map((e) => CastQualityOption(
-              label: e.key,
-              url: e.value.dataSource,
-              headers: e.value.httpHeaders ?? {},
-            ))
+        .map(
+          (e) => CastQualityOption(
+            label: e.key,
+            url: e.value.dataSource,
+            headers: e.value.httpHeaders ?? {},
+          ),
+        )
         .toList();
 
     final media = SenzuCastMedia(
       url: source.dataSource,
       title: title,
       description: description,
-      posterUrl: 'https://image.tmdb.org/t/p/original/cm2oUAPiTE1ERoYYOzzgloQw4YZ.jpg',
+      posterUrl:
+          'https://image.tmdb.org/t/p/original/cm2oUAPiTE1ERoYYOzzgloQw4YZ.jpg',
       positionMs: rxNativeState.value.position.inMilliseconds,
       isLive: isLive,
       mimeType: source.protocol == VideoProtocol.dash
           ? 'application/dash+xml'
           : source.protocol == VideoProtocol.mp4
-              ? 'video/mp4'
-              : null,
+          ? 'video/mp4'
+          : null,
       httpHeaders: source.httpHeaders ?? {},
       availableSubtitles: castSubtitles,
       availableAudioTracks: castAudio,
