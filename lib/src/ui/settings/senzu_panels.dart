@@ -898,6 +898,34 @@ class _ConnectedView extends StatelessWidget {
               const SizedBox(height: 8),
             ],
 
+            if (castController.audioTracks.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  'Audio',
+                  style: TextStyle(color: Colors.white38, fontSize: 10),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Obx(
+                () => Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: castController.audioTracks
+                      .map(
+                        (t) => _TrackChip(
+                          label: '${t.name} (${t.language})',
+                          selected:
+                              castController.activeAudioTrackId.value == t.id,
+                          onTap: () => castController.setAudioTrack(t.id),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+
             // Quality options
             if (castController.qualityOptions.isNotEmpty) ...[
               const Padding(

@@ -149,7 +149,7 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
 
         case "setCastVolume":
             let volume = args?["volume"] as? Double ?? 1.0
-            castSession?.setDeviceVolume(Float(volume), completion: nil)
+            castSession?.setDeviceVolume(Float(volume))
             result(nil)
 
         case "loadQuality":
@@ -251,9 +251,7 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         if !releaseDate.isEmpty {
             let isoFormatter = ISO8601DateFormatter()
             if let date = isoFormatter.date(from: releaseDate) {
-                let secondsFromGMT = TimeZone.current.secondsFromGMT(for: date)
-                let gckDate = GCKDateTime(date: date, timeZoneOffset: Int32(secondsFromGMT / 60))
-                metadata.setDate(gckDate, forKey: kGCKMetadataKeyReleaseDate)
+                metadata.setString(releaseDate, forKey: kGCKMetadataKeyReleaseDate)
             }
         }
 
@@ -267,7 +265,7 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         let subtitleList = args?["availableSubtitles"] as? [[String: Any]] ?? []
 
         for sub in subtitleList {
-            let trackId  = Int64(sub["id"] as? Int ?? 0)
+            let trackId = sub["id"] as? Int ?? 0
             let subUrl   = sub["url"] as? String ?? ""
             let subLang  = sub["language"] as? String ?? "en"
             let subName  = sub["name"] as? String ?? "Subtitle"
@@ -308,7 +306,7 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         let audioList = args?["availableAudioTracks"] as? [[String: Any]] ?? []
 
         for audio in audioList {
-            let trackId = Int64(audio["id"] as? Int ?? 0)
+            let trackId = audio["id"] as? Int ?? 0
             let lang    = audio["language"] as? String ?? "und"
             let name    = audio["name"] as? String ?? "Audio"
 

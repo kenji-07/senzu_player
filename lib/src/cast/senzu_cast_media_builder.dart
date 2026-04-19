@@ -1,4 +1,3 @@
-// lib/src/cast/senzu_cast_media_builder.dart
 class SenzuCastMedia {
   const SenzuCastMedia({
     required this.url,

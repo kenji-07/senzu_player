@@ -834,90 +834,9 @@ class _MainPlayerStack extends StatelessWidget {
               ),
             );
           }),
-
-          // 20. Cast overlay — cast холбогдсон үед local player дээр харуулна
-          if (castController != null)
-            Obx(() {
-              final isCasting =
-                  castController!.castState.value == SenzuCastState.connected;
-              if (!isCasting) return const SizedBox.shrink();
-              return Positioned.fill(
-                child: Container(
-                  color: Colors.black87,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.cast_connected,
-                          color: Colors.lightBlueAccent,
-                          size: 48,
-                        ),
-                        const SizedBox(height: 12),
-                        Obx(() {
-                          final device =
-                              castController!.availableDevices.firstOrNull;
-                          return Text(
-                            device?.deviceName ?? 'Casting...',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          );
-                        }),
-                        const SizedBox(height: 6),
-                        Obx(() {
-                          final remote = castController!.remoteState.value;
-                          if (remote.durationMs <= 0) {
-                            return const SizedBox.shrink();
-                          }
-                          final pos = Duration(milliseconds: remote.positionMs);
-                          final dur = Duration(milliseconds: remote.durationMs);
-                          return Text(
-                            '${_fmtDur(pos)} / ${_fmtDur(dur)}',
-                            style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 13,
-                            ),
-                          );
-                        }),
-                        const SizedBox(height: 24),
-                        // Cast panel açmak için button
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white24),
-                          ),
-                          onPressed: () =>
-                              bundle.ui.togglePanel(SenzuPanel.cast),
-                          icon: const Icon(Icons.tune, size: 16),
-                          label: const Text('Controls'),
-                        ),
-                        const SizedBox(height: 8),
-                        TextButton.icon(
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.red,
-                          ),
-                          onPressed: castController!.disconnect,
-                          icon: const Icon(Icons.cast, size: 16),
-                          label: const Text('Disconnect'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }),
         ],
       ),
     );
-  }
-
-  static String _fmtDur(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return d.inHours > 0 ? '${d.inHours}:$m:$s' : '$m:$s';
   }
 }
 
