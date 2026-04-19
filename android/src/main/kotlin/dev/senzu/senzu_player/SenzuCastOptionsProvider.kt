@@ -10,7 +10,7 @@ class SenzuCastOptionsProvider : OptionsProvider {
         return CastOptions.Builder()
             // Default Media Receiver App ID — өөрийн Receiver бол солих
             // Google Cast Developer Console-с авна: https://cast.google.com/u/0/publish
-            .setReceiverApplicationId("CC1AD845")
+            .setReceiverApplicationId("519C9F80")
             .build()
     }
 

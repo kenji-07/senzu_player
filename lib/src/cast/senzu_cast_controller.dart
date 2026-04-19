@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'senzu_cast_service.dart';
 import 'senzu_cast_media_builder.dart';
+import 'dart:developer';
 
 enum SenzuCastPanel { caption, quality, episode, audio, cast, none }
 
@@ -16,10 +16,10 @@ class SenzuCastController extends GetxController {
   final activeSource = RxnString();
   final activePanel = SenzuCastPanel.none.obs;
 
-  // ── Device panel state ────────────────────────────────────────────────────
   final isDiscovering = false.obs;
   final connectingDeviceId = RxnString();
 
+  // Track state
   final activeSubtitleTrackId = RxnInt();
   final activeAudioTrackId = RxnInt();
 
@@ -36,12 +36,14 @@ class SenzuCastController extends GetxController {
   SenzuCastMedia? _currentMedia;
   String? get currentPosterUrl => _currentMedia?.posterUrl;
 
-  // ── Computed ──────────────────────────────────────────────────────────────
   bool get isCasting => castState.value == SenzuCastState.connected;
   bool get isConnecting => castState.value == SenzuCastState.connecting;
 
   String? get connectedDeviceName =>
       availableDevices.firstWhereOrNull((_) => isCasting)?.deviceName;
+
+  Duration get resumePosition =>
+      Duration(milliseconds: remoteState.value.positionMs);
 
   @override
   void onInit() {
@@ -51,22 +53,35 @@ class SenzuCastController extends GetxController {
     _syncInitialState();
   }
 
+  @override
+  void onClose() {
+    _castStateSub?.cancel();
+    _remoteStateSub?.cancel();
+    _devicesSub?.cancel();
+    SenzuCastService.stopListening();
+    super.onClose();
+  }
+
   void _subscribeStreams() {
     _castStateSub = SenzuCastService.castStateStream.listen((state) {
       castState.value = state;
-      // Cast холбогдоход одоогийн медиаг дахин load хийхгүй —
-      // SenzuCoreController._onCastStateChanged castCurrentSource() дуудна.
+
       if (state == SenzuCastState.notConnected) {
         remoteState.value = const SenzuCastRemoteState();
         _currentMedia = null;
+        _resetTrackState();
+        activeQuality.value = null;
       }
     });
 
     _remoteStateSub = SenzuCastService.remoteStateStream.listen((state) {
       remoteState.value = state;
-      if (state.errorMessage != null) {
+
+      if (state.errorMessage != null && state.errorMessage!.isNotEmpty) {
         errorMessage.value = state.errorMessage;
       }
+
+      _syncTrackStateFromNative(state.activeTrackIds);
     });
 
     _devicesSub = SenzuCastService.devicesStream.listen((devices) {
@@ -74,26 +89,54 @@ class SenzuCastController extends GetxController {
     });
   }
 
+  void _syncTrackStateFromNative(List<int> activeIds) {
+    if (activeIds.isEmpty) return;
+
+    for (final track in subtitleTracks) {
+      if (activeIds.contains(track.id)) {
+        if (activeSubtitleTrackId.value != track.id) {
+          activeSubtitleTrackId.value = track.id;
+        }
+        break;
+      }
+    }
+
+    for (final track in audioTracks) {
+      if (activeIds.contains(track.id)) {
+        if (activeAudioTrackId.value != track.id) {
+          activeAudioTrackId.value = track.id;
+        }
+        break;
+      }
+    }
+  }
+
+  void _resetTrackState() {
+    activeSubtitleTrackId.value = null;
+    activeAudioTrackId.value = null;
+  }
+
   Future<void> _syncInitialState() async {
     try {
       castState.value = await SenzuCastService.getCastState();
     } catch (e) {
-      debugPrint('SenzuCast: initial state sync failed: $e');
+      log('SenzuCast: initial state sync failed: $e');
     }
   }
 
-  // ── Panel ──────────────────────────────────────────────────────────────────
   void toggleCastPanel(SenzuCastPanel panel) {
-    activePanel.value = activePanel.value == panel
-        ? SenzuCastPanel.none
-        : panel;
+    activePanel.value =
+        activePanel.value == panel ? SenzuCastPanel.none : panel;
   }
 
   // ── Device Discovery & Connection ─────────────────────────────────────────
   Future<void> discoverDevices() async {
     isDiscovering.value = true;
+
     try {
+      await Future.delayed(const Duration(milliseconds: 800));
       final found = await SenzuCastService.discoverDevices();
+
       if (found.isNotEmpty) {
         availableDevices.value = found;
       }
@@ -115,7 +158,6 @@ class SenzuCastController extends GetxController {
     }
   }
 
-  // ── Public API ─────────────────────────────────────────────────────────────
   Future<void> showDevicePicker() async {
     errorMessage.value = null;
     try {
@@ -125,56 +167,85 @@ class SenzuCastController extends GetxController {
     }
   }
 
-  /// Cast руу медиа илгээх — track мэдээллийг хадгална, дахин load хийнэ
- /// Cast руу медиа илгээх — ЗАСВАР: loadMedia дуусахыг хүлээгээд track тохируулна
-Future<bool> castMedia(SenzuCastMedia media) async {
-  if (!isCasting) {
-    errorMessage.value = 'Cast холбогдоогүй байна';
-    return false;
-  }
+  // ── castMedia ──────────────────────────────────────────────────────────────
+  Future<bool> castMedia(SenzuCastMedia media) async {
+    if (!isCasting) {
+      errorMessage.value = 'Cast холбогдоогүй байна';
+      return false;
+    }
 
-  subtitleTracks.value = media.availableSubtitles;
-  audioTracks.value = media.availableAudioTracks;
-  qualityOptions.value = media.availableQualities;
+    subtitleTracks.value = media.availableSubtitles;
+    audioTracks.value = media.availableAudioTracks;
+    qualityOptions.value = media.availableQualities;
 
-  activeSubtitleTrackId.value = null;
-  activeAudioTrackId.value = null;
+    _resetTrackState();
 
-  if (media.availableQualities.isNotEmpty) {
-    activeQuality.value = media.availableQualities.first.label;
-  }
+    activeSubtitleTrackId.value = media.selectedSubtitleId;
+    activeAudioTrackId.value = media.selectedAudioId;
 
-  isLoading.value = true;
-  errorMessage.value = null;
-  _currentMedia = media;
+    if (media.availableQualities.isNotEmpty) {
+      final matchedQuality = media.availableQualities.firstWhereOrNull(
+        (q) => q.url == media.url,
+      );
 
-  try {
-    final ok = await SenzuCastService.loadMedia(media);
-    if (!ok) {
-      errorMessage.value = 'Media load амжилтгүй боллоо';
+      activeQuality.value =
+          matchedQuality?.label ?? media.availableQualities.first.label;
+    } else {
+      activeQuality.value = null;
+    }
+
+    isLoading.value = true;
+    errorMessage.value = null;
+    _currentMedia = media;
+
+    try {
+      final ok = await SenzuCastService.loadMedia(media);
+      if (!ok) {
+        errorMessage.value = 'Media load амжилтгүй боллоо';
+        isLoading.value = false;
+        return false;
+      }
+
+      isLoading.value = false;
+      return true;
+    } catch (e) {
+      errorMessage.value = 'Cast error: $e';
       isLoading.value = false;
       return false;
     }
-    
-    // ← НЭМЭЛТ: loadMedia дуусаад нэг хором хүлээгээд
-    //   default track-уудыг тохируулна (subtitle байвал)
-    if (media.availableSubtitles.isNotEmpty) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      // Default-аар subtitle унтраасан байна — хэрэглэгч өөрөө сонгоно
-    }
-    
-    isLoading.value = false;
-    return true;
-  } catch (e) {
-    errorMessage.value = 'Cast error: $e';
-    isLoading.value = false;
-    return false;
   }
-}
+
+  Future<void> switchToCast({
+    required SenzuCastMedia media,
+    Duration? currentPosition,
+  }) async {
+    final merged = SenzuCastMedia(
+      url: media.url,
+      title: media.title,
+      description: media.description,
+      posterUrl: media.posterUrl,
+      subtitleUrl: media.subtitleUrl,
+      subtitleLanguage: media.subtitleLanguage,
+      mimeType: media.mimeType,
+      positionMs: currentPosition?.inMilliseconds ?? media.positionMs,
+      durationMs: media.durationMs,
+      isLive: media.isLive,
+      releaseDate: media.releaseDate,
+      studio: media.studio,
+      httpHeaders: media.httpHeaders,
+      subtitleHeaders: media.subtitleHeaders,
+      availableSubtitles: media.availableSubtitles,
+      availableAudioTracks: media.availableAudioTracks,
+      availableQualities: media.availableQualities,
+      selectedSubtitleId: media.selectedSubtitleId,
+      selectedAudioId: media.selectedAudioId,
+    );
+
+    await castMedia(merged);
+  }
 
   Future<void> play() => SenzuCastService.play();
   Future<void> pause() => SenzuCastService.pause();
-
   Future<void> seekTo(Duration position) =>
       SenzuCastService.seekTo(position.inMilliseconds);
 
@@ -188,111 +259,74 @@ Future<bool> castMedia(SenzuCastMedia media) async {
     _currentMedia = null;
   }
 
-  /// Subtitle track солих — шинэ loadMedia биш, setActiveTrackIDs ашиглана
+  // ── Subtitle ───────────────────────────────────────────────────────────────
   Future<void> setSubtitle(int trackId) async {
-  activeSubtitleTrackId.value = trackId;
-  
-  // Audio track идэвхтэй байвал хоёуланг нэг дор тохируулна
-  final activeIds = <int>[trackId];
-  if (activeAudioTrackId.value != null) {
-    activeIds.add(activeAudioTrackId.value!);
+    activeSubtitleTrackId.value = trackId;
+
+    final ids = <int>[
+      trackId,
+      if (activeAudioTrackId.value != null) activeAudioTrackId.value!,
+    ];
+
+    await SenzuCastService.setActiveTracks(ids);
   }
-  await SenzuCastService.setActiveTracks(activeIds);
-  
-  // Fallback: шууд subtitle track тохируулна
-  await SenzuCastService.setSubtitleTrack(trackId);
-}
 
   Future<void> disableSubtitles() async {
-    // ✅ State-г эхлээд reset хийнэ
     activeSubtitleTrackId.value = null;
 
-    if (activeAudioTrackId.value != null) {
-      await SenzuCastService.setActiveTracks([activeAudioTrackId.value!]);
-    } else {
-      await SenzuCastService.setActiveTracks([]);
-    }
+    final ids = <int>[
+      if (activeAudioTrackId.value != null) activeAudioTrackId.value!,
+    ];
+
+    await SenzuCastService.setActiveTracks(ids);
   }
 
-  /// Audio track солих — setActiveTrackIDs ашиглана
+  // ── Audio ──────────────────────────────────────────────────────────────────
   Future<void> setAudioTrack(int trackId) async {
-    // ✅ State-г эхлээд шинэчилнэ
     activeAudioTrackId.value = trackId;
 
-    final activeIds = <int>[trackId];
-    if (activeSubtitleTrackId.value != null) {
-      activeIds.add(activeSubtitleTrackId.value!);
-    }
-    await SenzuCastService.setActiveTracks(activeIds);
+    final ids = <int>[
+      trackId,
+      if (activeSubtitleTrackId.value != null) activeSubtitleTrackId.value!,
+    ];
+
+    await SenzuCastService.setActiveTracks(ids);
   }
 
   Future<void> setCastVolume(double volume) =>
       SenzuCastService.setVolume(volume);
 
-  /// Чанар солих — loadQuality дуудна (position хадгалж)
+  // ── Quality ────────────────────────────────────────────────────────────────
   Future<void> switchQuality(String label) async {
-  final q = qualityOptions.firstWhereOrNull((o) => o.label == label);
-  if (q == null) return;
+    final q = qualityOptions.firstWhereOrNull((o) => o.label == label);
+    if (q == null) return;
 
-  final previousQuality = activeQuality.value;
-  activeQuality.value = label;  // Оптимист UI update
+    final previousQuality = activeQuality.value;
+    activeQuality.value = label;
 
-  final pos = remoteState.value.positionMs;
-  
-  try {
-    final ok = await SenzuCastService.loadQuality(
-      q.url,
-      headers: q.headers,
-      positionMs: pos,
-    );
-    if (!ok) {
-      activeQuality.value = previousQuality;  // Rollback
+    final pos = remoteState.value.positionMs;
+    final dur = remoteState.value.durationMs;
+    final isLive = dur == 0;
+
+    try {
+      final ok = await SenzuCastService.loadQuality(
+        q.url,
+        headers: q.headers,
+        positionMs: pos,
+        durationMs: dur,
+        isLive: isLive,
+      );
+
+      if (!ok) {
+        activeQuality.value = previousQuality;
+        errorMessage.value = 'Чанар солих амжилтгүй';
+        return;
+      }
+
+      log('SenzuCast: switchQuality → $label, pos=${pos}ms');
+    } catch (e) {
+      activeQuality.value = previousQuality;
+      errorMessage.value = 'Чанар солих үед алдаа гарлаа: $e';
     }
-  } catch (e) {
-    activeQuality.value = previousQuality;  // Rollback
-    errorMessage.value = 'Quality солих алдаа: $e';
-  }
-}
-
-  Future<void> switchToCast({
-    required SenzuCastMedia media,
-    required Duration currentPosition,
-  }) async {
-    final mediaWithPos = SenzuCastMedia(
-      url: media.url,
-      title: media.title,
-      description: media.description,
-      posterUrl: media.posterUrl,
-      subtitleUrl: media.subtitleUrl,
-      mimeType: media.mimeType,
-      positionMs: currentPosition.inMilliseconds,
-      durationMs: media.durationMs,  
-      isLive: media.isLive,
-      httpHeaders: {
-          'Referer': 'https://playmax.mn/',
-          'Origin': 'https://playmax.mn',
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-        },
-      subtitleHeaders: media.subtitleHeaders,
-      availableSubtitles: media.availableSubtitles,
-      availableAudioTracks: media.availableAudioTracks,
-      availableQualities: media.availableQualities,
-      releaseDate: media.releaseDate,
-      studio: media.studio,
-    );
-    await castMedia(mediaWithPos);
-  }
-
-  Duration get resumePosition =>
-      Duration(milliseconds: remoteState.value.positionMs);
-
-  @override
-  void onClose() {
-    _castStateSub?.cancel();
-    _remoteStateSub?.cancel();
-    _devicesSub?.cancel();
-    SenzuCastService.stopListening();
-    super.onClose();
   }
 }

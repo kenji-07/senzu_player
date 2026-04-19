@@ -188,45 +188,47 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
 
     // ── loadQuality ────────────────────────────────────────────────────────
     private func loadQuality(args: [String: Any]?, result: @escaping FlutterResult) {
-    guard
-        let session = castSession,
-        let urlStr  = args?["url"] as? String,
-        let url     = URL(string: urlStr)
-    else { result(false); return }
+        guard
+            let session = castSession,
+            let client = session.remoteMediaClient,
+            let urlStr = args?["url"] as? String,
+            let url = URL(string: urlStr)
+        else { result(false); return }
 
-    let positionMs = args?["positionMs"] as? Int    ?? 0
-    let durationMs = args?["durationMs"] as? Int    ?? 0 
-    let isLive     = args?["isLive"]     as? Bool   ?? false
-    let headers    = args?["headers"]    as? [String: String] ?? [:]
+        let positionMs = args?["positionMs"] as? Int ?? 0
+        let durationMs = args?["durationMs"] as? Int ?? 0
+        let isLive = args?["isLive"] as? Bool ?? false
+        let headers = args?["headers"] as? [String: String] ?? [:]
 
-    let currentInfo = session.remoteMediaClient?.mediaStatus?.mediaInformation
-    let builder = GCKMediaInformationBuilder(contentURL: url)
-    builder.contentType = currentInfo?.contentType ?? "application/x-mpegURL"
-    builder.metadata    = currentInfo?.metadata
-    builder.mediaTracks = currentInfo?.mediaTracks
-    builder.streamType  = isLive ? .live : .buffered 
+        let currentInfo = client.mediaStatus?.mediaInformation
+        let currentActiveIds = client.mediaStatus?.activeTrackIDs
 
-    // VOD бол duration тохируулна 
-    if !isLive && durationMs > 0 {
-        builder.streamDuration = TimeInterval(durationMs) / 1000.0 
-    } else if !isLive, let currentDur = currentInfo?.streamDuration, currentDur > 0 {
-        // Dart-аас duration ирээгүй бол одоогийн session-аас авна
-        builder.streamDuration = currentDur
+        let builder = GCKMediaInformationBuilder(contentURL: url)
+        builder.contentType = currentInfo?.contentType ?? "application/x-mpegURL"
+        builder.metadata = currentInfo?.metadata
+        builder.mediaTracks = currentInfo?.mediaTracks
+        builder.streamType = isLive ? .live : .buffered
+
+        if !isLive && durationMs > 0 {
+            builder.streamDuration = TimeInterval(durationMs) / 1000.0
+        } else if !isLive, let currentDur = currentInfo?.streamDuration, currentDur > 0 {
+            builder.streamDuration = currentDur
+        }
+
+        if !headers.isEmpty {
+            builder.customData = ["headers": headers]
+        }
+
+        let loadOptions = GCKMediaLoadOptions()
+        loadOptions.playPosition = TimeInterval(positionMs) / 1000.0
+        loadOptions.autoplay = true
+        loadOptions.activeTrackIDs = currentActiveIds
+
+        client.loadMedia(builder.build(), with: loadOptions)
+        result(true)
     }
 
-    if !headers.isEmpty {
-        builder.customData = ["headers": headers]
-    }
-
-    let loadOptions = GCKMediaLoadOptions()
-    loadOptions.playPosition = TimeInterval(positionMs) / 1000.0
-    loadOptions.autoplay     = true
-
-    session.remoteMediaClient?.loadMedia(builder.build(), with: loadOptions)
-    result(true)
-}
-
-    // ── loadMedia ──────────────────────────────────────────────────────────
+        // ── loadMedia ──────────────────────────────────────────────────────────
     private func loadMedia(args: [String: Any]?, result: @escaping FlutterResult) {
     guard
         let session = castSession,
@@ -434,15 +436,17 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
 
         let durationSec = status.mediaInformation?.streamDuration ?? 0
         let positionSec = client.approximateStreamPosition()
+        let activeIds = status.activeTrackIDs?.map { $0.intValue } ?? []
 
         let info: [String: Any] = [
-            "type":         "remoteState",
+            "type": "remoteState",
             "sessionState": stateStr,
-            "positionMs":   Int(positionSec * 1000),
-            "durationMs":   Int(durationSec * 1000),
-            "isPlaying":    status.playerState == .playing,
-            "volume":       castSession?.currentDeviceVolume ?? 1.0,
-            "isMuted":      castSession?.currentDeviceMuted  ?? false,
+            "positionMs": Int(positionSec * 1000),
+            "durationMs": Int(durationSec * 1000),
+            "isPlaying": status.playerState == .playing,
+            "volume": castSession?.currentDeviceVolume ?? 1.0,
+            "isMuted": castSession?.currentDeviceMuted ?? false,
+            "activeTrackIds": activeIds,
         ]
 
         DispatchQueue.main.async { [weak self] in

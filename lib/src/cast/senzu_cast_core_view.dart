@@ -11,6 +11,7 @@ import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
 import 'package:senzu_player/src/cast/senzu_cast_controller.dart';
 import 'package:senzu_player/src/cast/senzu_cast_service.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_progress_bar.dart';
+import 'dart:developer';
 
 class SenzuCastCoreView extends StatefulWidget {
   const SenzuCastCoreView({
@@ -42,10 +43,16 @@ class _SenzuCastCoreViewState extends State<SenzuCastCoreView> {
   bool _showRewind = false, _showForward = false;
   Timer? _rewindTimer, _forwardTimer;
 
+  // ── Volume ────────────────────────────────────────────────────────
+  bool _dragLeft = false;
+  double? _dragVol;
+  Timer? _dragVolTimer;
+
   @override
   void dispose() {
     _rewindTimer?.cancel();
     _forwardTimer?.cancel();
+    _dragVolTimer?.cancel();
     super.dispose();
   }
 
@@ -84,6 +91,47 @@ class _SenzuCastCoreViewState extends State<SenzuCastCoreView> {
     });
   }
 
+  void _onDragStart(DragStartDetails d) {
+    final w = context.size?.width ?? 400;
+    _dragLeft = d.localPosition.dx < w / 2;
+
+    if (!_dragLeft) {
+      _dragVol = widget.castController?.remoteState.value.volume ?? 1.0;
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> _onDragUpdate(DragUpdateDetails d) async {
+    final cc = widget.castController;
+    if (cc == null) return;
+    if (_dragLeft) return;
+
+    final h = context.size?.height ?? 400;
+    final delta = -(d.primaryDelta! / h);
+
+    final current = _dragVol ?? cc.remoteState.value.volume;
+    final next = (current + delta).clamp(0.0, 1.0);
+
+    _dragVol = next;
+    await cc.setCastVolume(next);
+
+    _dragVolTimer?.cancel();
+    _dragVolTimer = Timer(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
+      setState(() => _dragVol = null);
+    });
+
+    if (mounted) setState(() {});
+  }
+
+  void _onDragEnd(DragEndDetails _) {
+    _dragVolTimer?.cancel();
+    _dragVolTimer = Timer(const Duration(milliseconds: 700), () {
+      if (!mounted) return;
+      setState(() => _dragVol = null);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.castController == null) return const SizedBox.shrink();
@@ -99,6 +147,10 @@ class _SenzuCastCoreViewState extends State<SenzuCastCoreView> {
       forwardCount: _forwardCount,
       onDoubleTapLeft: () => _doubleTap(rewind: true),
       onDoubleTapRight: () => _doubleTap(rewind: false),
+      onDragStart: _onDragStart,
+      onDragUpdate: _onDragUpdate,
+      onDragEnd: _onDragEnd,
+      dragVolume: _dragVol,
     );
   }
 }
@@ -119,6 +171,10 @@ class _CastActiveView extends StatelessWidget {
     required this.forwardCount,
     required this.onDoubleTapLeft,
     required this.onDoubleTapRight,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+    required this.dragVolume,
   });
 
   final SenzuPlayerBundle bundle;
@@ -129,118 +185,168 @@ class _CastActiveView extends StatelessWidget {
   final bool showRewind, showForward;
   final int rewindCount, forwardCount;
   final VoidCallback onDoubleTapLeft, onDoubleTapRight;
+  final GestureDragStartCallback onDragStart;
+  final GestureDragUpdateCallback onDragUpdate;
+  final GestureDragEndCallback onDragEnd;
+  final double? dragVolume;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // ── Poster / background ─────────────────────────────────────────────
-        // Positioned.fill(
-        //   child: CachedNetworkImage(
-        //     imageUrl: castController.currentPosterUrl!,
-        //     fit: BoxFit.contain,
-        //     placeholder: (_, __) => const ColoredBox(color: Colors.black),
-        //     errorWidget: (_, __, ___) => const ColoredBox(color: Colors.black),
-        //   ),
-        // ),
+    return GestureDetector(
+      onVerticalDragStart: onDragStart,
+      onVerticalDragUpdate: onDragUpdate,
+      onVerticalDragEnd: onDragEnd,
+      child: Stack(
+        children: [
+           Positioned.fill(
+          child: CachedNetworkImage(
+            imageUrl: 'https://image.tmdb.org/t/p/original/cm2oUAPiTE1ERoYYOzzgloQw4YZ.jpg',
+            fit: BoxFit.contain,
+            placeholder: (_, __) => const ColoredBox(color: Colors.black),
+            errorWidget: (_, __, ___) => const ColoredBox(color: Colors.black),
+          ),
+        ),
+          Positioned.fill(
+            child: Obx(() {
+              final panelOpen =
+                  castController.activePanel.value != SenzuCastPanel.none;
+              return IgnorePointer(
+                ignoring: panelOpen,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onDoubleTap: onDoubleTapLeft,
+                      ),
+                    ),
+                    SizedBox(
+                      width: MediaQuery.of(context).size.width / 3,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onDoubleTap: onDoubleTapRight,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
 
-        // ── Tap + double-tap zones ──────────────────────────────────────────
-        Positioned.fill(
-          child: Obx(() {
+          Align(
+            alignment: Alignment.topCenter,
+            child: _CastTopBar(
+              bundle: bundle,
+              style: style,
+              meta: meta,
+              castController: castController,
+            ),
+          ),
+
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: _CastBottomBar(
+              bundle: bundle,
+              castController: castController,
+              style: style,
+              chapters: chapters,
+            ),
+          ),
+
+          Center(
+            child: _CastCenterControls(
+              castController: castController,
+              style: style.centerButtonStyle,
+              loading: style.loading,
+              buffering: const Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.6,
+                  color: Colors.white,
+                ),
+              ),
+              showRewind: showRewind,
+              showForward: showForward,
+              rewindCount: rewindCount,
+              forwardCount: forwardCount,
+              onPrev: style.onPrevEpisode,
+              onNext: style.onNextEpisode,
+              hasPrev: style.hasPrevEpisode,
+              hasNext: style.hasNextEpisode,
+            ),
+          ),
+
+          // 👇 ЭХЛЭЭД close overlay
+          Obx(() {
             final panelOpen =
                 castController.activePanel.value != SenzuCastPanel.none;
-            return IgnorePointer(
-              ignoring: panelOpen,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onDoubleTap: onDoubleTapLeft,
-                    ),
-                  ),
-                  SizedBox(
-                    width: MediaQuery.of(context).size.width / 3,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                    ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onDoubleTap: onDoubleTapRight,
-                    ),
-                  ),
-                ],
+            if (!panelOpen) return const SizedBox.shrink();
+
+            return Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () =>
+                    castController.activePanel.value = SenzuCastPanel.none,
+                child: const ColoredBox(color: Colors.transparent),
               ),
             );
           }),
-        ),
 
-        // ── Overlay (top + bottom) ──────────────────────────────────────────
-        Align(
-          alignment: Alignment.topCenter,
-          child: _CastTopBar(
-            bundle: bundle,
-            style: style,
-            meta: meta,
-            castController: castController,
-          ),
-        ),
-        // Bottom
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: _CastBottomBar(
-            bundle: bundle,
-            castController: castController,
-            style: style,
-            chapters: chapters,
-          ),
-        ),
+          _CastQualityPanel(style: style, castController: castController),
+          _CastCaptionPanel(style: style, castController: castController),
+          _CastAudioPanel(style: style, castController: castController),
 
-        // ── Center controls (항상 표시 — overlay 상태와 무관) ─────────────────
-        Center(
-          child: _CastCenterControls(
-            castController: castController,
-            style: style.centerButtonStyle,
-            loading: style.loading,
-            buffering: const Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 1.6,
-                color: Colors.white,
+          if (dragVolume != null)
+            IgnorePointer(
+              child: Align(
+                alignment: const Alignment(0, -0.65),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        dragVolume! <= 0
+                            ? Icons.volume_off
+                            : dragVolume! < 0.5
+                            ? Icons.volume_down
+                            : Icons.volume_up,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 80,
+                        height: 4,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(
+                            value: dragVolume!,
+                            backgroundColor: Colors.white30,
+                            valueColor: const AlwaysStoppedAnimation(
+                              Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            showRewind: showRewind,
-            showForward: showForward,
-            rewindCount: rewindCount,
-            forwardCount: forwardCount,
-            onPrev: style.onPrevEpisode,
-            onNext: style.onNextEpisode,
-            hasPrev: style.hasPrevEpisode,
-            hasNext: style.hasNextEpisode,
-          ),
-        ),
-
-        // ── Panels ──────────────────────────────────────────────────────────
-        _CastQualityPanel(style: style, castController: castController),
-        _CastCaptionPanel(style: style, castController: castController),
-        _CastAudioPanel(style: style, castController: castController),
-
-        // ── Panel close overlay ─────────────────────────────────────────────
-        Obx(() {
-          final panelOpen =
-              castController.activePanel.value != SenzuCastPanel.none;
-          if (!panelOpen) return const SizedBox.shrink();
-          return Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () =>
-                  castController.activePanel.value = SenzuCastPanel.none,
-              child: const ColoredBox(color: Colors.transparent),
-            ),
-          );
-        }),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -380,7 +486,6 @@ class _CastBottomBar extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: hPad),
               child: Row(
                 children: [
-                  // Cast device badge
                   Obx(() {
                     return Row(
                       mainAxisSize: MainAxisSize.min,
@@ -733,7 +838,10 @@ class _CastQualityPanel extends StatelessWidget {
                 selected: q.label == activeQ,
                 onTap: q.label == activeQ
                     ? null
-                    : () => castController.switchQuality(q.label),
+                    : () {
+                        castController.switchQuality(q.label);
+                        log('Select Quality: ${q.label}');
+                      },
               ),
             )
             .toList(),
@@ -769,7 +877,10 @@ class _CastCaptionPanel extends StatelessWidget {
               selected: activeId == t.id,
               onTap: activeId == t.id
                   ? null
-                  : () => castController.setSubtitle(t.id),
+                  : () {
+                      castController.setSubtitle(t.id);
+                      log('Select Subtitle: ${t.id}');
+                    },
             ),
           ),
         ],
@@ -797,7 +908,10 @@ class _CastAudioPanel extends StatelessWidget {
               (t) => _PanelItem(
                 label: '${t.name} (${t.language})',
                 selected: activeId == t.id,
-                onTap: () => castController.setAudioTrack(t.id),
+                onTap: () {
+                  castController.setAudioTrack(t.id);
+                  log('Select Audio: ${t.id}');
+                },
               ),
             )
             .toList(),

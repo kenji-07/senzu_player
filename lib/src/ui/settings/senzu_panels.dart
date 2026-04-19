@@ -454,9 +454,7 @@ class SenzuCastPanel extends StatelessWidget {
     panel: SenzuPanel.cast,
     width: 260,
     style: style,
-    child: _CastPanelContent(
-      cc: castController,
-    ),
+    child: _CastPanelContent(cc: castController),
   );
 }
 
@@ -467,177 +465,163 @@ class _CastPanelContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Panel нээгдэхэд нэг удаа discover
-    cc.discoverDevices();
+    return Obx(() {
+      final isDiscovering = cc.isDiscovering.value;
+      final devices = cc.availableDevices;
+      final castState = cc.castState.value;
+      cc.discoverDevices();
 
-    return Obx(() => _DeviceListView(
-      devices: cc.availableDevices,
-      discovering: cc.isDiscovering.value,
-      connectingId: cc.connectingDeviceId.value,
-      onDiscover: cc.discoverDevices,
-      onConnect: cc.connectToDevice,
-    ));
-  }
-}
-// ── Device list (not connected) ───────────────────────────────────────────────
-class _DeviceListView extends StatelessWidget {
-  const _DeviceListView({
-    required this.devices,
-    required this.discovering,
-    required this.connectingId,
-    required this.onDiscover,
-    required this.onConnect,
-  });
-  final List<SenzuCastDeviceInfo> devices;
-  final bool discovering;
-  final String? connectingId;
-  final VoidCallback onDiscover;
-  final void Function(SenzuCastDeviceInfo) onConnect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Refresh button
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              InkWell(
-                onTap: onDiscover,
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: discovering
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            color: Colors.white54,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.refresh,
-                          color: Colors.white54,
-                          size: 18,
-                        ),
+      return Column(
+        children: [
+          if (isDiscovering)
+            const Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Хайж байна...',
+                  style: TextStyle(color: Colors.white38, fontSize: 11),
                 ),
               ),
-            ],
-          ),
-        ),
+            )
+          else if (devices.isEmpty && !isDiscovering)
+            const Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.cast, color: Colors.white12, size: 36),
+                    SizedBox(height: 8),
+                    Text(
+                      'Төхөөрөмж олдсонгүй',
+                      style: TextStyle(color: Colors.white38, fontSize: 11),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                itemCount: devices.length,
+                itemBuilder: (_, i) {
+                  final d = devices[i];
+                  final isConnecting =
+                      cc.connectingDeviceId.value == d.deviceId;
 
-        if (discovering && devices.isEmpty)
-          const Expanded(
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.8,
-                      color: Colors.white38,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    'Хайж байна...',
-                    style: TextStyle(color: Colors.white38, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else if (devices.isEmpty)
-          const Expanded(
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.cast, color: Colors.white12, size: 36),
-                  SizedBox(height: 8),
-                  Text(
-                    'Төхөөрөмж олдсонгүй',
-                    style: TextStyle(color: Colors.white38, fontSize: 11),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          )
-        else
-          Expanded(
-            child: ListView.builder(
-              padding: EdgeInsets.zero,
-              itemCount: devices.length,
-              itemBuilder: (_, i) {
-                final d = devices[i];
-                final isConnecting = connectingId == d.deviceId;
-                return InkWell(
-                  onTap: isConnecting ? null : () => onConnect(d),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.cast, color: Colors.white54, size: 18),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                d.deviceName,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              if (d.modelName.isNotEmpty)
+                  return InkWell(
+                    onTap: isConnecting ? null : () => cc.connectToDevice(d),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.cast,
+                            color: Colors.white54,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                 Text(
-                                  d.modelName,
+                                  d.deviceName,
                                   style: const TextStyle(
-                                    color: Colors.white38,
-                                    fontSize: 10,
+                                    color: Colors.white,
+                                    fontSize: 12,
                                   ),
                                 ),
-                            ],
+
+                                if (d.modelName.isNotEmpty)
+                                  Text(
+                                    d.modelName,
+                                    style: const TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                if (isConnecting ||
+                                    castState == SenzuCastState.connecting)
+                                  const Text(
+                                    'Холбогдож байна...',
+                                    style: TextStyle(
+                                      color: Colors.orangeAccent,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          if (isConnecting ||
+                              castState == SenzuCastState.connecting)
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: Colors.lightBlueAccent,
+                              ),
+                            )
+                          else
+                            const Icon(
+                              Icons.chevron_right,
+                              color: Colors.white24,
+                              size: 16,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: ElevatedButton(
+              onPressed: isDiscovering ? null : () => cc.discoverDevices(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black.withValues(alpha: 0.4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: isDiscovering
+                  ? const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
                           ),
                         ),
-                        if (isConnecting)
-                          const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 1.5,
-                              color: Colors.lightBlueAccent,
-                            ),
-                          )
-                        else
-                          const Icon(
-                            Icons.chevron_right,
-                            color: Colors.white24,
-                            size: 16,
-                          ),
+                        SizedBox(width: 8),
+                        Text('Хайж байна...', style: TextStyle(fontSize: 12)),
                       ],
+                    )
+                  : const Text(
+                      'Төхөөрөмж хайх',
+                      style: TextStyle(fontSize: 12),
                     ),
-                  ),
-                );
-              },
             ),
           ),
-      ],
-    );
+        ],
+      );
+    });
   }
 }
-
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 class _PanelList extends StatelessWidget {

@@ -10,14 +10,15 @@ class SenzuCastMedia {
     this.positionMs = 0,
     this.durationMs = 0, 
     this.isLive = false,
-    // ── Шинэ талбарууд ──
-    this.releaseDate,        // '2024-01-15'
-    this.studio,             // Студийн нэр
-    this.httpHeaders = const {},        // Video URL headers
-    this.subtitleHeaders = const {},    // Subtitle URL headers
-    this.availableSubtitles = const [], // Олон subtitle
+    this.releaseDate, 
+    this.studio,            
+    this.httpHeaders = const {},   
+    this.subtitleHeaders = const {},  
+    this.availableSubtitles = const [],
     this.availableAudioTracks = const [],
     this.availableQualities = const [],
+    this.selectedSubtitleId,
+    this.selectedAudioId,
   });
 
   final String url;
@@ -37,6 +38,8 @@ class SenzuCastMedia {
   final List<CastSubtitleTrack> availableSubtitles;
   final List<CastAudioTrack> availableAudioTracks;
   final List<CastQualityOption> availableQualities;
+   final int? selectedSubtitleId;
+  final int? selectedAudioId;
 
   String get resolvedMimeType {
     if (mimeType != null) return mimeType!;
@@ -64,6 +67,8 @@ class SenzuCastMedia {
     'availableSubtitles':   availableSubtitles.map((s) => s.toMap()).toList(),
     'availableAudioTracks': availableAudioTracks.map((a) => a.toMap()).toList(),
     'availableQualities':   availableQualities.map((q) => q.toMap()).toList(),
+    'selectedSubtitleId': selectedSubtitleId,
+    'selectedAudioId': selectedAudioId,
   };
 }
 

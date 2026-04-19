@@ -5,7 +5,6 @@ import '../senzu_cast_service.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 
-/// Cast button — panel-г нээж/хаадаг. showModalBottomSheet байхгүй.
 class SenzuCastButton extends StatelessWidget {
   const SenzuCastButton({
     super.key,

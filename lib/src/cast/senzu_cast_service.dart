@@ -13,7 +13,6 @@ class SenzuCastDeviceInfo {
     required this.deviceName,
     this.modelName = '',
   });
-
   final String deviceId;
   final String deviceName;
   final String modelName;
@@ -35,6 +34,7 @@ class SenzuCastRemoteState {
     this.volume = 1.0,
     this.isMuted = false,
     this.errorMessage,
+    this.activeTrackIds = const [],
   });
 
   final SenzuCastSessionState sessionState;
@@ -44,6 +44,7 @@ class SenzuCastRemoteState {
   final double volume;
   final bool isMuted;
   final String? errorMessage;
+  final List<int> activeTrackIds;
 
   factory SenzuCastRemoteState.fromMap(Map<dynamic, dynamic> m) =>
       SenzuCastRemoteState(
@@ -54,6 +55,10 @@ class SenzuCastRemoteState {
         volume: (m['volume'] as num?)?.toDouble() ?? 1.0,
         isMuted: (m['isMuted'] as bool?) ?? false,
         errorMessage: m['errorMessage'] as String?,
+        activeTrackIds: (m['activeTrackIds'] as List?)
+                ?.map((e) => (e as num).toInt())
+                .toList() ??
+            [],
       );
 
   static SenzuCastSessionState _parseSessionState(String? s) {
@@ -82,8 +87,8 @@ class SenzuCastService {
 
   static StreamSubscription<dynamic>? _eventSub;
 
-  // ── Stream controllers ────────────────────────────────────────────────────
-  static final _castStateCtrl = StreamController<SenzuCastState>.broadcast();
+  static final _castStateCtrl =
+      StreamController<SenzuCastState>.broadcast();
   static final _remoteStateCtrl =
       StreamController<SenzuCastRemoteState>.broadcast();
   static final _devicesCtrl =
@@ -116,7 +121,6 @@ class SenzuCastService {
     }
   }
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
   static void startListening() {
     _eventSub ??= _event.receiveBroadcastStream().listen((event) {
       final m = Map<dynamic, dynamic>.from(event as Map);
@@ -154,16 +158,13 @@ class SenzuCastService {
     }
   }
 
-  // ── Commands ──────────────────────────────────────────────────────────────
   static Future<void> showDevicePicker() =>
       _method.invokeMethod('showDevicePicker');
 
   static Future<bool> loadMedia(SenzuCastMedia media) async {
     try {
-      final result = await _method.invokeMethod<bool>(
-        'loadMedia',
-        media.toMap(),
-      );
+      final result =
+          await _method.invokeMethod<bool>('loadMedia', media.toMap());
       return result ?? false;
     } on PlatformException catch (e) {
       debugPrint('SenzuCast loadMedia error: ${e.message}');
@@ -172,17 +173,12 @@ class SenzuCastService {
   }
 
   static Future<void> play() => _method.invokeMethod('play');
-
   static Future<void> pause() => _method.invokeMethod('pause');
-
   static Future<void> seekTo(int positionMs) =>
       _method.invokeMethod('seekTo', {'positionMs': positionMs});
-
   static Future<void> stop() => _method.invokeMethod('stop');
-
   static Future<void> setVolume(double volume) =>
       _method.invokeMethod('setVolume', {'volume': volume});
-
   static Future<void> disconnect() => _method.invokeMethod('disconnect');
 
   static Future<SenzuCastState> getCastState() async {
@@ -190,18 +186,15 @@ class SenzuCastService {
     return _parseCastState(s);
   }
 
-  /// Subtitle track идэвхжүүлэх (setActiveTrackIDs дуудна)
   static Future<void> setSubtitleTrack(int trackId) =>
       _method.invokeMethod('setSubtitleTrack', {'trackId': trackId});
 
   static Future<void> disableSubtitles() =>
       _method.invokeMethod('disableSubtitles');
 
-  /// Audio track идэвхжүүлэх (setActiveTrackIDs дуудна)
   static Future<void> setAudioTrack(int trackId) =>
       _method.invokeMethod('setAudioTrack', {'trackId': trackId});
 
-  /// Subtitle + audio хоёуланг нэг дор тохируулах — [trackIds] хоосон бол бүгдийг унтраана
   static Future<void> setActiveTracks(List<int> trackIds) =>
       _method.invokeMethod('setActiveTracks', {'trackIds': trackIds});
 
@@ -209,15 +202,15 @@ class SenzuCastService {
     String url, {
     Map<String, String> headers = const {},
     int positionMs = 0,
-    int durationMs = 0, // ← НЭМЭХ
-    bool isLive = false, // ← НЭМЭХ
+    int durationMs = 0,
+    bool isLive = false,
   }) async {
     try {
       final result = await _method.invokeMethod<bool>('loadQuality', {
         'url': url,
         'headers': headers,
         'positionMs': positionMs,
-        'durationMs': durationMs, // ← НЭМЭХ
+        'durationMs': durationMs,
         'isLive': isLive,
       });
       return result ?? false;

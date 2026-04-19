@@ -84,7 +84,6 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   final isFullScreen = false.obs;
 
   // ── Cast state Rx ──────────────────────────────────────────────────────────
-  /// Cast горимд байгаа эсэх — UI cast controls харуулахад ашиглана
   final isCastActive = false.obs;
 
   // ── Private ────────────────────────────────────────────────────────────────
@@ -460,6 +459,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   Future<void> castCurrentSource({Duration? overridePosition}) async {
     final ctrl = _castController;
     if (ctrl == null) return;
+
     if (!ctrl.isCasting) {
       await ctrl.showDevicePicker();
       return;
@@ -472,45 +472,62 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     final title = _meta?.title ?? sourceName;
     final description = _meta?.description ?? '';
 
-    // isLive — duration-д тулгуурлахгүй, explicit утга ашиглана
     final castIsLive = _explicitIsLive ?? isLiveRx.value;
-
-    // Duration — native state-аас авна (cast хийхийн өмнө хадгалсан байх ёстой)
     final castDurationMs = rxNativeState.value.duration.inMilliseconds;
-
     final currentPosition = overridePosition ?? rxNativeState.value.position;
 
     final subtitleMap = source.subtitle ?? {};
+    final srcs = rxSources.value ?? {};
+
+    // ─────────────────────────────────────────
+    // QUALITY
+    // ─────────────────────────────────────────
+    final castQualities = srcs.entries.map((e) {
+      return CastQualityOption(
+        label: e.key,
+        url: e.value.dataSource,
+        headers: e.value.httpHeaders ?? {},
+      );
+    }).toList();
+
+    // ─────────────────────────────────────────
+    // SUBTITLE (ID = 1000+)
+    // ─────────────────────────────────────────
     final castSubtitles = subtitleMap.entries
         .where((e) => e.value.url_.isNotEmpty)
-        .mapIndexed(
-          (i, e) => CastSubtitleTrack(
-            id: i,
+        .mapIndexed((i, e) {
+          return CastSubtitleTrack(
+            id: 1000 + i,
             language: e.key,
             name: e.key,
             url: e.value.url_,
             headers: source.httpHeaders ?? {},
-          ),
-        )
+          );
+        })
         .toList();
 
-    final castAudio = audioTracks
-        .mapIndexed(
-          (i, t) => CastAudioTrack(id: i, language: t.language, name: t.name),
-        )
-        .toList();
+    // ─────────────────────────────────────────
+    // AUDIO (ID = 2000+)
+    // ─────────────────────────────────────────
+    final castAudio = audioTracks.mapIndexed((i, t) {
+      return CastAudioTrack(id: 2000 + i, language: t.language, name: t.name);
+    }).toList();
 
-    final srcs = rxSources.value ?? {};
-    final castQualities = srcs.entries
-        .map(
-          (e) => CastQualityOption(
-            label: e.key,
-            url: e.value.dataSource,
-            headers: e.value.httpHeaders ?? {},
-          ),
-        )
-        .toList();
+    // ─────────────────────────────────────────
+    // SELECTED STATE
+    // ─────────────────────────────────────────
 
+    // subtitle
+    final selectedSubtitleId = ctrl.activeSubtitleTrackId.value;
+
+    // audio
+    final selectedAudioId =
+        ctrl.activeAudioTrackId.value ??
+        (castAudio.isNotEmpty ? castAudio.first.id : null);
+
+    // ─────────────────────────────────────────
+    // MEDIA
+    // ─────────────────────────────────────────
     final media = SenzuCastMedia(
       url: source.dataSource,
       title: title,
@@ -518,36 +535,38 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
       posterUrl:
           'https://image.tmdb.org/t/p/original/cm2oUAPiTE1ERoYYOzzgloQw4YZ.jpg',
       positionMs: currentPosition.inMilliseconds,
-      durationMs: castDurationMs, // ← НЭМЭХ
+      durationMs: castDurationMs,
       isLive: castIsLive,
+
       mimeType: source.protocol == VideoProtocol.dash
           ? 'application/dash+xml'
-          : source.protocol == VideoProtocol.mp4
+          : source.protocol == VideoProtocol.hls
+          ? 'application/x-mpegURL'
+          :  source.protocol == VideoProtocol.mp4
           ? 'video/mp4'
-          : null,
-      httpHeaders: {
-          'Referer': 'https://playmax.mn/',
-          'Origin': 'https://playmax.mn',
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-        },
+          :null,
+
+      httpHeaders: source.httpHeaders ?? {},
+
       availableSubtitles: castSubtitles,
       availableAudioTracks: castAudio,
       availableQualities: castQualities,
+
+      selectedSubtitleId: selectedSubtitleId,
+      selectedAudioId: selectedAudioId,
     );
 
     await ctrl.switchToCast(media: media, currentPosition: currentPosition);
   }
 
-  // _onCastStateChanged-д position хадгалах
   void _onCastStateChanged(SenzuCastState state) {
     log('SenzuCast: state changed → $state');
     switch (state) {
       case SenzuCastState.connected:
         isCastActive.value = true;
-        final savedPosition = rxNativeState.value.position; // ← өмнө хадгална
+        final savedPosition = rxNativeState.value.position;
         _releaseNative();
-        castCurrentSource(overridePosition: savedPosition); // ← дамжуулна
+        castCurrentSource(overridePosition: savedPosition);
 
       case SenzuCastState.notConnected:
         if (isCastActive.value) {
