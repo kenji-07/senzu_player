@@ -16,6 +16,7 @@ enum SenzuPanel {
   audio,
   settings,
   sleep,
+  cast,
   none,
 }
 
@@ -88,7 +89,6 @@ class SenzuUIController extends GetxController {
     final active = <SenzuChapter>[];
     for (final chapter in _skippableChapters) {
       final startMs = chapter.startMs;
-      // skipToMs байвал ашиглана, үгүй бол дараагийн chapter startMs
       final endMs = chapter.skipToMs ?? _nextChapterStartMs(chapter);
       if (endMs == null) continue;
       if (posMs >= startMs && posMs < endMs) {
@@ -96,7 +96,6 @@ class SenzuUIController extends GetxController {
       }
     }
 
-    // Diff-based update — зөвхөн өөрчлөгдсөн үед Rx update
     final changed =
         active.length != activeSkipChapters.length ||
         active.any((c) => !activeSkipChapters.contains(c));
@@ -116,7 +115,6 @@ class SenzuUIController extends GetxController {
     activeSkipChapters.remove(chapter);
   }
 
-  // Backward compatibility — UI layer-д OP/ED хоёр тусдаа байвал:
   void skipOp() {
     final op = activeSkipChapters.firstWhereOrNull((c) => c.title == 'OP');
     if (op != null) skipChapter(op);
@@ -127,7 +125,6 @@ class SenzuUIController extends GetxController {
     if (ed != null) skipChapter(ed);
   }
 
-  // Chapters getter — UI (progress bar painter) дамжуулна
   List<SenzuChapter> get chapters => _chapters;
 
   // ── Source change ──────────────────────────────────────────────────────────

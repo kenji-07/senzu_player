@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
+import 'package:senzu_player/src/cast/senzu_cast_controller.dart';
+import 'package:senzu_player/src/cast/senzu_cast_service.dart';
 
 // ── Generic panel shell ────────────────────────────────────────────────────────
 class SenzuSidePanel extends StatelessWidget {
@@ -41,6 +43,8 @@ class SenzuSidePanel extends StatelessWidget {
         return style.senzuLanguage.playbackSpeed;
       case SenzuPanel.sleep:
         return style.senzuLanguage.sleepTimer;
+      case SenzuPanel.cast:
+        return style.senzuLanguage.cast;
     }
   }
 
@@ -227,7 +231,6 @@ class _SpeedContentState extends State<_SpeedContent> {
   void initState() {
     super.initState();
     _currentSpeed.value = widget.bundle.core.playbackSpeed;
-    // rxVideo солигдоход speed-г дахин уншина
     _sub = widget.bundle.core.rxNativeState.listen((_) {
       _currentSpeed.value = widget.bundle.core.playbackSpeed;
     });
@@ -429,6 +432,576 @@ class SenzuEpisodePanel extends StatelessWidget {
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: style.episodeWidget!,
+    ),
+  );
+}
+
+// ── Cast Panel ────────────────────────────────────────────────────────────────
+class SenzuCastPanel extends StatelessWidget {
+  const SenzuCastPanel({
+    super.key,
+    required this.bundle,
+    required this.style,
+    required this.castController,
+  });
+  final SenzuPlayerBundle bundle;
+  final SenzuPlayerStyle style;
+  final SenzuCastController castController;
+
+  @override
+  Widget build(BuildContext context) => SenzuSidePanel(
+    bundle: bundle,
+    panel: SenzuPanel.cast,
+    width: 260,
+    style: style,
+    child: _CastPanelContent(
+      bundle: bundle,
+      style: style,
+      castController: castController,
+    ),
+  );
+}
+
+class _CastPanelContent extends StatefulWidget {
+  const _CastPanelContent({
+    required this.bundle,
+    required this.style,
+    required this.castController,
+  });
+  final SenzuPlayerBundle bundle;
+  final SenzuPlayerStyle style;
+  final SenzuCastController castController;
+
+  @override
+  State<_CastPanelContent> createState() => _CastPanelContentState();
+}
+
+class _CastPanelContentState extends State<_CastPanelContent> {
+  List<SenzuCastDeviceInfo> _devices = [];
+  bool _discovering = false;
+  String? _connectingId;
+  StreamSubscription? _deviceSub;
+
+  SenzuCastController get cc => widget.castController;
+
+  @override
+  void initState() {
+    super.initState();
+    SenzuCastService.startListening();
+    _deviceSub = SenzuCastService.devicesStream.listen((devices) {
+      if (mounted) setState(() => _devices = devices);
+    });
+    _discover();
+  }
+
+  @override
+  void dispose() {
+    _deviceSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _discover() async {
+    if (!mounted) return;
+    setState(() => _discovering = true);
+    final found = await SenzuCastService.discoverDevices();
+    if (mounted) {
+      setState(() {
+        if (found.isNotEmpty) _devices = found;
+        _discovering = false;
+      });
+    }
+  }
+
+  Future<void> _connect(SenzuCastDeviceInfo device) async {
+    setState(() => _connectingId = device.deviceId);
+    await SenzuCastService.connectToDevice(device.deviceId);
+    if (mounted) setState(() => _connectingId = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final state = cc.castState.value;
+      final isCasting = state == SenzuCastState.connected;
+
+      if (isCasting) {
+        return _ConnectedView(
+          bundle: widget.bundle,
+          style: widget.style,
+          castController: cc,
+        );
+      }
+
+      return _DeviceListView(
+        devices: _devices,
+        discovering: _discovering,
+        connectingId: _connectingId,
+        onDiscover: _discover,
+        onConnect: _connect,
+      );
+    });
+  }
+}
+
+// ── Device list (not connected) ───────────────────────────────────────────────
+class _DeviceListView extends StatelessWidget {
+  const _DeviceListView({
+    required this.devices,
+    required this.discovering,
+    required this.connectingId,
+    required this.onDiscover,
+    required this.onConnect,
+  });
+  final List<SenzuCastDeviceInfo> devices;
+  final bool discovering;
+  final String? connectingId;
+  final VoidCallback onDiscover;
+  final void Function(SenzuCastDeviceInfo) onConnect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Refresh button
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              InkWell(
+                onTap: onDiscover,
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: discovering
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: Colors.white54,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.refresh,
+                          color: Colors.white54,
+                          size: 18,
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        if (discovering && devices.isEmpty)
+          const Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.8,
+                      color: Colors.white38,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'Хайж байна...',
+                    style: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (devices.isEmpty)
+          const Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.cast, color: Colors.white12, size: 36),
+                  SizedBox(height: 8),
+                  Text(
+                    'Төхөөрөмж олдсонгүй',
+                    style: TextStyle(color: Colors.white38, fontSize: 11),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: devices.length,
+              itemBuilder: (_, i) {
+                final d = devices[i];
+                final isConnecting = connectingId == d.deviceId;
+                return InkWell(
+                  onTap: isConnecting ? null : () => onConnect(d),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.cast, color: Colors.white54, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                d.deviceName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              if (d.modelName.isNotEmpty)
+                                Text(
+                                  d.modelName,
+                                  style: const TextStyle(
+                                    color: Colors.white38,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (isConnecting)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: Colors.lightBlueAccent,
+                            ),
+                          )
+                        else
+                          const Icon(
+                            Icons.chevron_right,
+                            color: Colors.white24,
+                            size: 16,
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ── Connected view ────────────────────────────────────────────────────────────
+class _ConnectedView extends StatelessWidget {
+  const _ConnectedView({
+    required this.bundle,
+    required this.style,
+    required this.castController,
+  });
+  final SenzuPlayerBundle bundle;
+  final SenzuPlayerStyle style;
+  final SenzuCastController castController;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final remote = castController.remoteState.value;
+      final device = castController.availableDevices.firstOrNull;
+
+      return SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Device name
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.cast_connected,
+                    color: Colors.lightBlueAccent,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      device?.deviceName ?? 'Cast',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const Divider(color: Colors.white12, height: 12),
+
+            // Progress
+            if (remote.durationMs > 0) ...[
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: Colors.red,
+                  inactiveTrackColor: Colors.white24,
+                  thumbColor: Colors.red,
+                  trackHeight: 2,
+                  overlayShape: SliderComponentShape.noOverlay,
+                  thumbShape: const RoundSliderThumbShape(
+                    enabledThumbRadius: 5,
+                  ),
+                ),
+                child: Slider(
+                  value: (remote.positionMs / remote.durationMs).clamp(
+                    0.0,
+                    1.0,
+                  ),
+                  onChanged: (v) {
+                    final posMs = (v * remote.durationMs).toInt();
+                    castController.seekTo(Duration(milliseconds: posMs));
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _fmt(Duration(milliseconds: remote.positionMs)),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 10,
+                      ),
+                    ),
+                    Text(
+                      _fmt(Duration(milliseconds: remote.durationMs)),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+
+            // Playback controls
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _CastCtrlBtn(
+                  icon: Icons.replay_10,
+                  size: 20,
+                  onTap: () => castController.seekTo(
+                    Duration(milliseconds: remote.positionMs - 10000),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _CastCtrlBtn(
+                  icon: remote.isPlaying
+                      ? Icons.pause_circle
+                      : Icons.play_circle,
+                  size: 34,
+                  onTap: remote.isPlaying
+                      ? castController.pause
+                      : castController.play,
+                ),
+                const SizedBox(width: 12),
+                _CastCtrlBtn(
+                  icon: Icons.forward_10,
+                  size: 20,
+                  onTap: () => castController.seekTo(
+                    Duration(milliseconds: remote.positionMs + 10000),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // Volume
+            Row(
+              children: [
+                const Icon(Icons.volume_up, color: Colors.white38, size: 14),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: Colors.white70,
+                      inactiveTrackColor: Colors.white24,
+                      thumbColor: Colors.white,
+                      trackHeight: 2,
+                      overlayShape: SliderComponentShape.noOverlay,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 4,
+                      ),
+                    ),
+                    child: Slider(
+                      value: remote.volume.clamp(0.0, 1.0),
+                      onChanged: castController.setCastVolume,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const Divider(color: Colors.white12, height: 12),
+
+            // Subtitle tracks
+            if (castController.subtitleTracks.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  'Subtitle',
+                  style: TextStyle(color: Colors.white38, fontSize: 10),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Obx(
+                () => Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: [
+                    _TrackChip(
+                      label: 'Off',
+                      selected:
+                          castController.activeSubtitleTrackId.value == null,
+                      onTap: castController.disableSubtitles,
+                    ),
+                    ...castController.subtitleTracks.map(
+                      (t) => _TrackChip(
+                        label: t.name,
+                        selected:
+                            castController.activeSubtitleTrackId.value == t.id,
+                        onTap: () => castController.setSubtitle(t.id),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            // Quality options
+            if (castController.qualityOptions.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  'Quality',
+                  style: TextStyle(color: Colors.white38, fontSize: 10),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Obx(
+                () => Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: castController.qualityOptions
+                      .map(
+                        (q) => _TrackChip(
+                          label: q.label,
+                          selected:
+                              castController.activeQuality.value == q.label,
+                          onTap: () => castController.switchQuality(q.label),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            const Divider(color: Colors.white12, height: 12),
+
+            // Disconnect
+            InkWell(
+              onTap: castController.disconnect,
+              borderRadius: BorderRadius.circular(8),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    Icon(Icons.cast, color: Colors.red, size: 16),
+                    SizedBox(width: 8),
+                    Text(
+                      'Disconnect',
+                      style: TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
+    });
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return d.inHours > 0 ? '${d.inHours}:$m:$s' : '$m:$s';
+  }
+}
+
+class _CastCtrlBtn extends StatelessWidget {
+  const _CastCtrlBtn({required this.icon, required this.onTap, this.size = 24});
+  final IconData icon;
+  final VoidCallback onTap;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(24),
+    child: Icon(icon, color: Colors.white, size: size),
+  );
+}
+
+class _TrackChip extends StatelessWidget {
+  const _TrackChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: selected ? Colors.red : Colors.white12,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: selected ? Colors.white : Colors.white70,
+          fontSize: 10,
+        ),
+      ),
     ),
   );
 }

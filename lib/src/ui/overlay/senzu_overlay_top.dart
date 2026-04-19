@@ -52,7 +52,6 @@ class SenzuOverlayTop extends StatelessWidget {
                   children: [
                     Icon(meta.icon, color: meta.iconColor, size: meta.iconSize),
                     const SizedBox(width: 8),
-
                     Expanded(
                       child: SizedBox(
                         height: 50,
@@ -67,7 +66,6 @@ class SenzuOverlayTop extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
                               ),
-
                             if (meta.description != null)
                               Text(
                                 meta.description!,
@@ -79,7 +77,6 @@ class SenzuOverlayTop extends StatelessWidget {
                         ),
                       ),
                     ),
-
                     const SizedBox(width: 8),
                   ],
                 ),
@@ -98,8 +95,6 @@ class SenzuOverlayTop extends StatelessWidget {
                   Icons.bedtime_outlined,
                   () => bundle.ui.togglePanel(SenzuPanel.sleep),
                 ),
-
-             
 
                 // Aspect ratio
                 if (enableAspect)
@@ -135,8 +130,13 @@ class SenzuOverlayTop extends StatelessWidget {
                     Icons.audiotrack,
                     () => bundle.ui.togglePanel(SenzuPanel.audio),
                   ),
+
+                // Cast
                 if (castController != null)
-  SenzuCastButton(castController: castController!),
+                  SenzuCastButton(
+                    castController: castController!,
+                    bundle: bundle,
+                  ),
               ],
             );
           }),

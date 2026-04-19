@@ -24,8 +24,6 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         method.setMethodCallHandler(instance.handle)
         event.setStreamHandler(instance)
 
-        // GCKCastContext initialize болсны дараа л дуудагдана
-        // (SenzuPlayerPlugin.register дотор DispatchQueue.main.async-д хийгдсэн)
         guard GCKCastContext.isSharedInstanceInitialized() else {
             print("SenzuCast: WARNING - GCKCastContext not initialized. Discovery will not work.")
             return
@@ -45,7 +43,6 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
     func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         let args = call.arguments as? [String: Any]
 
-        // GCKCastContext initialize эсэхийг шалгана
         guard GCKCastContext.isSharedInstanceInitialized() else {
             print("SenzuCast: GCKCastContext not initialized for method: \(call.method)")
             result(FlutterError(
@@ -60,7 +57,6 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         case "discoverDevices":
             let dm = GCKCastContext.sharedInstance().discoveryManager
 
-            // Discovery идэвхтэй эсэхийг шалгаж, шаардлагатай бол дахин эхлүүлнэ
             if !dm.discoveryActive {
                 dm.passiveScan = false
                 dm.startDiscovery()
@@ -69,33 +65,12 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
 
             print("SenzuCast: discoveryActive=\(dm.discoveryActive), deviceCount=\(dm.deviceCount)")
 
-            // Хэрэв device байхгүй бол 1 секунд хүлээж дахин шалгана
             if dm.deviceCount == 0 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    var devices: [[String: Any]] = []
-                    for i in 0..<dm.deviceCount {
-                        let device = dm.device(at: i)
-                        print("SenzuCast: found device = \(device.friendlyName ?? "?") id=\(device.deviceID)")
-                        devices.append([
-                            "deviceId":   device.deviceID,
-                            "deviceName": device.friendlyName ?? "Unknown",
-                            "modelName":  device.modelName ?? "",
-                        ])
-                    }
-                    result(devices)
+                    result(self.buildDeviceList(dm))
                 }
             } else {
-                var devices: [[String: Any]] = []
-                for i in 0..<dm.deviceCount {
-                    let device = dm.device(at: i)
-                    print("SenzuCast: found device = \(device.friendlyName ?? "?") id=\(device.deviceID)")
-                    devices.append([
-                        "deviceId":   device.deviceID,
-                        "deviceName": device.friendlyName ?? "Unknown",
-                        "modelName":  device.modelName ?? "",
-                    ])
-                }
-                result(devices)
+                result(buildDeviceList(dm))
             }
 
         case "connectToDevice":
@@ -164,7 +139,7 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
             result(nil)
 
         case "disableSubtitles":
-           castSession?.remoteMediaClient?.setActiveTrackIDs([])
+            castSession?.remoteMediaClient?.setActiveTrackIDs([])
             result(nil)
 
         case "setAudioTrack":
@@ -185,7 +160,22 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         }
     }
 
-    // loadQuality метод
+    // ── Helper: build device list ──────────────────────────────────────────
+    private func buildDeviceList(_ dm: GCKDiscoveryManager) -> [[String: Any]] {
+        var devices: [[String: Any]] = []
+        for i in 0..<dm.deviceCount {
+            let device = dm.device(at: i)
+            print("SenzuCast: found device = \(device.friendlyName ?? "?") id=\(device.deviceID)")
+            devices.append([
+                "deviceId":   device.deviceID,
+                "deviceName": device.friendlyName ?? "Unknown",
+                "modelName":  device.modelName ?? "",
+            ])
+        }
+        return devices
+    }
+
+    // ── loadQuality ────────────────────────────────────────────────────────
     private func loadQuality(args: [String: Any]?, result: @escaping FlutterResult) {
         guard
             let session = castSession,
@@ -196,15 +186,17 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         let positionMs = args?["positionMs"] as? Int ?? 0
         let headers    = args?["headers"]   as? [String: String] ?? [:]
 
-        // Одоогийн media-ийн metadata-г хадгалж шинэ URL-тай reload хийнэ
         let currentInfo = session.remoteMediaClient?.mediaStatus?.mediaInformation
         let builder = GCKMediaInformationBuilder(contentURL: url)
         builder.contentType  = currentInfo?.contentType ?? "application/x-mpegURL"
         builder.metadata     = currentInfo?.metadata
         builder.streamType   = .buffered
         builder.mediaTracks  = currentInfo?.mediaTracks
-        // Custom data-д headers дамжуулна (CAF receiver шаардлагатай)
-        builder.customData   = ["headers": headers]
+
+        // headers-ийг customData-д хадгална — CAF receiver ашиглана
+        if !headers.isEmpty {
+            builder.customData = ["headers": headers]
+        }
 
         let loadOptions = GCKMediaLoadOptions()
         loadOptions.playPosition = TimeInterval(positionMs) / 1000.0
@@ -214,204 +206,173 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         result(true)
     }
 
-    // ── Load Media ─────────────────────────────────────────────────────────
+    // ── loadMedia ──────────────────────────────────────────────────────────
     private func loadMedia(args: [String: Any]?, result: @escaping FlutterResult) {
-    guard
-        let session = castSession,
-        let remoteMediaClient = session.remoteMediaClient,
-        let urlStr = args?["url"] as? String,
-        let url = URL(string: urlStr)
-    else {
-        result(false)
-        return
-    }
-
-    let title        = args?["title"] as? String ?? ""
-    let description  = args?["description"] as? String ?? ""
-    let posterUrlStr = args?["posterUrl"] as? String ?? ""
-    let mimeType     = args?["mimeType"] as? String ?? "video/mp4"
-    let positionMs   = args?["positionMs"] as? Int ?? 0
-
-    let releaseDate  = args?["releaseDate"] as? String ?? ""
-    let studio       = args?["studio"] as? String ?? ""
-    let httpHeaders  = args?["httpHeaders"] as? [String: String] ?? [:]
-
-    let selectedSubtitleId = args?["selectedSubtitleId"] as? Int
-    let selectedAudioId    = args?["selectedAudioId"] as? Int
-
-    // ─────────────────────────────────────────
-    // Metadata
-    // ─────────────────────────────────────────
-    let metadata = GCKMediaMetadata(metadataType: .movie)
-    metadata.setString(title, forKey: kGCKMetadataKeyTitle)
-
-    if !description.isEmpty {
-        metadata.setString(description, forKey: kGCKMetadataKeySubtitle)
-    }
-
-    if !studio.isEmpty {
-        metadata.setString(studio, forKey: kGCKMetadataKeyStudio)
-    }
-
-    if !posterUrlStr.isEmpty, let posterUrl = URL(string: posterUrlStr) {
-        metadata.addImage(GCKImage(url: posterUrl, width: 480, height: 270))
-    }
-
-    if !releaseDate.isEmpty {
-        let isoFormatter = ISO8601DateFormatter()
-        if let date = isoFormatter.date(from: releaseDate) {
-            let secondsFromGMT = TimeZone.current.secondsFromGMT(for: date)
-            let timeZoneOffsetMinutes = secondsFromGMT / 60
-
-            let gckDate = GCKDateTime(
-                date: date,
-                timeZoneOffset: Int32(timeZoneOffsetMinutes)
-            )
-            metadata.setDate(gckDate, forKey: kGCKMetadataKeyReleaseDate)
+        guard
+            let session = castSession,
+            let remoteMediaClient = session.remoteMediaClient,
+            let urlStr = args?["url"] as? String,
+            let url = URL(string: urlStr)
+        else {
+            result(false)
+            return
         }
-    }
 
-    // ─────────────────────────────────────────
-    // Subtitle tracks
-    // ─────────────────────────────────────────
-    var tracks: [GCKMediaTrack] = []
-    var activeTrackIDs: [NSNumber] = []
+        let title        = args?["title"]        as? String ?? ""
+        let description  = args?["description"]  as? String ?? ""
+        let posterUrlStr = args?["posterUrl"]     as? String ?? ""
+        let mimeType     = args?["mimeType"]      as? String ?? "video/mp4"
+        let positionMs   = args?["positionMs"]    as? Int    ?? 0
+        let releaseDate  = args?["releaseDate"]   as? String ?? ""
+        let studio       = args?["studio"]        as? String ?? ""
 
-    let subtitleList = args?["availableSubtitles"] as? [[String: Any]] ?? []
+        // ── FIX: video + subtitle URL'ийн headers ──────────────────────────
+        let httpHeaders     = args?["httpHeaders"]     as? [String: String] ?? [:]
+        let subtitleHeaders = args?["subtitleHeaders"] as? [String: String] ?? [:]
 
-    for sub in subtitleList {
-        let trackId = Int64(sub["id"] as? Int ?? 0)
-        let subUrl  = sub["url"] as? String ?? ""
-        let subLang = sub["language"] as? String ?? "en"
-        let subName = sub["name"] as? String ?? "Subtitle"
+        let selectedSubtitleId = args?["selectedSubtitleId"] as? Int
+        let selectedAudioId    = args?["selectedAudioId"]    as? Int
 
-        guard !subUrl.isEmpty else { continue }
+        // ─────────────────────────────────────────
+        // Metadata
+        // ─────────────────────────────────────────
+        let metadata = GCKMediaMetadata(metadataType: .movie)
+        metadata.setString(title, forKey: kGCKMetadataKeyTitle)
 
-        if let track = GCKMediaTrack(
-            identifier: trackId,
-            contentIdentifier: subUrl,
-            contentType: "text/vtt",
-            type: .text,
-            textSubtype: .subtitles,
-            name: subName,
-            languageCode: subLang,
-            customData: nil
-        ) {
-            tracks.append(track)
-
-            if let selectedSubtitleId, selectedSubtitleId == Int(trackId) {
-                activeTrackIDs.append(NSNumber(value: trackId))
+        if !description.isEmpty {
+            metadata.setString(description, forKey: kGCKMetadataKeySubtitle)
+        }
+        if !studio.isEmpty {
+            metadata.setString(studio, forKey: kGCKMetadataKeyStudio)
+        }
+        if !posterUrlStr.isEmpty, let posterUrl = URL(string: posterUrlStr) {
+            metadata.addImage(GCKImage(url: posterUrl, width: 480, height: 270))
+        }
+        if !releaseDate.isEmpty {
+            let isoFormatter = ISO8601DateFormatter()
+            if let date = isoFormatter.date(from: releaseDate) {
+                let secondsFromGMT = TimeZone.current.secondsFromGMT(for: date)
+                let gckDate = GCKDateTime(date: date, timeZoneOffset: Int32(secondsFromGMT / 60))
+                metadata.setDate(gckDate, forKey: kGCKMetadataKeyReleaseDate)
             }
         }
-    }
 
-    // fallback: хуучин single subtitle support
-    if subtitleList.isEmpty {
-        let subtitleUrl  = args?["subtitleUrl"] as? String ?? ""
-        let subtitleLang = args?["subtitleLanguage"] as? String ?? "en"
+        // ─────────────────────────────────────────
+        // Subtitle tracks
+        // FIX: subtitle track URL-ийн header-г customData-д дамжуулна
+        // ─────────────────────────────────────────
+        var tracks: [GCKMediaTrack] = []
+        var activeTrackIDs: [NSNumber] = []
 
-        if !subtitleUrl.isEmpty {
-            let fallbackId: Int64 = 1
+        let subtitleList = args?["availableSubtitles"] as? [[String: Any]] ?? []
+
+        for sub in subtitleList {
+            let trackId  = Int64(sub["id"] as? Int ?? 0)
+            let subUrl   = sub["url"] as? String ?? ""
+            let subLang  = sub["language"] as? String ?? "en"
+            let subName  = sub["name"] as? String ?? "Subtitle"
+
+            // FIX: subtitle-даа тусдаа headers байвал авна, үгүй бол ерөнхий
+            // subtitleHeaders ашиглана
+            let perSubHeaders = sub["headers"] as? [String: String] ?? subtitleHeaders
+
+            guard !subUrl.isEmpty else { continue }
+
+            // GCKMediaTrack-д headers байхгүй тул customData-д хадгална
+            // CAF receiver талдаа ашиглах боломжтой
+            var trackCustomData: [String: Any]? = nil
+            if !perSubHeaders.isEmpty {
+                trackCustomData = ["headers": perSubHeaders]
+            }
+
             if let track = GCKMediaTrack(
-                identifier: fallbackId,
-                contentIdentifier: subtitleUrl,
+                identifier: trackId,
+                contentIdentifier: subUrl,
                 contentType: "text/vtt",
                 type: .text,
                 textSubtype: .subtitles,
-                name: "Subtitle",
-                languageCode: subtitleLang,
+                name: subName,
+                languageCode: subLang,
+                customData: trackCustomData
+            ) {
+                tracks.append(track)
+                if let selectedSubtitleId, selectedSubtitleId == Int(trackId) {
+                    activeTrackIDs.append(NSNumber(value: trackId))
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────
+        // Audio tracks
+        // ─────────────────────────────────────────
+        let audioList = args?["availableAudioTracks"] as? [[String: Any]] ?? []
+
+        for audio in audioList {
+            let trackId = Int64(audio["id"] as? Int ?? 0)
+            let lang    = audio["language"] as? String ?? "und"
+            let name    = audio["name"] as? String ?? "Audio"
+
+            if let track = GCKMediaTrack(
+                identifier: trackId,
+                contentIdentifier: nil,
+                contentType: "audio/mp4",
+                type: .audio,
+                textSubtype: .unknown,
+                name: name,
+                languageCode: lang,
                 customData: nil
             ) {
                 tracks.append(track)
-                activeTrackIDs.append(NSNumber(value: fallbackId))
+                if let selectedAudioId, selectedAudioId == Int(trackId) {
+                    activeTrackIDs.append(NSNumber(value: trackId))
+                }
             }
         }
-    }
 
-    // ─────────────────────────────────────────
-    // Audio tracks
-    // NOTE:
-    // Audio/video tracks-ийг бүрэн switch хийхэд
-    // ихэнхдээ Custom Receiver шаардлагатай.
-    // ─────────────────────────────────────────
-    let audioList = args?["availableAudioTracks"] as? [[String: Any]] ?? []
-
-    for audio in audioList {
-        let trackId = Int64(audio["id"] as? Int ?? 0)
-        let lang    = audio["language"] as? String ?? "und"
-        let name    = audio["name"] as? String ?? "Audio"
-
-        if let track = GCKMediaTrack(
-            identifier: trackId,
-            contentIdentifier: nil,
-            contentType: "audio/mp4",
-            type: .audio,
-            textSubtype: .unknown,
-            name: name,
-            languageCode: lang,
-            customData: nil
-        ) {
-            tracks.append(track)
-
-            if let selectedAudioId, selectedAudioId == Int(trackId) {
-                activeTrackIDs.append(NSNumber(value: trackId))
-            }
+        // ─────────────────────────────────────────
+        // Custom data — video URL headers + extras
+        // FIX: httpHeaders-ийг customData-д нэмнэ
+        // ─────────────────────────────────────────
+        var customData: [String: Any] = [:]
+        if !httpHeaders.isEmpty {
+            customData["headers"] = httpHeaders
         }
+        if !releaseDate.isEmpty { customData["releaseDate"] = releaseDate }
+        if !studio.isEmpty      { customData["studio"]      = studio      }
+
+        // ─────────────────────────────────────────
+        // MediaInformation
+        // ─────────────────────────────────────────
+        let mediaInfoBuilder = GCKMediaInformationBuilder(contentURL: url)
+        mediaInfoBuilder.contentType = mimeType
+        mediaInfoBuilder.metadata    = metadata
+        mediaInfoBuilder.streamType  = .buffered
+
+        if !tracks.isEmpty {
+            mediaInfoBuilder.mediaTracks = tracks
+        }
+        if !customData.isEmpty {
+            mediaInfoBuilder.customData = customData
+        }
+
+        let mediaInfo = mediaInfoBuilder.build()
+
+        // ─────────────────────────────────────────
+        // Load request
+        // ─────────────────────────────────────────
+        let requestDataBuilder = GCKMediaLoadRequestDataBuilder()
+        requestDataBuilder.mediaInformation = mediaInfo
+        requestDataBuilder.autoplay         = true
+        requestDataBuilder.startTime        = TimeInterval(positionMs) / 1000.0
+
+        if !activeTrackIDs.isEmpty {
+            requestDataBuilder.activeTrackIDs = activeTrackIDs
+        }
+
+        let requestData = requestDataBuilder.build()
+        remoteMediaClient.loadMedia(with: requestData)
+        result(true)
     }
-
-    // ─────────────────────────────────────────
-    // Custom data
-    // headers-ийг receiver талд ашиглах бол энд хийнэ
-    // ─────────────────────────────────────────
-    var customData: [String: Any] = [:]
-    if !httpHeaders.isEmpty {
-        customData["headers"] = httpHeaders
-    }
-
-    // хэрэгтэй бол additional fields бас дамжуулж болно
-    if !releaseDate.isEmpty {
-        customData["releaseDate"] = releaseDate
-    }
-    if !studio.isEmpty {
-        customData["studio"] = studio
-    }
-
-    // ─────────────────────────────────────────
-    // MediaInformation
-    // ─────────────────────────────────────────
-    let mediaInfoBuilder = GCKMediaInformationBuilder(contentURL: url)
-    mediaInfoBuilder.contentType = mimeType
-    mediaInfoBuilder.metadata = metadata
-    mediaInfoBuilder.streamType = .buffered
-
-    if !tracks.isEmpty {
-        mediaInfoBuilder.mediaTracks = tracks
-    }
-
-    if !customData.isEmpty {
-        mediaInfoBuilder.customData = customData
-    }
-
-    let mediaInfo = mediaInfoBuilder.build()
-
-    // ─────────────────────────────────────────
-    // Load request
-    // newer API
-    // ─────────────────────────────────────────
-    let requestDataBuilder = GCKMediaLoadRequestDataBuilder()
-    requestDataBuilder.mediaInformation = mediaInfo
-    requestDataBuilder.autoplay = true
-    requestDataBuilder.startTime = TimeInterval(positionMs) / 1000.0
-
-    if !activeTrackIDs.isEmpty {
-        requestDataBuilder.activeTrackIDs = activeTrackIDs
-    }
-
-    let requestData = requestDataBuilder.build()
-    remoteMediaClient.loadMedia(with: requestData)
-
-    result(true)
-}
 
     // ── EventChannel ───────────────────────────────────────────────────────
     public func onListen(
@@ -420,13 +381,10 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
     ) -> FlutterError? {
         self.eventSink = events
 
-        // GCKCastContext initialize болсны дараа л listener нэмнэ
         guard GCKCastContext.isSharedInstanceInitialized() else {
             return nil
         }
 
-        // Session manager болон discovery listener-г eventSink тохирогдсоны дараа дахин нэмнэ
-        // (register үед нэмэгдсэн байж болох тул давхардалт үүсгэхгүйн тулд шалгана)
         sessionManager.add(self)
 
         let dm = GCKCastContext.sharedInstance().discoveryManager
@@ -504,25 +462,16 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
 // ── GCKDiscoveryManagerListener ────────────────────────────────────────────────
 extension SenzuCastPlugin: GCKDiscoveryManagerListener {
 
-    public func didInsert(
-        _ device: GCKDevice,
-        at index: UInt
-    ) {
+    public func didInsert(_ device: GCKDevice, at index: UInt) {
         print("SenzuCast: device inserted = \(device.friendlyName ?? "?"), id=\(device.deviceID)")
         emitDeviceList()
     }
 
-    public func didUpdate(
-        _ device: GCKDevice,
-        at index: UInt
-    ) {
+    public func didUpdate(_ device: GCKDevice, at index: UInt) {
         emitDeviceList()
     }
 
-    public func didRemove(
-        _ device: GCKDevice,
-        at index: UInt
-    ) {
+    public func didRemove(_ device: GCKDevice, at index: UInt) {
         print("SenzuCast: device removed = \(device.friendlyName ?? "?")")
         emitDeviceList()
     }

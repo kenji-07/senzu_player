@@ -19,6 +19,7 @@ import 'package:senzu_player/src/data/models/senzu_metadata.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
 import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
 import 'package:senzu_player/src/cast/senzu_cast_controller.dart';
+import 'package:senzu_player/src/cast/senzu_cast_service.dart';
 
 class SenzuPlayerCoreView extends StatefulWidget {
   const SenzuPlayerCoreView({
@@ -56,7 +57,7 @@ class SenzuPlayerCoreView extends StatefulWidget {
       enableSleep,
       enableEpisode;
   final List<SenzuChapter> chapters;
-    final SenzuCastController? castController;
+  final SenzuCastController? castController;
 
   @override
   State<SenzuPlayerCoreView> createState() => _SenzuPlayerCoreViewState();
@@ -236,8 +237,7 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _MainPlayerStack — separated widget so panel-sensitive rebuild is isolated
-// OPT: panelOpen change now only rebuilds this subtree, not the error check
+// _MainPlayerStack
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MainPlayerStack extends StatelessWidget {
@@ -459,15 +459,7 @@ class _MainPlayerStack extends StatelessWidget {
                     ),
                   ),
                   SizedBox(
-                    width:
-                        MediaQuery.of(
-                          bundle.core.isFullScreen.value
-                              ? (bundle.core.isFullScreen.value
-                                    ? Get.context!
-                                    : Get.context!)
-                              : Get.context!,
-                        ).size.width /
-                        3,
+                    width: MediaQuery.of(Get.context!).size.width / 3,
                     child: GestureDetector(
                       behavior: HitTestBehavior.translucent,
                       onTap: () => bundle.ui.showAndHideOverlay(),
@@ -552,7 +544,6 @@ class _MainPlayerStack extends StatelessWidget {
             if (!bundle.sleepTimer.isActive.value) {
               return const SizedBox.shrink();
             }
-
             final rem = bundle.sleepTimer.remainingTime.value;
             if (rem == null) return const SizedBox.shrink();
             return Positioned(
@@ -722,6 +713,7 @@ class _MainPlayerStack extends StatelessWidget {
               ),
             ),
 
+          // ── Panels ─────────────────────────────────────────────────────────
           if (widget.enableQuality)
             SenzuQualityPanel(bundle: bundle, style: style),
           if (widget.enableSpeed) SenzuSpeedPanel(bundle: bundle, style: style),
@@ -733,6 +725,14 @@ class _MainPlayerStack extends StatelessWidget {
           if (widget.enableEpisode && style.episodeWidget != null)
             SenzuEpisodePanel(bundle: bundle, style: style),
           if (widget.enableSleep) SenzuSleepPanel(bundle: bundle, style: style),
+
+          // ── Cast panel ─────────────────────────────────────────────────────
+          if (castController != null)
+            SenzuCastPanel(
+              bundle: bundle,
+              style: style,
+              castController: castController!,
+            ),
 
           // 13. Volume/brightness toast
           Obx(
@@ -752,7 +752,6 @@ class _MainPlayerStack extends StatelessWidget {
             if (bundle.ad.activeAd.value != null) {
               return const SizedBox.shrink();
             }
-
             return SenzuBufferLoader(bundle: bundle, style: style);
           }),
 
@@ -776,7 +775,6 @@ class _MainPlayerStack extends StatelessWidget {
             if (!bundle.sleepTimer.isSleeping.value) {
               return const SizedBox.shrink();
             }
-
             return Positioned.fill(
               child: GestureDetector(
                 onTap: () => bundle.sleepTimer.cancel(),
@@ -836,9 +834,90 @@ class _MainPlayerStack extends StatelessWidget {
               ),
             );
           }),
+
+          // 20. Cast overlay — cast холбогдсон үед local player дээр харуулна
+          if (castController != null)
+            Obx(() {
+              final isCasting =
+                  castController!.castState.value == SenzuCastState.connected;
+              if (!isCasting) return const SizedBox.shrink();
+              return Positioned.fill(
+                child: Container(
+                  color: Colors.black87,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.cast_connected,
+                          color: Colors.lightBlueAccent,
+                          size: 48,
+                        ),
+                        const SizedBox(height: 12),
+                        Obx(() {
+                          final device =
+                              castController!.availableDevices.firstOrNull;
+                          return Text(
+                            device?.deviceName ?? 'Casting...',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 6),
+                        Obx(() {
+                          final remote = castController!.remoteState.value;
+                          if (remote.durationMs <= 0) {
+                            return const SizedBox.shrink();
+                          }
+                          final pos = Duration(milliseconds: remote.positionMs);
+                          final dur = Duration(milliseconds: remote.durationMs);
+                          return Text(
+                            '${_fmtDur(pos)} / ${_fmtDur(dur)}',
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 13,
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 24),
+                        // Cast panel açmak için button
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white24),
+                          ),
+                          onPressed: () =>
+                              bundle.ui.togglePanel(SenzuPanel.cast),
+                          icon: const Icon(Icons.tune, size: 16),
+                          label: const Text('Controls'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          onPressed: castController!.disconnect,
+                          icon: const Icon(Icons.cast, size: 16),
+                          label: const Text('Disconnect'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
         ],
       ),
     );
+  }
+
+  static String _fmtDur(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return d.inHours > 0 ? '${d.inHours}:$m:$s' : '$m:$s';
   }
 }
 
@@ -852,7 +931,6 @@ class _VideoFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Obx(() {
     final state = bundle.core.rxNativeState.value;
-
     final isChanging = bundle.core.isChangingSource.value;
 
     if (!state.isInitialized || isChanging) {
@@ -860,7 +938,6 @@ class _VideoFrame extends StatelessWidget {
     }
 
     final fit = bundle.ui.currentAspect.value;
-
     return SenzuVideoSurfaceWithFit(videoAspectRatio: aspectRatio, fit: fit);
   });
 }
@@ -938,8 +1015,6 @@ class SenzuCenterControls extends StatelessWidget {
           bundle.playback.position.value >= bundle.playback.duration.value &&
           bundle.playback.duration.value > Duration.zero;
 
-      // Determine prev/next visibility and enabled state
-      // Priority: explicit hasPrev/hasNext > callback null check
       final showPrev = hasPrev != null || onPrev != null;
       final showNext = hasNext != null || onNext != null;
       final prevEnabled = hasPrev ?? (onPrev != null);
@@ -1119,8 +1194,6 @@ class _AdViewer extends StatelessWidget {
     return Stack(
       children: [
         Positioned.fill(child: ad.child),
-
-        // Ad counter
         Positioned(
           left: 0,
           bottom: 0,
@@ -1132,7 +1205,6 @@ class _AdViewer extends StatelessWidget {
             ),
           ),
         ),
-
         Positioned(
           right: 16,
           bottom: 16,
@@ -1156,8 +1228,6 @@ class _AdViewer extends StatelessWidget {
                 ),
           ),
         ),
-
-        // Learn more
         Positioned(
           right: 16,
           top: 16,

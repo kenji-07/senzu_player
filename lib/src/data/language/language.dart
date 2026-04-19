@@ -24,6 +24,8 @@ class SenzuLanguage {
     this.cancel = 'Cancel',
     this.loading = 'Loading...',
     this.backToPlayer = 'Back to player',
+    this.cast = 'Cast',
+    
 
     // ── Controls ─────────────────────────
     this.next = 'Next',
@@ -86,6 +88,7 @@ class SenzuLanguage {
   final String cancel;
   final String loading;
   final String backToPlayer;
+  final String cast;  
 
   // Controls
   final String next;
