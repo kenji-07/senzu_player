@@ -9,6 +9,7 @@ import 'package:senzu_player/src/data/models/senzu_player_config.dart';
 import 'package:senzu_player/src/data/models/senzu_token_provider.dart';
 import 'package:senzu_player/src/data/models/senzu_watermark.dart';
 import 'package:senzu_player/src/data/models/senzu_audio_track.dart';
+import 'package:senzu_player/src/data/models/senzu_metadata.dart';
 import 'package:senzu_player/src/platform/senzu_native_channel.dart';
 import 'package:senzu_player/src/platform/senzu_native_video_controller.dart';
 import 'package:senzu_player/src/platform/senzu_native_video_state.dart';
@@ -56,6 +57,14 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   bool _disposed = false;
   int _sourceGeneration = 0;
 
+  // ── Cast metadata ──────────────────────────────────────────────────────────
+  SenzuMetaData? _meta;
+
+  /// SenzuPlayer-аас meta дамжуулна
+  void setCastMeta(SenzuMetaData? meta) {
+    _meta = meta;
+  }
+
   // ── Core Rx ────────────────────────────────────────────────────────────────
   final rxNativeState = Rx<SenzuNativeVideoState>(
     const SenzuNativeVideoState(),
@@ -73,6 +82,10 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   final isLiveRx = false.obs;
   final pendingSeek = Duration.zero.obs;
   final isFullScreen = false.obs;
+
+  // ── Cast state Rx ──────────────────────────────────────────────────────────
+  /// Cast горимд байгаа эсэх — UI cast controls харуулахад ашиглана
+  final isCastActive = false.obs;
 
   // ── Private ────────────────────────────────────────────────────────────────
   SenzuNativeVideoController? _native;
@@ -168,6 +181,8 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Cast горимд байх үед lifecycle-г skip хийнэ
+    if (isCastActive.value) return;
     switch (state) {
       case AppLifecycleState.inactive:
         _wasPlaying = rxNativeState.value.isPlaying;
@@ -407,34 +422,60 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  // ── Cast state ───────────────────────────────────────────────────────────
+  // ── Cast integration ───────────────────────────────────────────────────────
   void setCastController(SenzuCastController ctrl) {
     _castController = ctrl;
-    // Cast state өөрчлөгдөхөд local player зогсоох / эхлүүлэх
     ever(ctrl.castState, _onCastStateChanged);
   }
 
   void _onCastStateChanged(SenzuCastState state) {
-    log('SenzuCast: state changed → $state'); 
-    switch (state)  {
+    log('SenzuCast: state changed → $state');
+    switch (state) {
       case SenzuCastState.connected:
-        // Cast холбогдсон үед local player-г pause хийнэ
+        isCastActive.value = true;
         pause();
-         castCurrentSource(); 
+        castCurrentSource();
       case SenzuCastState.notConnected:
-        // Cast тасарсан үед local player-г cast position-оос үргэлжлүүлнэ
-        final resumePos = _castController?.resumePosition ?? Duration.zero;
-        if (resumePos > Duration.zero) {
-          seekTo(resumePos).then((_) => play());
-        } else {
-          play();
+        if (isCastActive.value) {
+          isCastActive.value = false;
+          // Cast-аас resume position авч player-г дахин эхлүүлнэ
+          final resumePos =
+              _castController?.resumePosition ?? Duration.zero;
+          _resumeLocalPlayback(resumePos);
         }
       default:
         break;
     }
   }
 
-  /// Одоогийн source-г cast руу илгээх
+  /// Cast тасарсан үед local player-г resume position-оос үргэлжлүүлнэ
+  Future<void> _resumeLocalPlayback(Duration resumePos) async {
+    if (_disposed) return;
+    // Native player аль хэдийн байгаа бол seek хийж play
+    if (rxNativeState.value.isInitialized) {
+      if (resumePos > Duration.zero) {
+        await seekTo(resumePos);
+      }
+      await play();
+      return;
+    }
+    // Player байхгүй бол source-г дахин initialize хийнэ
+    final srcs = rxSources.value;
+    if (srcs == null || srcs.isEmpty) return;
+    final name = rxActiveSource.value ?? srcs.keys.first;
+    final src = srcs[name];
+    if (src == null) return;
+    await changeSource(
+      name: name,
+      source: src,
+      inheritPosition: false,
+      autoPlay: false,
+    );
+    if (resumePos > Duration.zero) await seekTo(resumePos);
+    await play();
+  }
+
+  /// Одоогийн source-г cast руу илгээх — meta автоматаар дүүргэнэ
   Future<void> castCurrentSource() async {
     final ctrl = _castController;
     if (ctrl == null) return;
@@ -447,15 +488,58 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     final sourceName = activeSourceName ?? '';
     if (source == null) return;
 
+    // _meta-аас автоматаар авна
+    final title = _meta?.title ?? sourceName;
+    final description = _meta?.description ?? '';
+
+    // Subtitle tracks-г cast руу дамжуулна
+    final subtitleMap = source.subtitle ?? {};
+    final castSubtitles = subtitleMap.entries
+        .where((e) => e.value.url_.isNotEmpty)
+        .mapIndexed((i, e) => CastSubtitleTrack(
+              id: i,
+              language: e.key,
+              name: e.key,
+              url: e.value.url_,
+              headers: source.httpHeaders ?? {},
+            ))
+        .toList();
+
+    // Audio tracks
+    final castAudio = audioTracks
+        .mapIndexed((i, t) => CastAudioTrack(
+              id: i,
+              language: t.language,
+              name: t.name,
+            ))
+        .toList();
+
+    // Quality options
+    final srcs = rxSources.value ?? {};
+    final castQualities = srcs.entries
+        .map((e) => CastQualityOption(
+              label: e.key,
+              url: e.value.dataSource,
+              headers: e.value.httpHeaders ?? {},
+            ))
+        .toList();
+
     final media = SenzuCastMedia(
       url: source.dataSource,
-      title: sourceName,
-      description: '',
+      title: title,
+      description: description,
+      posterUrl: 'https://image.tmdb.org/t/p/original/cm2oUAPiTE1ERoYYOzzgloQw4YZ.jpg',
       positionMs: rxNativeState.value.position.inMilliseconds,
       isLive: isLive,
       mimeType: source.protocol == VideoProtocol.dash
           ? 'application/dash+xml'
-          : null,
+          : source.protocol == VideoProtocol.mp4
+              ? 'video/mp4'
+              : null,
+      httpHeaders: source.httpHeaders ?? {},
+      availableSubtitles: castSubtitles,
+      availableAudioTracks: castAudio,
+      availableQualities: castQualities,
     );
 
     await ctrl.switchToCast(
@@ -638,5 +722,15 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     if (v < lo) return lo;
     if (v > hi) return hi;
     return v;
+  }
+}
+
+// Extension for indexed map
+extension _IndexedIterable<T> on Iterable<T> {
+  Iterable<R> mapIndexed<R>(R Function(int index, T item) f) sync* {
+    var index = 0;
+    for (final item in this) {
+      yield f(index++, item);
+    }
   }
 }

@@ -47,7 +47,19 @@ class SenzuCastButton extends StatelessWidget {
       return Tooltip(
         message: tooltip,
         child: InkWell(
-          onTap: () => bundle.ui.togglePanel(SenzuPanel.cast),
+          onTap: () {
+            if (state == SenzuCastState.connected) {
+              castController.disconnect();
+            } else if (state == SenzuCastState.connecting) {
+              bundle.ui.togglePanel(SenzuPanel.cast);
+            } else if (state == SenzuCastState.noDevicesAvailable) {
+              bundle.ui.togglePanel(SenzuPanel.cast);
+            } else if (state == SenzuCastState.notConnected) {
+              bundle.ui.togglePanel(SenzuPanel.cast);
+            } else {
+              bundle.ui.togglePanel(SenzuPanel.cast);
+            }
+          },
           borderRadius: BorderRadius.circular(20),
           child: Padding(
             padding: const EdgeInsets.all(8),

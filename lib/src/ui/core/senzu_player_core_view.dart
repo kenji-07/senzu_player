@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:senzu_player/src/cast/senzu_cast_core_view.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_video_surface.dart';
 import 'package:senzu_player/src/ui/core/senzu_player_core_view_patches.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
@@ -18,8 +19,7 @@ import 'package:senzu_player/src/data/models/subtitle_model.dart';
 import 'package:senzu_player/src/data/models/senzu_metadata.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
 import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
-import 'package:senzu_player/src/cast/senzu_cast_controller.dart';
-import 'package:senzu_player/src/cast/senzu_cast_service.dart';
+import 'package:senzu_player/src/cast/senzu_cast_controller.dart' hide SenzuCastPanel;
 
 class SenzuPlayerCoreView extends StatefulWidget {
   const SenzuPlayerCoreView({
@@ -164,32 +164,44 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (bundle.core.hasError.value) return _buildError();
-      return _MainPlayerStack(
-        bundle: bundle,
-        style: style,
-        meta: meta,
-        widget: widget,
-        dragVol: _dragVol,
-        dragBri: _dragBri,
-        longPress: _longPress,
-        showRewind: _showRewind,
-        showForward: _showForward,
-        rewindCount: _rewindCount,
-        forwardCount: _forwardCount,
-        onDoubleTapLeft: () => _doubleTap(rewind: true),
-        onDoubleTapRight: () => _doubleTap(rewind: false),
-        onDragStart: _onDragStart,
-        onDragUpdate: _onDragUpdate,
-        onDragEnd: _onDragEnd,
-        onLongPress: _onLongPress,
-        onLongPressUp: _onLongPressUp,
-        transformCtrl: _transformCtrl,
-        onScaleUpdate: (s) => setState(() => _scale = s),
-        scale: _scale,
-        chapters: widget.chapters,
-        castController: widget.castController,
-      );
+      if (bundle.core.hasError.value) {
+        return _buildError();
+      } else if (bundle.core.isCastActive.value &&
+          widget.castController != null) {
+        return SenzuCastCoreView(
+          bundle: bundle,
+          style: style,
+          meta: meta,
+          castController: widget.castController!,
+          chapters: widget.chapters,
+        );
+      } else {
+        return _MainPlayerStack(
+          bundle: bundle,
+          style: style,
+          meta: meta,
+          widget: widget,
+          dragVol: _dragVol,
+          dragBri: _dragBri,
+          longPress: _longPress,
+          showRewind: _showRewind,
+          showForward: _showForward,
+          rewindCount: _rewindCount,
+          forwardCount: _forwardCount,
+          onDoubleTapLeft: () => _doubleTap(rewind: true),
+          onDoubleTapRight: () => _doubleTap(rewind: false),
+          onDragStart: _onDragStart,
+          onDragUpdate: _onDragUpdate,
+          onDragEnd: _onDragEnd,
+          onLongPress: _onLongPress,
+          onLongPressUp: _onLongPressUp,
+          transformCtrl: _transformCtrl,
+          onScaleUpdate: (s) => setState(() => _scale = s),
+          scale: _scale,
+          chapters: widget.chapters,
+          castController: widget.castController,
+        );
+      }
     });
   }
 

@@ -4,6 +4,15 @@ import 'package:get/get.dart';
 import 'senzu_cast_service.dart';
 import 'senzu_cast_media_builder.dart';
 
+enum SenzuCastPanel {
+  caption,
+  quality,
+  episode,
+  audio,
+  cast,
+  none,
+}
+
 class SenzuCastController extends GetxController {
   // ── Rx State ──────────────────────────────────────────────────────────────
   final castState = SenzuCastState.notConnected.obs;
@@ -11,13 +20,16 @@ class SenzuCastController extends GetxController {
   final availableDevices = RxList<SenzuCastDeviceInfo>([]);
   final isLoading = false.obs;
   final errorMessage = RxnString();
+  final activeSource = RxnString();
+  final activePanel = SenzuCastPanel.none.obs;
+
+  // ── Device panel state ────────────────────────────────────────────────────
+  final isDiscovering = false.obs;
+  final connectingDeviceId = RxnString();
 
   final activeSubtitleTrackId = RxnInt();
-
-  /// Active audio track ID
   final activeAudioTrackId = RxnInt();
 
-  /// Available tracks (loadMedia дуусмагц дүүргэнэ)
   final subtitleTracks = RxList<CastSubtitleTrack>([]);
   final audioTracks = RxList<CastAudioTrack>([]);
   final qualityOptions = RxList<CastQualityOption>([]);
@@ -46,7 +58,6 @@ class SenzuCastController extends GetxController {
     _castStateSub = SenzuCastService.castStateStream.listen((state) {
       castState.value = state;
       if (state == SenzuCastState.connected && _currentMedia != null) {
-        // Session reconnect болсон үед media дахин load хийнэ
         _reloadCurrentMedia();
       }
       if (state == SenzuCastState.notConnected) {
@@ -74,9 +85,42 @@ class SenzuCastController extends GetxController {
     }
   }
 
+  // ── Panel ──────────────────────────────────────────────────────────────────
+  void toggleCastPanel(SenzuCastPanel panel) {
+    activePanel.value = activePanel.value == panel ? SenzuCastPanel.none : panel;
+  }
+
+  // ── Device Discovery & Connection ─────────────────────────────────────────
+
+  /// Төхөөрөмж хайх (panel нээгдэхэд автоматаар дуудна)
+  Future<void> discoverDevices() async {
+    isDiscovering.value = true;
+    try {
+      final found = await SenzuCastService.discoverDevices();
+      if (found.isNotEmpty) {
+        availableDevices.value = found;
+      }
+    } catch (e) {
+      errorMessage.value = 'Хайлт амжилтгүй: $e';
+    } finally {
+      isDiscovering.value = false;
+    }
+  }
+
+  /// Тодорхой төхөөрөмжид холбогдох
+  Future<void> connectToDevice(SenzuCastDeviceInfo device) async {
+    connectingDeviceId.value = device.deviceId;
+    try {
+      await SenzuCastService.connectToDevice(device.deviceId);
+    } catch (e) {
+      errorMessage.value = 'Холбогдоход алдаа гарлаа: $e';
+    } finally {
+      connectingDeviceId.value = null;
+    }
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  /// Device picker нээнэ
   Future<void> showDevicePicker() async {
     errorMessage.value = null;
     try {
@@ -86,14 +130,12 @@ class SenzuCastController extends GetxController {
     }
   }
 
-  /// Media cast руу load хийнэ
   Future<bool> castMedia(SenzuCastMedia media) async {
     if (!isCasting) {
       errorMessage.value = 'Cast холбогдоогүй байна';
       return false;
     }
 
-    // Track мэдээллийг шинэчилнэ
     subtitleTracks.value = media.availableSubtitles;
     audioTracks.value = media.availableAudioTracks;
     qualityOptions.value = media.availableQualities;
@@ -140,7 +182,6 @@ class SenzuCastController extends GetxController {
   Future<void> _reloadCurrentMedia() async {
     final media = _currentMedia;
     if (media == null) return;
-    // Position-г remote state-аас авна
     final pos = remoteState.value.positionMs;
     await castMedia(
       SenzuCastMedia(
@@ -185,7 +226,6 @@ class SenzuCastController extends GetxController {
     activeQuality.value = label;
   }
 
-  /// Local player-аас cast руу шилжих (position引き継ぐ)
   Future<void> switchToCast({
     required SenzuCastMedia media,
     required Duration currentPosition,
@@ -202,7 +242,6 @@ class SenzuCastController extends GetxController {
     await castMedia(mediaWithPos);
   }
 
-  /// Cast-аас local player руу буцах үеийн position
   Duration get resumePosition =>
       Duration(milliseconds: remoteState.value.positionMs);
 
