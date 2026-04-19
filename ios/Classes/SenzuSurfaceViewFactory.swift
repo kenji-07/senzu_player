@@ -2,7 +2,19 @@ import Flutter
 import UIKit
 import AVFoundation
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SenzuSurfaceViewFactory / SenzuPlayerLayerView / _SenzuLayerHostView
+// Exposes a native AVPlayerLayer to Flutter via the Platform View API.
+// The player layer is owned by SenzuAVPlayerManager; the host view only
+// inserts it as a sublayer and keeps a weak reference.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Flutter [FlutterPlatformViewFactory] that vends [SenzuPlayerLayerView] instances.
+ * Registered under the view type `senzu_player/surface`.
+ */
 public class SenzuSurfaceViewFactory: NSObject, FlutterPlatformViewFactory {
+
     private let messenger: FlutterBinaryMessenger
 
     public init(messenger: FlutterBinaryMessenger) {
@@ -23,11 +35,20 @@ public class SenzuSurfaceViewFactory: NSObject, FlutterPlatformViewFactory {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SenzuPlayerLayerView — FlutterPlatformView wrapper
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Thin [FlutterPlatformView] that wraps [_SenzuLayerHostView].
+ * All layout and layer management logic lives in the host view.
+ */
 public class SenzuPlayerLayerView: NSObject, FlutterPlatformView {
+
     private let containerView: _SenzuLayerHostView
 
     init(frame: CGRect) {
-        // IMPORTANT: UIView subclass-ийг main thread дээр үүсгэнэ
+        // UIView subclasses must be created on the main thread
         assert(Thread.isMainThread, "SenzuPlayerLayerView must be created on main thread")
         containerView = _SenzuLayerHostView(frame: frame)
         super.init()
@@ -36,27 +57,43 @@ public class SenzuPlayerLayerView: NSObject, FlutterPlatformView {
     public func view() -> UIView { containerView }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// _SenzuLayerHostView — UIView that hosts the AVPlayerLayer
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Private UIView subclass that installs the [AVPlayerLayer] produced by
+ * [SenzuAVPlayerManager] as its bottom-most sublayer.
+ *
+ * Design notes:
+ * - Holds only a `weak` reference to the layer because [SenzuAVPlayerManager]
+ *   owns the layer's lifetime.
+ * - Observes `SenzuPlayerLayerDidChange` to react to player re-creation without
+ *   strong coupling.
+ * - Uses a token-based [NotificationCenter] observer to prevent retain cycles
+ *   and memory leaks.
+ * - Disables CATransaction implicit animations during frame updates to prevent
+ *   flicker and layout artifacts.
+ */
 final class _SenzuLayerHostView: UIView {
-    // Weak reference: AVPlayerLayer-г manager эзэмшдэг, view биш
+
+    // Weak reference: the manager owns the AVPlayerLayer, not this view
     private weak var playerLayer: AVPlayerLayer?
     private var notificationToken: NSObjectProtocol?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .black
-
-        // Main thread guarantee: installLayerIfAvailable main-д л ажиллана
         assert(Thread.isMainThread)
         installLayerIfAvailable()
 
-        // Token-based observer — removeObserver дуудахад token ашиглана
-        // (object-based observer memory leak-ийн эх болдог)
+        // Token-based observer prevents retain cycles.
+        // Delivered on .main so UIKit calls are always on the correct thread.
         notificationToken = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("SenzuPlayerLayerDidChange"),
             object: nil,
-            queue: .main  // Main queue-д direct deliver — DispatchQueue.main.async шаардлагагүй
+            queue: .main
         ) { [weak self] _ in
-            // [weak self]: retain cycle-ээс сэргийлнэ
             self?.installLayerIfAvailable()
         }
     }
@@ -64,45 +101,51 @@ final class _SenzuLayerHostView: UIView {
     required init?(coder: NSCoder) { fatalError() }
 
     deinit {
-        // Token-based observer цэвэрлэнэ
         if let token = notificationToken {
             NotificationCenter.default.removeObserver(token)
         }
     }
 
+    // ── Layer installation ─────────────────────────────────────────────────
+
+    /**
+     * Installs the current shared player layer if one is available and is
+     * not already the installed layer.  Guards against unnecessary reinstalls
+     * that would cause flicker.
+     */
     private func installLayerIfAvailable() {
-        // Precondition: main thread шаардлагатай (UIKit contract)
         assert(Thread.isMainThread, "installLayerIfAvailable must run on main thread")
-
         guard let layer = SenzuAVPlayerManager.sharedPlayerLayer else { return }
-
-        // Same layer байвал reinstall хийхгүй — флicker болон layout хойшлолтоос сэргийлнэ
+        // Avoid reinstalling the same layer — prevents flicker and layout churn
         if playerLayer === layer { return }
-
         installLayer(layer)
     }
 
     private func installLayer(_ l: AVPlayerLayer) {
-        // Хуучин layer-г sublayer-ийн жагсаалтаас хасна
+        // Remove the previous layer from the hierarchy
         playerLayer?.removeFromSuperlayer()
         playerLayer = l
 
         l.videoGravity = .resizeAspect
-        // Frame-г bounds-д synchronously тохируулна
-        // (layoutSubviews-г хүлээхгүйгээр шууд correct size өгнө)
+        // Set frame synchronously — do not wait for layoutSubviews for correct
+        // initial sizing
         l.frame = bounds
-        self.layer.insertSublayer(l, at: 0) // addSublayer биш insertSublayer(at:0)
+        // Insert at index 0 so Flutter content can be rendered above the video
+        self.layer.insertSublayer(l, at: 0)
     }
+
+    // ── Layout ─────────────────────────────────────────────────────────────
 
     override func layoutSubviews() {
         super.layoutSubviews()
 
         guard let layer = playerLayer else {
-            // layoutSubviews үед layer байхгүй бол дахин оролдоно
+            // No layer yet — try again after the manager has been initialised
             installLayerIfAvailable()
             return
         }
-        // CATransaction: layout animation-г disable хийнэ
+
+        // Disable implicit CATransaction animations to prevent resize artifacts
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         layer.frame = bounds

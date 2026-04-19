@@ -4,33 +4,49 @@ import android.app.Activity
 import android.app.ActivityManager
 import android.app.PictureInPictureParams
 import android.content.pm.PackageManager
-import android.content.Context
 import android.os.Build
 import android.util.Rational
 import androidx.annotation.RequiresApi
 import io.flutter.plugin.common.EventChannel
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SenzuPipManager
+// Manages Android Picture-in-Picture (PiP) mode for the video player.
+// Requires Android 8.0 (API 26)+ and
+//   android:supportsPictureInPicture="true" in the activity manifest entry.
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
- * SenzuPipManager — Android Picture-in-Picture удирдлага
+ * Encapsulates all PiP logic so [SenzuExoPlayerManager] stays focused on
+ * media playback concerns.
  *
- *   • enablePip / disablePip
- *   • enterPip / exitPip
- *   • isPipSupported
- *   • Pip state event emission
+ * Usage:
+ * 1. Call [enable] / [disable] to opt in or out of PiP.
+ * 2. Call [enter] to request the system to enter PiP mode.
+ * 3. Forward [Activity.onPictureInPictureModeChanged] results to
+ *    [onPictureInPictureModeChanged] so the Flutter layer receives state events.
  *
- * Android 8.0 (API 26)+ шаардлагатай.
- * Manifest-д android:supportsPictureInPicture="true" нэмэх шаардлагатай.
+ * @param getActivity  Lambda returning the current foreground [Activity], or null.
  */
 class SenzuPipManager(private val getActivity: () -> Activity?) {
 
     private var pipEnabled: Boolean = false
     private var eventSink: EventChannel.EventSink? = null
 
+    // ── EventSink ──────────────────────────────────────────────────────────
+
+    /** Attaches the Flutter event sink used to emit PiP state changes. */
     fun setEventSink(sink: EventChannel.EventSink?) {
         eventSink = sink
     }
 
-    // ── PiP дэмжигдэж байгаа эсэх ─────────────────────────────────────────
+    // ── Support check ──────────────────────────────────────────────────────
+
+    /**
+     * Returns true if the device and OS version support PiP.
+     * Requires Android 8.0 (API 26) and the
+     * [PackageManager.FEATURE_PICTURE_IN_PICTURE] system feature.
+     */
     fun isSupported(): Boolean {
         val activity = getActivity() ?: return false
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -39,23 +55,31 @@ class SenzuPipManager(private val getActivity: () -> Activity?) {
     }
 
     // ── Enable / Disable ───────────────────────────────────────────────────
+
+    /** Opts the player in to PiP. [enter] will succeed only after this is called. */
     fun enable() {
         pipEnabled = true
     }
 
+    /** Opts the player out of PiP. */
     fun disable() {
         pipEnabled = false
     }
 
-    // ── Enter PiP ─────────────────────────────────────────────────────────
+    // ── Enter ──────────────────────────────────────────────────────────────
+
+    /**
+     * Requests the system to enter PiP mode.
+     * Returns true on success, false if PiP is unsupported, not enabled,
+     * or the activity is unavailable.
+     */
     fun enter(): Boolean {
         if (!pipEnabled || !isSupported()) return false
         val activity = getActivity() ?: return false
 
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val params = buildPipParams()
             try {
-                activity.enterPictureInPictureMode(params)
+                activity.enterPictureInPictureMode(buildPipParams())
                 true
             } catch (e: Exception) {
                 false
@@ -63,19 +87,30 @@ class SenzuPipManager(private val getActivity: () -> Activity?) {
         } else false
     }
 
-    // ── Exit PiP — Activity-г foreground руу буцаана ──────────────────────
+    // ── Exit ───────────────────────────────────────────────────────────────
+
+    /**
+     * Exits PiP by bringing the task back to the foreground via
+     * [ActivityManager.moveTaskToFront].
+     */
     fun exit() {
         val activity = getActivity() ?: return
         val am = activity.getSystemService(android.content.Context.ACTIVITY_SERVICE) as? ActivityManager
         am?.moveTaskToFront(activity.taskId, 0)
     }
 
-    // ── Activity PiP callback-уудыг хүлээн авна (FlutterActivity-аас) ────
+    // ── Lifecycle callback ─────────────────────────────────────────────────
+
+    /**
+     * Forward this from [Activity.onPictureInPictureModeChanged] so the
+     * Flutter layer receives a `pip` event with the current state.
+     */
     fun onPictureInPictureModeChanged(isInPipMode: Boolean) {
         emitPipState(isActive = isInPipMode)
     }
 
     // ── Event emission ─────────────────────────────────────────────────────
+
     private fun emitPipState(isActive: Boolean) {
         eventSink?.success(
             mapOf(
@@ -86,16 +121,21 @@ class SenzuPipManager(private val getActivity: () -> Activity?) {
         )
     }
 
-    // ── PiP params builder ─────────────────────────────────────────────────
+    // ── PiP params ─────────────────────────────────────────────────────────
+
+    /**
+     * Builds [PictureInPictureParams] with a 16:9 aspect ratio.
+     * On Android 12+ (API 31) also enables auto-enter and seamless resize.
+     */
     @RequiresApi(Build.VERSION_CODES.O)
     private fun buildPipParams(): PictureInPictureParams {
         val builder = PictureInPictureParams.Builder()
             .setAspectRatio(Rational(16, 9))
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Android 12+: auto-enter PiP when user swipes home
+            // Android 12+: automatically enter PiP when the user swipes home
             builder.setAutoEnterEnabled(true)
-            // Seamless resize animation
+            // Smooth resize animation when PiP window is resized
             builder.setSeamlessResizeEnabled(true)
         }
 

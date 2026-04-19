@@ -21,26 +21,52 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SenzuPlayerPlugin (Android)
+// Flutter plugin entry point.  Wires method and event channels, delegates
+// playback calls to SenzuExoPlayerManager, and handles device-level APIs
+// (volume, brightness, battery, network, HDR, codec detection, secure mode).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The root Flutter plugin class for SenzuPlayer on Android.
+ *
+ * Channel layout:
+ * - `senzu_player/native`      — playback & device method channel
+ * - `senzu_player/events`      — playback & device event channel
+ * - `senzu_player/cast`        — Cast method channel
+ * - `senzu_player/cast_events` — Cast event channel
+ *
+ * Implements [ActivityAware] so sub-managers ([SenzuExoPlayerManager],
+ * [SenzuCastPlugin]) receive the foreground [Activity] for PiP, wakelock, etc.
+ */
 @UnstableApi
 class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
     ActivityAware, EventChannel.StreamHandler {
 
+    // ── Channel references ─────────────────────────────────────────────────
+
     private lateinit var methodChannel: MethodChannel
     private lateinit var eventChannel: EventChannel
+
+    // ── State ──────────────────────────────────────────────────────────────
+
     private var appContext: Context? = null
     private var activity: Activity? = null
     private var eventSink: EventChannel.EventSink? = null
     private var batteryReceiver: BroadcastReceiver? = null
 
-    private var exoManager: SenzuExoPlayerManager? = null
+    // ── Sub-managers ───────────────────────────────────────────────────────
 
-    // castPlugin — Plugin binding дотор нэг instance, Activity share хийнэ
+    private var exoManager: SenzuExoPlayerManager? = null
     private var castPlugin: SenzuCastPlugin? = null
+
+    // ── FlutterPlugin ──────────────────────────────────────────────────────
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         appContext = binding.applicationContext
 
-        // Cast plugin — context-тэй үүсгэнэ, Activity дараа дамжуулна
+        // Cast plugin is created early (context only); Activity is set later
         val cp = SenzuCastPlugin(binding.applicationContext)
         castPlugin = cp
 
@@ -79,6 +105,7 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
     }
 
     // ── ActivityAware ──────────────────────────────────────────────────────
+
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
         exoManager?.setActivity(binding.activity)
@@ -104,31 +131,25 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
     }
 
     // ── MethodCallHandler ──────────────────────────────────────────────────
+
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         val args = call.arguments as? Map<*, *>
         val ctx  = activity ?: appContext
 
+        // Delegate playback calls first; return if handled
         if (exoManager != null && exoManager!!.handleMethodCall(call, result)) return
 
         when (call.method) {
 
-            "enableSecureMode"  -> {
-                activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                result.success(null)
-            }
-            "disableSecureMode" -> {
-                activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                result.success(null)
-            }
-            "enableWakelock"    -> {
-                activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                result.success(null)
-            }
-            "disableWakelock"   -> {
-                activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                result.success(null)
-            }
+            // ── Secure mode ────────────────────────────────────────────────
+            "enableSecureMode"  -> { activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE);   result.success(null) }
+            "disableSecureMode" -> { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE);  result.success(null) }
 
+            // ── Wakelock ───────────────────────────────────────────────────
+            "enableWakelock"    -> { activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);   result.success(null) }
+            "disableWakelock"   -> { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); result.success(null) }
+
+            // ── Volume ─────────────────────────────────────────────────────
             "getVolume" -> {
                 val am  = ctx?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                 val max = am?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
@@ -143,12 +164,14 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
                 result.success(null)
             }
 
+            // ── Brightness ─────────────────────────────────────────────────
             "getBrightness" -> {
                 val lp = activity?.window?.attributes
                 val b  = if (lp != null && lp.screenBrightness >= 0) lp.screenBrightness
                          else Settings.System.getInt(
                              ctx?.contentResolver,
-                             Settings.System.SCREEN_BRIGHTNESS, 128) / 255f
+                             Settings.System.SCREEN_BRIGHTNESS, 128
+                         ) / 255f
                 result.success(b.toDouble())
             }
             "setBrightness" -> {
@@ -161,6 +184,7 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
                 result.success(null)
             }
 
+            // ── Battery ────────────────────────────────────────────────────
             "getBatteryLevel" -> {
                 val bm = ctx?.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
                 result.success(bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1)
@@ -172,30 +196,33 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
                 result.success(batteryString(st))
             }
 
+            // ── Network ────────────────────────────────────────────────────
             "getNetworkType" -> {
                 val cm   = ctx?.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
                 val caps = cm?.getNetworkCapabilities(cm.activeNetwork)
-                val type = when {
+                result.success(when {
                     caps == null -> "none"
                     caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)     -> "wifi"
                     caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "cellular"
                     else -> "unknown"
-                }
-                result.success(type)
+                })
             }
 
+            // ── HDR ────────────────────────────────────────────────────────
             "isHdrSupported" -> {
                 val supported = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     val wm      = ctx?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
                     val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
-                                      ctx?.display
-                                  else @Suppress("DEPRECATION") wm?.defaultDisplay
+                        ctx?.display
+                    else
+                        @Suppress("DEPRECATION") wm?.defaultDisplay
                     display?.hdrCapabilities?.supportedHdrTypes?.isNotEmpty() ?: false
                 } else false
                 result.success(supported)
             }
             "enableHdrIfSupported" -> result.success(null)
 
+            // ── Low-latency / Live ─────────────────────────────────────────
             "setLowLatencyMode" -> {
                 val targetMs = (args?.get("targetMs") as? Int) ?: 2000
                 exoManager?.setLowLatencyMode(targetMs)
@@ -203,6 +230,7 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
             }
             "getLiveLatency" -> result.success(exoManager?.getLiveLatency() ?: -1L)
 
+            // ── Audio tracks ───────────────────────────────────────────────
             "getAudioTracks" -> result.success(exoManager?.getAudioTracks() ?: emptyList<Map<String, Any>>())
             "setAudioTrack"  -> {
                 val trackId = args?.get("trackId") as? String ?: ""
@@ -210,8 +238,9 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
                 result.success(null)
             }
 
+            // ── Codec support ──────────────────────────────────────────────
             "checkCodecSupport" -> {
-                val codec     = args?.get("codec") as? String ?: ""
+                val codec = args?.get("codec") as? String ?: ""
                 val supported = when (codec.lowercase()) {
                     "hevc", "h265" -> MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.any { ci ->
                         !ci.isEncoder && ci.supportedTypes.any { it.equals("video/hevc", ignoreCase = true) }
@@ -224,20 +253,20 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
                 result.success(supported)
             }
 
-            "checkDrmSupport" -> {
-                result.success(SenzuDrmManager.isWidevineSupported())
-            }
+            "checkDrmSupport" -> result.success(SenzuDrmManager.isWidevineSupported())
 
             else -> result.notImplemented()
         }
     }
 
-    // ── EventChannel StreamHandler ─────────────────────────────────────────
+    // ── EventChannel.StreamHandler ─────────────────────────────────────────
+
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         eventSink = events
         exoManager?.setEventSink(events)
 
-        val f = IntentFilter().apply {
+        // Battery + volume broadcast receiver
+        val filter = IntentFilter().apply {
             addAction(Intent.ACTION_BATTERY_CHANGED)
             addAction("android.media.VOLUME_CHANGED_ACTION")
         }
@@ -267,7 +296,7 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
                 }
             }
         }
-        appContext?.registerReceiver(batteryReceiver, f)
+        appContext?.registerReceiver(batteryReceiver, filter)
     }
 
     override fun onCancel(arguments: Any?) {
@@ -276,6 +305,8 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
         eventSink = null
         exoManager?.setEventSink(null)
     }
+
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private fun batteryString(status: Int) = when (status) {
         BatteryManager.BATTERY_STATUS_CHARGING    -> "charging"

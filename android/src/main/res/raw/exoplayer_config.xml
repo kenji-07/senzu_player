@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- ExoPlayer runtime configuration for SenzuPlayer -->
 <ExoPlayerConfig>
-    <!-- LL-HLS: part segment татах -->
+    <!-- LL-HLS: enable automatic low-latency segment fetching -->
     <boolean name="enableAutoSelectLowLatency" value="true"/>
-    <!-- Target latency: 3 секунд -->
+    <!-- Target live latency: 3 seconds (3,000,000 microseconds) -->
     <long name="targetLiveOffsetUs" value="3000000"/>
-    <!-- Buffer хамгийн бага -->
+    <!-- Minimum live latency: 1 second (1,000,000 microseconds) -->
     <long name="minLiveOffsetUs" value="1000000"/>
 </ExoPlayerConfig>

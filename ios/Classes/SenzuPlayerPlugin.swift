@@ -8,15 +8,40 @@ import VideoToolbox
 import ScreenProtectorKit
 import GoogleCast
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SenzuPlayerPlugin — root Flutter plugin class for SenzuPlayer on iOS
+//
+// Channel layout:
+//   senzu_player/native        — playback & device method channel
+//   senzu_player/events        — playback & device event channel
+//   senzu_player/cast          — Cast method channel
+//   senzu_player/cast_events   — Cast event channel
+//   senzu_player/surface       — Platform View (AVPlayerLayer host)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Root [FlutterPlugin] for SenzuPlayer on iOS.
+ *
+ * Delegates all AVPlayer operations to [SenzuAVPlayerManager] and Google Cast
+ * operations to [SenzuCastPlugin].  Handles device-level APIs directly:
+ * screen protection, wakelock, volume, brightness, battery, network, HDR,
+ * codec detection, low-latency live, and audio-track selection.
+ */
 public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
-    private var eventSink: FlutterEventSink?
-    private static var screenProtector: ScreenProtectorKit?
+    // ── Sub-managers ───────────────────────────────────────────────────────
 
     private var avManager: SenzuAVPlayerManager?
+    private static var screenProtector: ScreenProtectorKit?
 
-    // Track whether stream is active to prevent "No active stream" error
+    // ── EventChannel state ─────────────────────────────────────────────────
+
+    private var eventSink: FlutterEventSink?
+    /// Tracks whether the Flutter event stream is currently active to prevent
+    /// "No active stream" errors from stale observers.
     private var isStreamActive = false
+
+    // ── Registration ───────────────────────────────────────────────────────
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let method = FlutterMethodChannel(
@@ -36,17 +61,16 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             SenzuSurfaceViewFactory(messenger: registrar.messenger()),
             withId: "senzu_player/surface")
 
-        // ── Google Cast SDK initialize ─────────────────────────────────────
-        // AppDelegate.swift-д хийхгүйгээр plugin дотроо initialize хийнэ.
-        // isSharedInstanceInitialized шалгаж давхар init-аас сэргийлнэ.
+        // ── Google Cast SDK initialisation ────────────────────────────────
+        // Initialise inside the plugin to avoid coupling the host app's
+        // AppDelegate.  Guard against duplicate initialisation on hot restart.
         DispatchQueue.main.async {
             if !GCKCastContext.isSharedInstanceInitialized() {
                 let criteria = GCKDiscoveryCriteria(
-                    applicationID: kGCKDefaultMediaReceiverApplicationID
-                )
+                    applicationID: kGCKDefaultMediaReceiverApplicationID)
                 let options = GCKCastOptions(discoveryCriteria: criteria)
                 options.physicalVolumeButtonsWillControlDeviceVolume = true
-                options.startDiscoveryAfterFirstTapOnCastButton = false
+                options.startDiscoveryAfterFirstTapOnCastButton      = false
                 GCKCastContext.setSharedInstanceWith(options)
                 GCKCastContext.sharedInstance().useDefaultExpandedMediaControls = true
                 print("SenzuPlayer: GCKCastContext initialized successfully")
@@ -54,21 +78,17 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                 print("SenzuPlayer: GCKCastContext already initialized, skipping")
             }
 
-            // Cast channels-г initialize болсны дараа register хийнэ
+            // Register Cast channels after the context is ready
             let castMethod = FlutterMethodChannel(
                 name: "senzu_player/cast",
                 binaryMessenger: registrar.messenger())
             let castEvent = FlutterEventChannel(
                 name: "senzu_player/cast_events",
                 binaryMessenger: registrar.messenger())
-            SenzuCastPlugin.register(
-                with: registrar,
-                method: castMethod,
-                event: castEvent)
+            SenzuCastPlugin.register(with: registrar, method: castMethod, event: castEvent)
         }
-        // ──────────────────────────────────────────────────────────────────
 
-        // ScreenProtectorKit
+        // ── Screen protection ─────────────────────────────────────────────
         DispatchQueue.main.async {
             let kit = ScreenProtectorKit(window: SenzuPlayerPlugin.keyWindow())
             kit.setRootViewResolver(SenzuRootViewResolver())
@@ -77,15 +97,17 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         }
     }
 
+    // ── MethodCallHandler ─────────────────────────────────────────────────
+
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         let args = call.arguments as? [String: Any]
 
-        // Delegate video calls to AVPlayer manager first
+        // Delegate all playback calls to the AV manager first
         if avManager?.handle(call, result: result) == true { return }
 
         switch call.method {
 
-        // ── Secure mode ────────────────────────────────────────────────────
+        // ── Screen protection ──────────────────────────────────────────────
         case "enableSecureMode":
             DispatchQueue.main.async {
                 SenzuPlayerPlugin.screenProtector?.enabledPreventScreenshot()
@@ -170,7 +192,7 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             avManager?.setAudioTrack(trackId: trackId)
             result(nil)
 
-        // ── Codec ──────────────────────────────────────────────────────────
+        // ── Codec support ──────────────────────────────────────────────────
         case "checkCodecSupport":
             let codec = args?["codec"] as? String ?? ""
             var supported = false
@@ -187,11 +209,7 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             }
             result(supported)
 
-        // ── Notification / Now Playing ─────────────────────────────────────
-        case "setNowPlayingMetadata":
-            // Handled by avManager above (fallthrough case)
-            result(nil)
-
+        // ── Now Playing ────────────────────────────────────────────────────
         case "setNowPlayingEnabled":
             let enabled = args?["enabled"] as? Bool ?? true
             if enabled {
@@ -214,19 +232,21 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         }
     }
 
-    // ── Event channel ──────────────────────────────────────────────────────────
-    public func onListen(withArguments arguments: Any?,
-                         eventSink events: @escaping FlutterEventSink) -> FlutterError? {
-        // Guard against double-listen
-        if isStreamActive {
-            NotificationCenter.default.removeObserver(self)
-        }
+    // ── EventChannel — FlutterStreamHandler ───────────────────────────────
+
+    public func onListen(
+        withArguments arguments: Any?,
+        eventSink events: @escaping FlutterEventSink
+    ) -> FlutterError? {
+        // Remove stale observers if the stream is re-opened (e.g. hot restart)
+        if isStreamActive { NotificationCenter.default.removeObserver(self) }
 
         self.eventSink = events
         isStreamActive = true
         avManager?.setEventSink(events)
         avManager?.setupRemoteCommands(eventSink: events)
 
+        // Battery monitoring
         UIDevice.current.isBatteryMonitoringEnabled = true
         NotificationCenter.default.addObserver(
             self, selector: #selector(batteryChanged),
@@ -235,16 +255,19 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             self, selector: #selector(batteryChanged),
             name: UIDevice.batteryStateDidChangeNotification, object: nil)
 
+        // System volume monitoring
         try? AVAudioSession.sharedInstance().setActive(true)
         NotificationCenter.default.addObserver(
             self, selector: #selector(volumeChanged(_:)),
             name: NSNotification.Name("AVSystemController_SystemVolumeDidChangeNotification"),
             object: nil)
 
-        // Background / foreground interruption handling
+        // Audio session interruption (e.g. phone call)
         NotificationCenter.default.addObserver(
             self, selector: #selector(audioSessionInterrupted(_:)),
             name: AVAudioSession.interruptionNotification, object: nil)
+
+        // Audio route changes (e.g. headphones unplugged)
         NotificationCenter.default.addObserver(
             self, selector: #selector(audioRouteChanged(_:)),
             name: AVAudioSession.routeChangeNotification, object: nil)
@@ -255,7 +278,6 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     public func onCancel(withArguments arguments: Any?) -> FlutterError? {
         guard isStreamActive else { return nil }
         isStreamActive = false
-
         NotificationCenter.default.removeObserver(self)
         avManager?.teardownRemoteCommands()
         avManager?.setEventSink(nil)
@@ -263,7 +285,7 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         return nil
     }
 
-    // ── Notification handlers ──────────────────────────────────────────────────
+    // ── Notification handlers ──────────────────────────────────────────────
 
     @objc private func batteryChanged() {
         guard isStreamActive else { return }
@@ -273,34 +295,37 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             "type":  "battery",
             "level": lvl < 0 ? -1 : Int(lvl * 100),
             "state": SenzuBattery.stateString(UIDevice.current.batteryState),
-        ])
+        ] as [String: Any])
     }
 
     @objc private func volumeChanged(_ n: Notification) {
         guard isStreamActive else { return }
         let vol = AVAudioSession.sharedInstance().outputVolume
-        eventSink?(["type": "volume", "value": Double(vol)])
+        eventSink?(["type": "volume", "value": Double(vol)] as [String: Any])
     }
 
     @objc private func audioSessionInterrupted(_ n: Notification) {
         guard isStreamActive else { return }
-        guard let info = n.userInfo,
-              let typeVal = info[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: typeVal) else { return }
-        let interrupted = type == .began
-        eventSink?(["type": "audioInterruption", "interrupted": interrupted])
+        guard
+            let info    = n.userInfo,
+            let typeVal = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+            let type    = AVAudioSession.InterruptionType(rawValue: typeVal)
+        else { return }
+        eventSink?(["type": "audioInterruption", "interrupted": type == .began] as [String: Any])
     }
 
     @objc private func audioRouteChanged(_ n: Notification) {
         guard isStreamActive else { return }
-        guard let info = n.userInfo,
-              let reasonVal = info[AVAudioSessionRouteChangeReasonKey] as? UInt else { return }
+        guard
+            let info      = n.userInfo,
+            let reasonVal = info[AVAudioSessionRouteChangeReasonKey] as? UInt
+        else { return }
         if reasonVal == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue {
-            eventSink?(["type": "audioRouteChange", "reason": "deviceUnavailable"])
+            eventSink?(["type": "audioRouteChange", "reason": "deviceUnavailable"] as [String: Any])
         }
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     static func keyWindow() -> UIWindow? {
         UIApplication.shared.connectedScenes
@@ -310,22 +335,38 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     }
 }
 
-// ── SenzuRootViewResolver ──────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// SenzuRootViewResolver
+// Provides the Flutter root view to ScreenProtectorKit without coupling
+// the plugin to a concrete view controller type.
+// ─────────────────────────────────────────────────────────────────────────────
+
 final class SenzuRootViewResolver: ScreenProtectorRootViewResolving {
+
     func resolveRootView() -> UIView? {
         guard Thread.isMainThread else { return nil }
         guard let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive }) else { return nil }
+            .first(where: { $0.activationState == .foregroundActive })
+        else { return nil }
         guard let flutterVC = scene.windows
             .first(where: { $0.isKeyWindow })?
-            .rootViewController as? FlutterViewController else { return nil }
+            .rootViewController as? FlutterViewController
+        else { return nil }
         return flutterVC.view
     }
 }
 
-// ── SenzuVolume ────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// SenzuVolume — system volume setter via MPVolumeView slider
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Sets the system media volume by manipulating the hidden MPVolumeView slider.
+ * The view is placed far off-screen so it is never visible to the user.
+ */
 class SenzuVolume {
+
     private static var slider: UISlider?
 
     static func set(_ v: Float) {
@@ -344,7 +385,10 @@ class SenzuVolume {
     }
 }
 
-// ── SenzuBattery ──────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// SenzuBattery — UIDevice.BatteryState to string converter
+// ─────────────────────────────────────────────────────────────────────────────
+
 class SenzuBattery {
     static func stateString(_ s: UIDevice.BatteryState) -> String {
         switch s {

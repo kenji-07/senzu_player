@@ -1,6 +1,5 @@
 package dev.senzu.senzu_player
 
-import android.content.Context
 import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
@@ -12,14 +11,24 @@ import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
 import java.util.UUID
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SenzuWidevineConfig  —  Dart-аас дамжуулах DRM тохиргоо
+// SenzuWidevineConfig — DRM configuration passed from Dart layer
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Holds Widevine DRM configuration received from the Dart side.
+ *
+ * @property licenseUrl  URL of the Widevine license server.
+ * @property headers     Optional HTTP headers to include in license requests.
+ */
 data class SenzuWidevineConfig(
     val licenseUrl: String,
     val headers: Map<String, String> = emptyMap()
 ) {
     companion object {
+        /**
+         * Parses a [SenzuWidevineConfig] from a raw method-channel argument map.
+         * Returns null if the required fields are absent.
+         */
         fun from(args: Map<*, *>?): SenzuWidevineConfig? {
             val drm = args?.get("drm") as? Map<*, *> ?: return null
             val licenseUrl = drm["licenseUrl"] as? String ?: return null
@@ -31,20 +40,24 @@ data class SenzuWidevineConfig(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SenzuDrmManager  —  Widevine DrmSessionManager builder
+// SenzuDrmManager — Widevine DrmSessionManager builder
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Singleton that builds Widevine [DrmSessionManager] instances and
+ * constructs DRM-aware [MediaItem] objects for ExoPlayer.
+ */
 @UnstableApi
 object SenzuDrmManager {
 
     private val WIDEVINE_UUID: UUID = UUID.fromString("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
 
     /**
-     * Widevine DRM тохиргооноос DrmSessionManager үүсгэнэ.
-     * ExoPlayer.Builder-д шууд дамжуулна.
+     * Builds a [DrmSessionManager] from the given Widevine config.
+     * Pass the result directly to [ExoPlayer.Builder].
      *
-     * @param config  Dart-аас ирсэн DRM тохиргоо
-     * @return        DrmSessionManager эсвэл DrmSessionManager.DRM_UNSUPPORTED
+     * @param config  Widevine configuration received from Dart.
+     * @return        A configured [DefaultDrmSessionManager].
      */
     fun build(config: SenzuWidevineConfig): DrmSessionManager {
         val dataSourceFactory = DefaultHttpDataSource.Factory()
@@ -57,7 +70,7 @@ object SenzuDrmManager {
             dataSourceFactory
         )
 
-        // Custom header-уудыг DRM request-д нэмнэ
+        // Attach custom headers to every DRM key request
         config.headers.forEach { (key, value) ->
             drmCallback.setKeyRequestProperty(key, value)
         }
@@ -69,7 +82,7 @@ object SenzuDrmManager {
     }
 
     /**
-     * Widevine DRM-тэй MediaItem үүсгэнэ.
+     * Builds a DRM-configured [MediaItem] for the given URL and Widevine config.
      */
     fun buildMediaItem(url: String, config: SenzuWidevineConfig): MediaItem {
         return MediaItem.Builder()
@@ -84,7 +97,7 @@ object SenzuDrmManager {
     }
 
     /**
-     * Widevine-г энэ төхөөрөмж дэмжиж байгаа эсэхийг шалгана.
+     * Returns true if Widevine DRM is supported on this device.
      */
     fun isWidevineSupported(): Boolean {
         return try {
