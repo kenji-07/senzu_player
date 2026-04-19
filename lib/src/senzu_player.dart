@@ -225,6 +225,8 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
       _bundle.core.setCastController(widget.castController!);
     }
 
+    _bundle.core.setCastMeta(_meta);
+
     final bool hasAdTagUrl =
         widget.imaAdTagUrl != null && widget.imaAdTagUrl!.isNotEmpty;
 

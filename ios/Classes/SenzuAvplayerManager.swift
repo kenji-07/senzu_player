@@ -358,11 +358,22 @@ import MediaPlayer
     // ── Now Playing ───────────────────────────────────────────────────────
 
     private func setNowPlayingMetadata(args: [String: Any]?, result: @escaping FlutterResult) {
+        let newArtworkUrl = args?["artwork"] as? String
+        
         _title      = args?["title"]   as? String ?? _title
         _artist     = args?["artist"]  as? String ?? _artist
         _artworkUrl = args?["artwork"] as? String ?? _artworkUrl
         _isLive     = args?["isLive"]  as? Bool   ?? _isLive
+
+        if newArtworkUrl != _artworkUrl {
+            _cachedArtwork         = nil
+            _cachedArtworkUrl      = nil
+            _artworkFetchInProgress = false
+            _artworkUrl            = newArtworkUrl
+            _lastNowPlayingUpdate   = 0
+        }
         updateNowPlayingInfo()
+        fetchArtworkIfNeeded()
         result(nil)
     }
 

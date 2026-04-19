@@ -391,6 +391,13 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     isChangingSource.value = false;
     onSourceChanged?.call(name);
 
+    await SenzuNativeChannel.setNowPlayingMetadata(
+      title: _meta?.title ?? name,
+      artist: _meta?.description ?? '',
+      artwork: 'https://image.tmdb.org/t/p/original/cm2oUAPiTE1ERoYYOzzgloQw4YZ.jpg',
+      isLive: isLive,
+    );
+
     if (autoPlay) await play();
   }
 
@@ -542,9 +549,9 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
           ? 'application/dash+xml'
           : source.protocol == VideoProtocol.hls
           ? 'application/x-mpegURL'
-          :  source.protocol == VideoProtocol.mp4
+          : source.protocol == VideoProtocol.mp4
           ? 'video/mp4'
-          :null,
+          : null,
 
       httpHeaders: source.httpHeaders ?? {},
 
