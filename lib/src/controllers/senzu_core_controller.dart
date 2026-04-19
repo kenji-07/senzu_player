@@ -428,27 +428,6 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     ever(ctrl.castState, _onCastStateChanged);
   }
 
-  void _onCastStateChanged(SenzuCastState state) {
-    log('SenzuCast: state changed → $state');
-    switch (state) {
-      case SenzuCastState.connected:
-        isCastActive.value = true;
-        // Local player-г dispose хийнэ — cast горимд native player хэрэггүй
-        _releaseNative();
-        castCurrentSource();
-
-      case SenzuCastState.notConnected:
-        if (isCastActive.value) {
-          isCastActive.value = false;
-          final resumePos = _castController?.resumePosition ?? Duration.zero;
-          _resumeLocalPlayback(resumePos);
-        }
-
-      default:
-        break;
-    }
-  }
-
   /// Cast тасарсан үед source-г дахин initialize хийж resume position-оос тоглуулна
   Future<void> _resumeLocalPlayback(Duration resumePos) async {
     if (_disposed) return;
@@ -478,7 +457,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   }
 
   /// Одоогийн source-г cast руу илгээх — meta автоматаар дүүргэнэ
-  Future<void> castCurrentSource() async {
+  Future<void> castCurrentSource({Duration? overridePosition}) async {
     final ctrl = _castController;
     if (ctrl == null) return;
     if (!ctrl.isCasting) {
@@ -490,11 +469,17 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     final sourceName = activeSourceName ?? '';
     if (source == null) return;
 
-    // _meta-аас автоматаар авна
     final title = _meta?.title ?? sourceName;
     final description = _meta?.description ?? '';
 
-    // Subtitle tracks-г cast руу дамжуулна
+    // isLive — duration-д тулгуурлахгүй, explicit утга ашиглана
+    final castIsLive = _explicitIsLive ?? isLiveRx.value;
+
+    // Duration — native state-аас авна (cast хийхийн өмнө хадгалсан байх ёстой)
+    final castDurationMs = rxNativeState.value.duration.inMilliseconds;
+
+    final currentPosition = overridePosition ?? rxNativeState.value.position;
+
     final subtitleMap = source.subtitle ?? {};
     final castSubtitles = subtitleMap.entries
         .where((e) => e.value.url_.isNotEmpty)
@@ -509,14 +494,12 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
         )
         .toList();
 
-    // Audio tracks
     final castAudio = audioTracks
         .mapIndexed(
           (i, t) => CastAudioTrack(id: i, language: t.language, name: t.name),
         )
         .toList();
 
-    // Quality options
     final srcs = rxSources.value ?? {};
     final castQualities = srcs.entries
         .map(
@@ -534,23 +517,48 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
       description: description,
       posterUrl:
           'https://image.tmdb.org/t/p/original/cm2oUAPiTE1ERoYYOzzgloQw4YZ.jpg',
-      positionMs: rxNativeState.value.position.inMilliseconds,
-      isLive: isLive,
+      positionMs: currentPosition.inMilliseconds,
+      durationMs: castDurationMs, // ← НЭМЭХ
+      isLive: castIsLive,
       mimeType: source.protocol == VideoProtocol.dash
           ? 'application/dash+xml'
           : source.protocol == VideoProtocol.mp4
           ? 'video/mp4'
           : null,
-      httpHeaders: source.httpHeaders ?? {},
+      httpHeaders: {
+          'Referer': 'https://playmax.mn/',
+          'Origin': 'https://playmax.mn',
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+        },
       availableSubtitles: castSubtitles,
       availableAudioTracks: castAudio,
       availableQualities: castQualities,
     );
 
-    await ctrl.switchToCast(
-      media: media,
-      currentPosition: rxNativeState.value.position,
-    );
+    await ctrl.switchToCast(media: media, currentPosition: currentPosition);
+  }
+
+  // _onCastStateChanged-д position хадгалах
+  void _onCastStateChanged(SenzuCastState state) {
+    log('SenzuCast: state changed → $state');
+    switch (state) {
+      case SenzuCastState.connected:
+        isCastActive.value = true;
+        final savedPosition = rxNativeState.value.position; // ← өмнө хадгална
+        _releaseNative();
+        castCurrentSource(overridePosition: savedPosition); // ← дамжуулна
+
+      case SenzuCastState.notConnected:
+        if (isCastActive.value) {
+          isCastActive.value = false;
+          final resumePos = _castController?.resumePosition ?? Duration.zero;
+          _resumeLocalPlayback(resumePos);
+        }
+
+      default:
+        break;
+    }
   }
 
   // ── Playback ───────────────────────────────────────────────────────────────

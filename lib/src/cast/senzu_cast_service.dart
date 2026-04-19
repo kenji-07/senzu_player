@@ -209,12 +209,16 @@ class SenzuCastService {
     String url, {
     Map<String, String> headers = const {},
     int positionMs = 0,
+    int durationMs = 0, // ← НЭМЭХ
+    bool isLive = false, // ← НЭМЭХ
   }) async {
     try {
       final result = await _method.invokeMethod<bool>('loadQuality', {
         'url': url,
         'headers': headers,
         'positionMs': positionMs,
+        'durationMs': durationMs, // ← НЭМЭХ
+        'isLive': isLive,
       });
       return result ?? false;
     } on PlatformException catch (e) {

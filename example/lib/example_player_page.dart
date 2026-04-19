@@ -396,7 +396,7 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
               castController: _cast,
               autoPlay: true,
               seekTo: Duration.zero,
-              isLive: _isLive,
+              isLive: false,
               looping: widget.mode == PlayerMode.range,
               secureMode: false,
               enableLockScreen: true,

@@ -8,6 +8,7 @@ class SenzuCastMedia {
     this.subtitleLanguage = 'en',
     this.mimeType,
     this.positionMs = 0,
+    this.durationMs = 0, 
     this.isLive = false,
     // ── Шинэ талбарууд ──
     this.releaseDate,        // '2024-01-15'
@@ -27,6 +28,7 @@ class SenzuCastMedia {
   final String subtitleLanguage;
   final String? mimeType;
   final int positionMs;
+  final int durationMs; 
   final bool isLive;
   final String? releaseDate;
   final String? studio;
@@ -53,6 +55,7 @@ class SenzuCastMedia {
     'subtitleLanguage': subtitleLanguage,
     'mimeType':         resolvedMimeType,
     'positionMs':       positionMs,
+    'durationMs':       durationMs, 
     'isLive':           isLive,
     'releaseDate':      releaseDate ?? '',
     'studio':           studio ?? '',

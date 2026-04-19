@@ -188,200 +188,199 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
 
     // ── loadQuality ────────────────────────────────────────────────────────
     private func loadQuality(args: [String: Any]?, result: @escaping FlutterResult) {
-        guard
-            let session = castSession,
-            let urlStr  = args?["url"] as? String,
-            let url     = URL(string: urlStr)
-        else { result(false); return }
+    guard
+        let session = castSession,
+        let urlStr  = args?["url"] as? String,
+        let url     = URL(string: urlStr)
+    else { result(false); return }
 
-        let positionMs = args?["positionMs"] as? Int ?? 0
-        let headers    = args?["headers"]   as? [String: String] ?? [:]
+    let positionMs = args?["positionMs"] as? Int    ?? 0
+    let durationMs = args?["durationMs"] as? Int    ?? 0 
+    let isLive     = args?["isLive"]     as? Bool   ?? false
+    let headers    = args?["headers"]    as? [String: String] ?? [:]
 
-        let currentInfo = session.remoteMediaClient?.mediaStatus?.mediaInformation
-        let builder = GCKMediaInformationBuilder(contentURL: url)
-        builder.contentType  = currentInfo?.contentType ?? "application/x-mpegURL"
-        builder.metadata     = currentInfo?.metadata
-        builder.streamType   = .buffered
-        builder.mediaTracks  = currentInfo?.mediaTracks
+    let currentInfo = session.remoteMediaClient?.mediaStatus?.mediaInformation
+    let builder = GCKMediaInformationBuilder(contentURL: url)
+    builder.contentType = currentInfo?.contentType ?? "application/x-mpegURL"
+    builder.metadata    = currentInfo?.metadata
+    builder.mediaTracks = currentInfo?.mediaTracks
+    builder.streamType  = isLive ? .live : .buffered 
 
-        // headers-ийг customData-д хадгална — CAF receiver ашиглана
-        if !headers.isEmpty {
-            builder.customData = ["headers": headers]
-        }
-
-        let loadOptions = GCKMediaLoadOptions()
-        loadOptions.playPosition = TimeInterval(positionMs) / 1000.0
-        loadOptions.autoplay     = true
-
-        session.remoteMediaClient?.loadMedia(builder.build(), with: loadOptions)
-        result(true)
+    // VOD бол duration тохируулна 
+    if !isLive && durationMs > 0 {
+        builder.streamDuration = TimeInterval(durationMs) / 1000.0 
+    } else if !isLive, let currentDur = currentInfo?.streamDuration, currentDur > 0 {
+        // Dart-аас duration ирээгүй бол одоогийн session-аас авна
+        builder.streamDuration = currentDur
     }
+
+    if !headers.isEmpty {
+        builder.customData = ["headers": headers]
+    }
+
+    let loadOptions = GCKMediaLoadOptions()
+    loadOptions.playPosition = TimeInterval(positionMs) / 1000.0
+    loadOptions.autoplay     = true
+
+    session.remoteMediaClient?.loadMedia(builder.build(), with: loadOptions)
+    result(true)
+}
 
     // ── loadMedia ──────────────────────────────────────────────────────────
     private func loadMedia(args: [String: Any]?, result: @escaping FlutterResult) {
-        guard
-            let session = castSession,
-            let remoteMediaClient = session.remoteMediaClient,
-            let urlStr = args?["url"] as? String,
-            let url = URL(string: urlStr)
-        else {
-            result(false)
-            return
-        }
-
-        let title        = args?["title"]        as? String ?? ""
-        let description  = args?["description"]  as? String ?? ""
-        let posterUrlStr = args?["posterUrl"]     as? String ?? ""
-        let mimeType     = args?["mimeType"]      as? String ?? "video/mp4"
-        let positionMs   = args?["positionMs"]    as? Int    ?? 0
-        let releaseDate  = args?["releaseDate"]   as? String ?? ""
-        let studio       = args?["studio"]        as? String ?? ""
-
-        // ── FIX: video + subtitle URL'ийн headers ──────────────────────────
-        let httpHeaders     = args?["httpHeaders"]     as? [String: String] ?? [:]
-        let subtitleHeaders = args?["subtitleHeaders"] as? [String: String] ?? [:]
-
-        let selectedSubtitleId = args?["selectedSubtitleId"] as? Int
-        let selectedAudioId    = args?["selectedAudioId"]    as? Int
-
-        // ─────────────────────────────────────────
-        // Metadata
-        // ─────────────────────────────────────────
-        let metadata = GCKMediaMetadata(metadataType: .movie)
-        metadata.setString(title, forKey: kGCKMetadataKeyTitle)
-
-        if !description.isEmpty {
-            metadata.setString(description, forKey: kGCKMetadataKeySubtitle)
-        }
-        if !studio.isEmpty {
-            metadata.setString(studio, forKey: kGCKMetadataKeyStudio)
-        }
-        if !posterUrlStr.isEmpty, let posterUrl = URL(string: posterUrlStr) {
-            metadata.addImage(GCKImage(url: posterUrl, width: 480, height: 270))
-        }
-        if !releaseDate.isEmpty {
-            let isoFormatter = ISO8601DateFormatter()
-            if let date = isoFormatter.date(from: releaseDate) {
-                metadata.setString(releaseDate, forKey: kGCKMetadataKeyReleaseDate)
-            }
-        }
-
-        // ─────────────────────────────────────────
-        // Subtitle tracks
-        // FIX: subtitle track URL-ийн header-г customData-д дамжуулна
-        // ─────────────────────────────────────────
-        var tracks: [GCKMediaTrack] = []
-        var activeTrackIDs: [NSNumber] = []
-
-        let subtitleList = args?["availableSubtitles"] as? [[String: Any]] ?? []
-
-        for sub in subtitleList {
-            let trackId = sub["id"] as? Int ?? 0
-            let subUrl   = sub["url"] as? String ?? ""
-            let subLang  = sub["language"] as? String ?? "en"
-            let subName  = sub["name"] as? String ?? "Subtitle"
-
-            // FIX: subtitle-даа тусдаа headers байвал авна, үгүй бол ерөнхий
-            // subtitleHeaders ашиглана
-            let perSubHeaders = sub["headers"] as? [String: String] ?? subtitleHeaders
-
-            guard !subUrl.isEmpty else { continue }
-
-            // GCKMediaTrack-д headers байхгүй тул customData-д хадгална
-            // CAF receiver талдаа ашиглах боломжтой
-            var trackCustomData: [String: Any]? = nil
-            if !perSubHeaders.isEmpty {
-                trackCustomData = ["headers": perSubHeaders]
-            }
-
-            if let track = GCKMediaTrack(
-                identifier: trackId,
-                contentIdentifier: subUrl,
-                contentType: "text/vtt",
-                type: .text,
-                textSubtype: .subtitles,
-                name: subName,
-                languageCode: subLang,
-                customData: trackCustomData
-            ) {
-                tracks.append(track)
-                if let selectedSubtitleId, selectedSubtitleId == Int(trackId) {
-                    activeTrackIDs.append(NSNumber(value: trackId))
-                }
-            }
-        }
-
-        // ─────────────────────────────────────────
-        // Audio tracks
-        // ─────────────────────────────────────────
-        let audioList = args?["availableAudioTracks"] as? [[String: Any]] ?? []
-
-        for audio in audioList {
-            let trackId = audio["id"] as? Int ?? 0
-            let lang    = audio["language"] as? String ?? "und"
-            let name    = audio["name"] as? String ?? "Audio"
-
-            if let track = GCKMediaTrack(
-                identifier: trackId,
-                contentIdentifier: nil,
-                contentType: "audio/mp4",
-                type: .audio,
-                textSubtype: .unknown,
-                name: name,
-                languageCode: lang,
-                customData: nil
-            ) {
-                tracks.append(track)
-                if let selectedAudioId, selectedAudioId == Int(trackId) {
-                    activeTrackIDs.append(NSNumber(value: trackId))
-                }
-            }
-        }
-
-        // ─────────────────────────────────────────
-        // Custom data — video URL headers + extras
-        // FIX: httpHeaders-ийг customData-д нэмнэ
-        // ─────────────────────────────────────────
-        var customData: [String: Any] = [:]
-        if !httpHeaders.isEmpty {
-            customData["headers"] = httpHeaders
-        }
-        if !releaseDate.isEmpty { customData["releaseDate"] = releaseDate }
-        if !studio.isEmpty      { customData["studio"]      = studio      }
-
-        // ─────────────────────────────────────────
-        // MediaInformation
-        // ─────────────────────────────────────────
-        let mediaInfoBuilder = GCKMediaInformationBuilder(contentURL: url)
-        mediaInfoBuilder.contentType = mimeType
-        mediaInfoBuilder.metadata    = metadata
-        mediaInfoBuilder.streamType  = .buffered
-
-        if !tracks.isEmpty {
-            mediaInfoBuilder.mediaTracks = tracks
-        }
-        if !customData.isEmpty {
-            mediaInfoBuilder.customData = customData
-        }
-
-        let mediaInfo = mediaInfoBuilder.build()
-
-        // ─────────────────────────────────────────
-        // Load request
-        // ─────────────────────────────────────────
-        let requestDataBuilder = GCKMediaLoadRequestDataBuilder()
-        requestDataBuilder.mediaInformation = mediaInfo
-        requestDataBuilder.autoplay         = true
-        requestDataBuilder.startTime        = TimeInterval(positionMs) / 1000.0
-
-        if !activeTrackIDs.isEmpty {
-            requestDataBuilder.activeTrackIDs = activeTrackIDs
-        }
-
-        let requestData = requestDataBuilder.build()
-        remoteMediaClient.loadMedia(with: requestData)
-        result(true)
+    guard
+        let session = castSession,
+        let remoteMediaClient = session.remoteMediaClient,
+        let urlStr = args?["url"] as? String,
+        let url = URL(string: urlStr)
+    else {
+        result(false)
+        return
     }
+
+    let title        = args?["title"]        as? String ?? ""
+    let description  = args?["description"]  as? String ?? ""
+    let posterUrlStr = args?["posterUrl"]     as? String ?? ""
+    let mimeType     = args?["mimeType"]      as? String ?? "application/x-mpegURL"
+    let positionMs   = args?["positionMs"]    as? Int    ?? 0
+    let durationMs   = args?["durationMs"]    as? Int    ?? 0
+    let isLive       = args?["isLive"]        as? Bool   ?? false
+    let releaseDate  = args?["releaseDate"]   as? String ?? ""
+    let studio       = args?["studio"]        as? String ?? ""
+    let httpHeaders     = args?["httpHeaders"]     as? [String: String] ?? [:]
+    let subtitleHeaders = args?["subtitleHeaders"] as? [String: String] ?? [:]
+    let selectedSubtitleId = args?["selectedSubtitleId"] as? Int
+    let selectedAudioId    = args?["selectedAudioId"]    as? Int
+
+    // ── Metadata ───────────────────────────────────────────────────────────
+    let metadata = GCKMediaMetadata(metadataType: .movie)
+    metadata.setString(title, forKey: kGCKMetadataKeyTitle)
+    if !description.isEmpty {
+        metadata.setString(description, forKey: kGCKMetadataKeySubtitle)
+    }
+    if !studio.isEmpty {
+        metadata.setString(studio, forKey: kGCKMetadataKeyStudio)
+    }
+    if !posterUrlStr.isEmpty, let posterUrl = URL(string: posterUrlStr) {
+        metadata.addImage(GCKImage(url: posterUrl, width: 480, height: 270))
+    }
+    if !releaseDate.isEmpty {
+        let isoFormatter = ISO8601DateFormatter()
+        if let _ = isoFormatter.date(from: releaseDate) {
+            metadata.setString(releaseDate, forKey: kGCKMetadataKeyReleaseDate)
+        }
+    }
+
+    // ── Subtitle tracks ────────────────────────────────────────────────────
+    var tracks: [GCKMediaTrack] = []
+    var activeTrackIDs: [NSNumber] = []
+
+    let subtitleList = args?["availableSubtitles"] as? [[String: Any]] ?? []
+    for sub in subtitleList {
+        let trackId  = sub["id"]       as? Int    ?? 0
+        let subUrl   = sub["url"]      as? String ?? ""
+        let subLang  = sub["language"] as? String ?? "en"
+        let subName  = sub["name"]     as? String ?? "Subtitle"
+        let perSubHeaders = sub["headers"] as? [String: String] ?? subtitleHeaders
+        guard !subUrl.isEmpty else { continue }
+        var trackCustomData: [String: Any]? = nil
+        if !perSubHeaders.isEmpty {
+            trackCustomData = ["headers": perSubHeaders]
+        }
+        if let track = GCKMediaTrack(
+            identifier: trackId,
+            contentIdentifier: subUrl,
+            contentType: "text/vtt",
+            type: .text,
+            textSubtype: .subtitles,
+            name: subName,
+            languageCode: subLang,
+            customData: trackCustomData
+        ) {
+            tracks.append(track)
+            if let selectedSubtitleId, selectedSubtitleId == trackId {
+                activeTrackIDs.append(NSNumber(value: trackId))
+            }
+        }
+    }
+
+    // ── Audio tracks ───────────────────────────────────────────────────────
+    let audioList = args?["availableAudioTracks"] as? [[String: Any]] ?? []
+    for audio in audioList {
+        let trackId = audio["id"]       as? Int    ?? 0
+        let lang    = audio["language"] as? String ?? "und"
+        let name    = audio["name"]     as? String ?? "Audio"
+        if let track = GCKMediaTrack(
+            identifier: trackId,
+            contentIdentifier: nil,
+            contentType: "audio/mp4",
+            type: .audio,
+            textSubtype: .unknown,
+            name: name,
+            languageCode: lang,
+            customData: nil
+        ) {
+            tracks.append(track)
+            if let selectedAudioId, selectedAudioId == trackId {
+                activeTrackIDs.append(NSNumber(value: trackId))
+            }
+        }
+    }
+
+    // ── customData — header-г receiver-т дамжуулна ────────────────────────
+    var customData: [String: Any] = [:]
+    if !httpHeaders.isEmpty {
+        customData["headers"] = httpHeaders
+    }
+    if !releaseDate.isEmpty { customData["releaseDate"] = releaseDate }
+    if !studio.isEmpty      { customData["studio"]      = studio      }
+
+    // ── MediaInformation ───────────────────────────────────────────────────
+    let mediaInfoBuilder = GCKMediaInformationBuilder(contentURL: url)
+    mediaInfoBuilder.contentType    = mimeType
+    mediaInfoBuilder.metadata       = metadata
+    mediaInfoBuilder.streamType     = isLive ? .live : .buffered
+
+    if !isLive && durationMs > 0 {
+        mediaInfoBuilder.streamDuration = TimeInterval(durationMs) / 1000.0
+    }
+    if !tracks.isEmpty {
+        mediaInfoBuilder.mediaTracks = tracks
+    }
+    if !customData.isEmpty {
+        mediaInfoBuilder.customData = customData
+    }
+
+    let mediaInfo = mediaInfoBuilder.build()
+
+    // ── Load request ───────────────────────────────────────────────────────
+    let requestDataBuilder = GCKMediaLoadRequestDataBuilder()
+    requestDataBuilder.mediaInformation = mediaInfo
+    requestDataBuilder.autoplay         = true
+    requestDataBuilder.startTime        = TimeInterval(positionMs) / 1000.0
+
+    // credentials-аар дамжуулна
+    if !httpHeaders.isEmpty {
+        if let authHeader = httpHeaders["Authorization"] {
+            requestDataBuilder.credentials = authHeader
+        }
+        // Бүх header-г JSON болгон credentials-т хийнэ
+        if let jsonData = try? JSONSerialization.data(withJSONObject: httpHeaders),
+           let jsonStr = String(data: jsonData, encoding: .utf8) {
+            requestDataBuilder.credentials = jsonStr
+            requestDataBuilder.credentialsType = "headers"
+        }
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
+    if !activeTrackIDs.isEmpty {
+        requestDataBuilder.activeTrackIDs = activeTrackIDs
+    }
+
+    let requestData = requestDataBuilder.build()
+    remoteMediaClient.loadMedia(with: requestData)
+    result(true)
+}
 
     // ── EventChannel ───────────────────────────────────────────────────────
     public func onListen(
