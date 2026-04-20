@@ -56,14 +56,14 @@ class ExamplePlayerPage extends StatefulWidget {
 
 class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
   SenzuPlayerBundle? _externalBundle;
-  SenzuCastController? _cast;
+  // SenzuCastController? _cast;
   int currentIndex = 1;
   int total = 10;
 
   @override
   void initState() {
     super.initState();
-    _cast = SenzuCastController()..onInit();
+    // _cast = SenzuCastController()..onInit();
     // Programmatic / sleep / annotation mode-д гадаас bundle үүсгэнэ
     if (widget.mode == PlayerMode.programmatic ||
         widget.mode == PlayerMode.sleepTimer ||
@@ -73,7 +73,7 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
         onQualityChanged: (q) => debugPrint('[ABR] Quality → $q'),
       );
     }
-    log('Cast controller created: $_cast');
+    // log('Cast controller created: $_cast');
   }
 
   @override
@@ -84,7 +84,7 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
       overlays: SystemUiOverlay.values,
     );
     _externalBundle?.dispose();
-    _cast?.onClose();
+    // _cast?.onClose();
     super.dispose();
   }
 
@@ -393,7 +393,7 @@ class _ExamplePlayerPageState extends State<ExamplePlayerPage> {
             // ── Player ──────────────────────────────────────────────────────
             SenzuPlayer(
               source: _sources,
-              castController: _cast,
+              // castController: _cast,
               autoPlay: true,
               seekTo: Duration.zero,
               isLive: false,

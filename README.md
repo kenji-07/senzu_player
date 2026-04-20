@@ -1,32 +1,40 @@
 # senzu_player
 
-[![pub version](https://img.shields.io/pub/v/senzu_player.svg)](https://pub.dev/packages/senzu_player)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20Android-lightgrey.svg)]()
+A powerful, feature-rich Flutter video player plugin built on top of **AVPlayer** (iOS) and **ExoPlayer / Media3** (Android).
 
-A feature-rich Flutter video player backed by **AVPlayer (iOS)** and **ExoPlayer / Media3 (Android)**.  
-Designed for streaming apps — supports HLS, DASH, DRM, live streams, ads, subtitles, chapters, PiP, and more.
+[![pub version](https://img.shields.io/pub/v/senzu_player.svg)](https://pub.dev/packages/senzu_player)
+[![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20Android-blue)](https://pub.dev/packages/senzu_player)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
 ## Features
 
-| Category | Details |
-|---|---|
-| **Formats** | HLS, DASH, MP4 |
-| **DRM** | FairPlay (iOS), Widevine (Android) |
-| **Subtitles** | VTT, SRT, encrypted (AES-128), HLS auto-detect |
-| **Ads** | Custom inline ads, IMA SDK (VAST/VMAP) |
-| **Live** | DVR, low-latency, auto-reconnect |
-| **PiP** | iOS 14+ / Android 8+ |
-| **Lock screen** | Now Playing controls on iOS & Android |
-| **Chapters** | OP/ED skip buttons, progress bar markers |
-| **Annotations** | Timed overlay widgets |
-| **Watermark** | Animated user ID / timestamp overlay |
-| **ABR** | Automatic quality switching by buffer health |
-| **Token refresh** | Auto-refresh signed URLs before expiry |
-| **Sleep timer** | Countdown with fade-out |
-| **Device** | Volume, brightness, battery, wakelock, secure mode, HDR |
+| Feature | iOS | Android |
+|---|---|---|
+| HLS / DASH / MP4 | ✅ | ✅ |
+| FairPlay DRM | ✅ | — |
+| Widevine DRM | — | ✅ |
+| Picture-in-Picture | ✅ | ✅ (API 26+) |
+| Now Playing / Lock Screen | ✅ | ✅ |
+| Google Cast (Chromecast) | ✅ | ✅ |
+| HDR playback | ✅ | ✅ |
+| Low-latency live | ✅ | ✅ |
+| Adaptive Bitrate (ABR) | ✅ | ✅ |
+| Audio track selection | ✅ | ✅ |
+| Subtitles (WebVTT / SRT) | ✅ | ✅ |
+| Encrypted subtitles (AES) | ✅ | ✅ |
+| Chapters & skip OP/ED | ✅ | ✅ |
+| Annotations overlay | ✅ | ✅ |
+| Watermark overlay | ✅ | ✅ |
+| Sleep timer | ✅ | ✅ |
+| Token / signed URL refresh | ✅ | ✅ |
+| Cellular data warning | ✅ | ✅ |
+| Thumbnail sprite preview | ✅ | ✅ |
+| Fullscreen overlay | ✅ | ✅ |
+| Secure mode (screenshot block) | ✅ | ✅ |
+| Volume / brightness gesture | ✅ | ✅ |
+| Long-press 2× speed | ✅ | ✅ |
 
 ---
 
@@ -39,58 +47,78 @@ dependencies:
 
 ### iOS
 
-Add to `ios/Runner/Info.plist`:
+Minimum iOS version: **14.0**
+
+Add the following to your `Info.plist`:
 
 ```xml
+<!-- Background audio -->
 <key>UIBackgroundModes</key>
 <array>
   <string>audio</string>
 </array>
+
+<!-- Allow HTTP (if needed) -->
+<key>NSAppTransportSecurity</key>
+<dict>
+  <key>NSAllowsArbitraryLoads</key>
+  <true/>
+</dict>
 ```
 
-In **Xcode → Signing & Capabilities**, add:
-- **Background Modes** → ✅ Audio, AirPlay, and Picture in Picture
+Add to `Podfile`:
 
-Minimum deployment target: **iOS 14.0**
+```ruby
+platform :ios, '14.0'
+```
 
 ### Android
 
-In `android/app/src/main/AndroidManifest.xml`:
+Minimum SDK: **21**
+
+Add to `AndroidManifest.xml`:
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
-<activity
-  ...
-  android:supportsPictureInPicture="true"
-  android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation">
+<!-- Inside <application> — required for Google Cast -->
+<meta-data
+    android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+    android:value="dev.senzu.senzu_player.SenzuCastOptionsProvider" />
 ```
-
-Minimum SDK: **21**
 
 ---
 
-## Quick Start
+## Basic Usage
 
 ```dart
 import 'package:senzu_player/senzu_player.dart';
 
 SenzuPlayer(
   source: {
-    '1080p': VideoSource.fromUrl('https://example.com/video.m3u8'),
-    '720p':  VideoSource.fromUrl('https://example.com/video_720.m3u8'),
+    'Auto': VideoSource.fromUrl('https://example.com/stream.m3u8'),
   },
-  autoPlay: true,
-  looping: false,
+)
+```
+
+### Multiple quality sources
+
+```dart
+SenzuPlayer(
+  source: {
+    '1080p': VideoSource.fromUrl('https://example.com/1080p.m3u8'),
+    '720p':  VideoSource.fromUrl('https://example.com/720p.m3u8'),
+    '480p':  VideoSource.fromUrl('https://example.com/480p.m3u8'),
+  },
   defaultAspectRatio: 16 / 9,
 )
 ```
 
-### Auto-detect qualities from a master playlist
+### Auto-parse quality from M3U8 playlist
 
 ```dart
 final sources = await VideoSource.fromM3u8PlaylistUrl(
@@ -103,54 +131,66 @@ SenzuPlayer(source: sources)
 
 ---
 
-## Usage Examples
+## Advanced Usage
 
-### DRM (FairPlay / Widevine)
+### DRM
+
+**FairPlay (iOS)**
 
 ```dart
 VideoSource.fromUrl(
-  'https://example.com/protected.m3u8',
+  'https://example.com/stream.m3u8',
   drm: SenzuDrmConfig.fairPlay(
-    licenseUrl: 'https://license.example.com/fps',
+    licenseUrl:     'https://license.example.com/fps',
     certificateUrl: 'https://license.example.com/cert',
-    headers: {'Authorization': 'Bearer TOKEN'},
+    headers: {'Authorization': 'Bearer token'},
   ),
 )
 ```
 
+**Widevine (Android)**
+
 ```dart
-VideoSource.fromUrl(
-  'https://example.com/protected.mpd',
+VideoSource.fromDashUrl(
+  'https://example.com/stream.mpd',
   drm: SenzuDrmConfig.widevine(
     licenseUrl: 'https://license.example.com/widevine',
-    headers: {'X-Custom-Header': 'value'},
+    headers: {'Authorization': 'Bearer token'},
   ),
 )
 ```
+
+---
 
 ### Subtitles
 
 ```dart
 VideoSource.fromUrl(
-  'https://example.com/video.m3u8',
+  'https://example.com/stream.m3u8',
   subtitle: {
-    'English': SenzuPlayerSubtitle.network('https://example.com/en.vtt'),
-    'Korean':  SenzuPlayerSubtitle.network('https://example.com/ko.vtt'),
+    'English': SenzuPlayerSubtitle.network(
+      'https://example.com/en.vtt',
+    ),
+    'Mongolian': SenzuPlayerSubtitle.network(
+      'https://example.com/mn.vtt',
+    ),
   },
   initialSubtitle: 'English',
 )
 ```
 
-### Chapters & Skip Buttons
+---
+
+### Chapters (Skip OP / ED)
 
 ```dart
 SenzuPlayer(
   source: sources,
   chapters: SenzuChapter.fromSkipRanges(
-    opStart: Duration(seconds: 90),
-    opEnd:   Duration(seconds: 180),
-    edStart: Duration(minutes: 22),
-    edEnd:   Duration(minutes: 23, seconds: 30),
+    opStart: const Duration(seconds: 5),
+    opEnd:   const Duration(seconds: 95),
+    edStart: const Duration(minutes: 22),
+    edEnd:   const Duration(minutes: 23, seconds: 30),
   ),
 )
 ```
@@ -159,56 +199,57 @@ Or define chapters manually:
 
 ```dart
 chapters: [
-  SenzuChapter(startMs: 0,       title: 'Intro'),
-  SenzuChapter(startMs: 90000,   title: 'OP',  isSkippable: true, skipToMs: 180000),
-  SenzuChapter(startMs: 180000,  title: 'Act 1'),
-  SenzuChapter(startMs: 1320000, title: 'ED',  isSkippable: true, skipToMs: 1410000),
-],
+  SenzuChapter(startMs: 0,       title: 'Intro',    isSkippable: false),
+  SenzuChapter(startMs: 5000,    title: 'OP',       isSkippable: true, skipToMs: 95000),
+  SenzuChapter(startMs: 95000,   title: 'Episode'),
+  SenzuChapter(startMs: 1320000, title: 'ED',       isSkippable: true, skipToMs: 1410000),
+]
 ```
 
-### Inline Ads
+---
+
+### Google Cast (Chromecast)
 
 ```dart
-VideoSource.fromUrl(
-  'https://example.com/video.m3u8',
-  ads: [
-    SenzuPlayerAd(
-      child: MyAdWidget(),
-      fractionToStart: 0.1,   // 10% into the video
-      durationToSkip: Duration(seconds: 5),
-      deepLink: 'https://advertiser.example.com',
-    ),
-  ],
-)
-```
+// 1. Create controller
+final castController = SenzuCastController();
 
-### IMA SDK (VAST/VMAP)
-
-```dart
+// 2. Pass to SenzuPlayer
 SenzuPlayer(
   source: sources,
-  imaAdTagUrl: 'https://pubads.g.doubleclick.net/gampad/ads?...',
+  castController: castController,
+  meta: SenzuMetaData(
+    title: 'My Video',
+    description: 'Episode 1',
+  ),
 )
 ```
 
-### Live Stream
+The cast button appears automatically in the top controls. Tapping it opens a device picker panel. Once connected, playback transfers seamlessly to the Chromecast receiver and returns to local playback when disconnected.
+
+**Custom cast media**
 
 ```dart
-SenzuPlayer(
-  source: {'Live': VideoSource.fromUrl('https://example.com/live.m3u8')},
-  isLive: true,
-)
+await castController.switchToCast(
+  media: SenzuCastMedia(
+    url:         'https://example.com/stream.m3u8',
+    title:       'My Video',
+    description: 'Episode 1',
+    posterUrl:   'https://example.com/poster.jpg',
+    positionMs:  30000,
+    availableSubtitles: [
+      CastSubtitleTrack(id: 1001, language: 'en', name: 'English', url: 'https://example.com/en.vtt'),
+    ],
+    availableQualities: [
+      CastQualityOption(label: '1080p', url: 'https://example.com/1080p.m3u8'),
+      CastQualityOption(label: '720p',  url: 'https://example.com/720p.m3u8'),
+    ],
+  ),
+  currentPosition: Duration(seconds: 30),
+);
 ```
 
-### Low-Latency Live
-
-```dart
-VideoSource.fromUrl(
-  'https://example.com/ll-hls.m3u8',
-  isLowLatency: true,
-  targetLatencyMs: 2000,
-)
-```
+---
 
 ### Watermark
 
@@ -216,45 +257,81 @@ VideoSource.fromUrl(
 SenzuPlayer(
   source: sources,
   watermark: SenzuWatermark(
-    userId: 'user_12345',
-    position: WatermarkPosition.random,
-    moveDuration: Duration(seconds: 30),
+    userId:        'user_123',
+    showTimestamp: true,
+    opacity:       0.18,
+    position:      WatermarkPosition.random,
+    moveDuration:  Duration(seconds: 30),
   ),
 )
 ```
 
-### Token Auto-Refresh
+---
 
-```dart
-SenzuPlayer(
-  source: sources,
-  tokenConfig: SenzuTokenConfig(
-    refreshBeforeExpirySec: 60,
-    onRefresh: (sourceName, currentHeaders) async {
-      final data = await myApi.refreshSignedUrl(sourceName);
-      return {'url': data.url, 'Authorization': 'Bearer ${data.token}'};
-    },
-  ),
-)
-```
-
-### Timed Annotations
+### Annotations
 
 ```dart
 SenzuPlayer(
   source: sources,
   annotations: [
     SenzuAnnotation(
-      id: 'subscribe',
-      text: '👍 Subscribe!',
+      id:          'promo_1',
+      text:        '🎁 Special offer!',
       appearAt:    Duration(seconds: 30),
-      disappearAt: Duration(seconds: 35),
-      alignment: Alignment.topRight,
-      onTap: () => openSubscribePage(),
+      disappearAt: Duration(seconds: 40),
+      alignment:   Alignment.topRight,
+      onTap:       () => launchUrl(Uri.parse('https://example.com')),
     ),
   ],
 )
 ```
+
+---
+
+### Sleep Timer
+
+```dart
+// Start a 30-minute sleep timer
+bundle.sleepTimer.start(Duration(minutes: 30));
+
+// Cancel
+bundle.sleepTimer.stop();
+```
+
+---
+
+### Token / Signed URL Refresh
+
+```dart
+SenzuPlayer(
+  source: sources,
+  tokenConfig: SenzuTokenConfig(
+    refreshBeforeExpirySec: 60,
+    onRefresh: (sourceName, headers) async {
+      final newUrl = await myApi.refreshSignedUrl(sourceName);
+      return {'url': newUrl, 'Authorization': 'Bearer newtoken'};
+    },
+  ),
+)
+```
+
+---
+
+### Thumbnail Sprite Preview
+
+```dart
+VideoSource.fromUrl(
+  'https://example.com/stream.m3u8',
+  thumbnailSprite: SenzuThumbnailSprite(
+    url:         'https://example.com/thumbnails.jpg',
+    columns:     10,
+    rows:        10,
+    intervalSec: 10,
+  ),
+)
+```
+
+---
 
 ### Cellular Data Policy
 
@@ -262,156 +339,105 @@ SenzuPlayer(
 SenzuPlayer(
   source: sources,
   dataPolicy: SenzuDataPolicy(
-    warnOnCellular: true,
+    warnOnCellular:      true,
     dataSaverOnCellular: true,
     dataSaverQualityKey: '480p',
   ),
 )
 ```
 
-### Sleep Timer
-
-Accessible via the clock icon in the top overlay — no extra code needed.
-
 ---
 
-## Advanced: External Bundle
-
-For full programmatic control, create and manage the bundle yourself:
+### Controlling playback externally
 
 ```dart
-final bundle = SenzuPlayerBundle.create(
-  looping: false,
-  adaptiveBitrate: true,
-  notification: true,
-  watermark: SenzuWatermark(userId: 'user_123'),
-);
+// Create and hold the bundle
+final bundle = SenzuPlayerBundle.create();
 
-await bundle.core.initialize(sources, autoPlay: true);
-
-// Seek, speed, quality...
-await bundle.core.seekTo(Duration(minutes: 5));
-await bundle.core.setPlaybackSpeed(1.5);
-bundle.core.changeSource(name: '720p', source: sources['720p']!);
-
-// Always dispose
-bundle.dispose();
-```
-
-Pass it to the widget:
-
-```dart
 SenzuPlayer(
   source: sources,
-  bundle: bundle,   // widget won't own/dispose it
+  bundle: bundle,
 )
+
+// Control from outside
+bundle.core.play();
+bundle.core.pause();
+bundle.core.seekTo(Duration(minutes: 5));
+bundle.core.setPlaybackSpeed(1.5);
 ```
 
 ---
 
-## Customization
-
-### Style
+### Localization
 
 ```dart
 SenzuPlayer(
   source: sources,
   style: SenzuPlayerStyle(
-    progressBarStyle: SenzuProgressBarStyle(
-      color: Colors.blue,
-      height: 3.0,
+    senzuLanguage: SenzuLanguage(
+      live:               'ШУУД',
+      quality:            'Чанар',
+      subtitles:          'Хадмал',
+      playbackSpeed:      'Тоглуулах хурд',
+      sleepTimer:         'Унтах цаг',
+      failedToLoad:       'Видео ачааллахад алдаа гарлаа',
+      retry:              'Дахин оролдох',
+      cellularWarningTitle: 'Мобайл дата ашиглаж байна',
+      cellularWarningBody:  'Видео стриминг мобайл дата зарцуулна.',
     ),
-    centerButtonStyle: SenzuCenterButtonStyle(
-      circleSize: 56,
-      circleColor: Colors.black54,
-    ),
-    thumbnail: Image.network('https://example.com/thumb.jpg', fit: BoxFit.cover),
-    onNextEpisode: () => goToNext(),
-    onPrevEpisode: () => goToPrev(),
-    hasPrevEpisode: currentIndex > 0,
-    hasNextEpisode: currentIndex < total - 1,
-  ),
-)
-```
-
-### Localization
-
-```dart
-SenzuPlayerStyle(
-  senzuLanguage: SenzuLanguage(
-    quality: '화질',
-    speed: '배속',
-    subtitle: '자막',
-    live: '라이브',
-    skipOp: 'OP 건너뛰기',
-    skipAd: '광고 건너뛰기',
-    // ... all strings customizable
   ),
 )
 ```
 
 ---
 
-## Feature Flags
+## SenzuPlayer Parameters
 
-```dart
-SenzuPlayer(
-  source: sources,
-  enableFullscreen: true,
-  enableCaption:    true,
-  enableQuality:    true,
-  enableAudio:      false,
-  enableSpeed:      true,
-  enableAspect:     true,
-  enableLock:       true,
-  enablePip:        true,
-  enableEpisode:    false,
-  notification:     true,
-  secureMode:       false,
-  adaptiveBitrate:  true,
-)
-```
-
----
-
-## Architecture
-
-```
-SenzuPlayerBundle
-├── SenzuCoreController       # Source management, native bridge, lifecycle
-├── SenzuPlaybackController   # Position, duration, buffering, drag
-├── SenzuUIController         # Overlay, panels, chapters, skip buttons
-├── SenzuSubtitleController   # VTT/SRT parsing, O(log n) lookup
-├── SenzuAdController         # Inline ads, IMA SDK
-├── SenzuStreamController     # ABR, live edge / DVR tracking
-├── SenzuDeviceController     # Volume, brightness, battery
-├── SenzuSleepTimerController # Countdown + fade animation
-└── SenzuAnnotationController # Timed annotation overlay
-
-Native Layer
-├── iOS:     SenzuAVPlayerManager, SenzuDrmManager (FairPlay), SenzuSurfaceViewFactory
-└── Android: SenzuExoPlayerManager, SenzuDrmManager (Widevine), SenzuMediaSessionManager, SenzuPipManager
-```
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `source` | `Map<String, VideoSource>` | required | Video sources by quality label |
+| `seekTo` | `Duration` | `Duration.zero` | Initial seek position |
+| `looping` | `bool` | `false` | Loop playback |
+| `autoPlay` | `bool` | `true` | Auto-start playback |
+| `isLive` | `bool?` | `null` | Force live stream mode |
+| `style` | `SenzuPlayerStyle?` | default | UI style configuration |
+| `meta` | `SenzuMetaData?` | default | Title/description metadata |
+| `chapters` | `List<SenzuChapter>` | `[]` | Chapter markers |
+| `annotations` | `List<SenzuAnnotation>` | `[]` | Tappable overlay annotations |
+| `watermark` | `SenzuWatermark?` | `null` | Floating watermark |
+| `defaultAspectRatio` | `double` | `16/9` | Player aspect ratio |
+| `enableFullscreen` | `bool` | `true` | Fullscreen button |
+| `enableCaption` | `bool` | `true` | Subtitle panel |
+| `enableQuality` | `bool` | `true` | Quality panel |
+| `enableAudio` | `bool` | `false` | Audio track panel |
+| `enableSpeed` | `bool` | `true` | Playback speed panel |
+| `enableAspect` | `bool` | `true` | Aspect ratio panel |
+| `enableLock` | `bool` | `true` | Screen lock button |
+| `enablePip` | `bool` | `true` | Picture-in-Picture |
+| `enableSleep` | `bool` | `true` | Sleep timer panel |
+| `enableEpisode` | `bool` | `true` | Episode panel |
+| `notification` | `bool` | `true` | Lock screen / Now Playing |
+| `secureMode` | `bool` | `false` | Block screenshots |
+| `adaptiveBitrate` | `bool` | `true` | Auto quality switching |
+| `dataPolicy` | `SenzuDataPolicy` | default | Cellular data behavior |
+| `tokenConfig` | `SenzuTokenConfig?` | `null` | Signed URL auto-refresh |
+| `imaAdTagUrl` | `String?` | `null` | Google IMA VAST ad tag URL |
+| `castController` | `SenzuCastController?` | `null` | Google Cast controller |
+| `bundle` | `SenzuPlayerBundle?` | `null` | External controller bundle |
 
 ---
 
 ## Requirements
 
-| Platform | Minimum |
+| Platform | Minimum version |
 |---|---|
 | iOS | 14.0 |
-| Android | API 21 (Lollipop) |
-| Flutter | 3.41.0 |
-| Dart | 3.8.0 |
+| Android | API 21 (Android 5.0) |
+| Flutter | 3.x |
+| Dart | 3.x |
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
-
----
-
-## Contributing
-
-Issues and pull requests are welcome at [github.com/kenji-07/senzu_player](https://github.com/kenji-07/senzu_player).
+MIT License — see [LICENSE](LICENSE) for details.

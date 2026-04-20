@@ -394,7 +394,8 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     await SenzuNativeChannel.setNowPlayingMetadata(
       title: _meta?.title ?? name,
       artist: _meta?.description ?? '',
-      artwork: 'https://image.tmdb.org/t/p/original/cm2oUAPiTE1ERoYYOzzgloQw4YZ.jpg',
+      artwork:
+          'https://image.tmdb.org/t/p/original/cm2oUAPiTE1ERoYYOzzgloQw4YZ.jpg',
       isLive: isLive,
     );
 
@@ -445,7 +446,8 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     final src = srcs[name];
     if (src == null) return;
 
-    // Native player байхгүй тул changeSource дахин initialize хийнэ
+    rxActiveSource.value = null;
+
     await changeSource(
       name: name,
       source: src,
@@ -455,11 +457,23 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
 
     if (_disposed) return;
 
-    // Resume position-оос эхлүүлнэ
+    if (isChangingSource.value) {
+      await Future.doWhile(() async {
+        await Future.delayed(const Duration(milliseconds: 100));
+        return isChangingSource.value;
+      });
+    }
+
+    if (_disposed) return;
+
     if (resumePos > Duration.zero) {
       await seekTo(resumePos + beginRange);
     }
+
     await play();
+
+    // Notification дахин идэвхжүүлнэ
+    await SenzuNativeChannel.setNowPlayingEnabled(notification);
   }
 
   /// Одоогийн source-г cast руу илгээх — meta автоматаар дүүргэнэ
@@ -571,13 +585,17 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     switch (state) {
       case SenzuCastState.connected:
         isCastActive.value = true;
+        SenzuNativeChannel.setNowPlayingEnabled(false);
         final savedPosition = rxNativeState.value.position;
         _releaseNative();
         castCurrentSource(overridePosition: savedPosition);
 
       case SenzuCastState.notConnected:
-        if (isCastActive.value) {
-          isCastActive.value = false;
+        // isCastActive шалгалтгүйгээр үргэлж resume хийнэ
+        final wasActive = isCastActive.value;
+        isCastActive.value = false;
+        if (wasActive) {
+          SenzuNativeChannel.setNowPlayingEnabled(notification);
           final resumePos = _castController?.resumePosition ?? Duration.zero;
           _resumeLocalPlayback(resumePos);
         }

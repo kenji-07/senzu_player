@@ -5,6 +5,14 @@ All notable changes to **senzu_player** will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
+ 
+## [1.0.0] - 2025-04-20
+ 
+### Added
+ 
+#### Google Cast (Chromecast) support
+
+---
 
 ## [1.0.0] - 2026-04-18
 
