@@ -394,8 +394,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     await SenzuNativeChannel.setNowPlayingMetadata(
       title: _meta?.title ?? name,
       artist: _meta?.description ?? '',
-      artwork:
-          'https://image.tmdb.org/t/p/original/cm2oUAPiTE1ERoYYOzzgloQw4YZ.jpg',
+      artwork: _meta?.posterUrl ?? '',
       isLive: isLive,
     );
 
@@ -492,6 +491,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
 
     final title = _meta?.title ?? sourceName;
     final description = _meta?.description ?? '';
+    final posterUrl = _meta?.posterUrl ?? '';
 
     final castIsLive = _explicitIsLive ?? isLiveRx.value;
     final castDurationMs = rxNativeState.value.duration.inMilliseconds;
@@ -553,8 +553,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
       url: source.dataSource,
       title: title,
       description: description,
-      posterUrl:
-          'https://image.tmdb.org/t/p/original/cm2oUAPiTE1ERoYYOzzgloQw4YZ.jpg',
+      posterUrl: posterUrl,
       positionMs: currentPosition.inMilliseconds,
       durationMs: castDurationMs,
       isLive: castIsLive,

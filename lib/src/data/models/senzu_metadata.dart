@@ -5,6 +5,7 @@ class SenzuMetaData {
     this.show = true,
     this.title,
     this.description,
+    this.posterUrl,
     this.icon = Icons.arrow_back,
     this.iconColor = Colors.white,
     this.iconSize = 20,
@@ -23,6 +24,7 @@ class SenzuMetaData {
   final bool? show;
   final String? title;
   final String? description;
+  final String? posterUrl;
   final IconData? icon;
   final Color? iconColor;
   final double? iconSize;

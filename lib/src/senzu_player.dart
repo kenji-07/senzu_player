@@ -41,7 +41,7 @@ class SenzuPlayer extends StatefulWidget {
     required this.source,
     this.seekTo = Duration.zero,
     this.looping = false,
-    this.autoPlay = true,
+    this.autoPlay = false,
     this.isLive,
     this.style,
     this.meta,
@@ -69,8 +69,9 @@ class SenzuPlayer extends StatefulWidget {
     this.watermark,
     this.tokenConfig,
     this.imaAdTagUrl,
-    this.annotations = const [],
     this.bundle,
+    this.annotations = const [],
+    this.isTv = false,
     this.castController,
   });
 
@@ -104,6 +105,7 @@ class SenzuPlayer extends StatefulWidget {
   final bool notification;
   final bool secureMode;
   final bool enableLockScreen;
+  final bool isTv;
 
   final String? imaAdTagUrl;
 

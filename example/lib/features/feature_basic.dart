@@ -22,8 +22,22 @@ class FeatureBasicPage extends StatelessWidget {
             SenzuPlayer(
               source: {
                 'Auto': VideoSource.fromUrl(
-                  'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
-                ),
+                    'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+                    subtitle: {
+                      'English': SenzuPlayerSubtitle.network(
+                        'https://vjs.zencdn.net/v/oceans.vtt',
+                        type: SubtitleType.webvtt,
+                      ),
+                      'Mongolia': SenzuPlayerSubtitle.network(
+                        'https://raw.githubusercontent.com/videojs/video.js/main/docs/examples/shared/example-captions.vtt',
+                        type: SubtitleType.webvtt,
+                      ),
+                      'Test': SenzuPlayerSubtitle.network(
+                        'https://raw.githubusercontent.com/shaka-project/shaka-player/main/test/test/assets/text-clip.vtt',
+                        type: SubtitleType.webvtt,
+                      ),
+                    },
+                    initialSubtitle: 'English'),
               },
               defaultAspectRatio: 16 / 9,
               meta: const SenzuMetaData(
@@ -38,7 +52,7 @@ class FeatureBasicPage extends StatelessWidget {
             SenzuPlayer(
               source: {
                 'HD': VideoSource.fromFile(
-                  '/sdcard/Download/sample.mp4',
+                  '/images/testvideo.mp4',
                 ),
               },
               defaultAspectRatio: 16 / 9,
@@ -51,7 +65,7 @@ class FeatureBasicPage extends StatelessWidget {
             SenzuPlayer(
               source: {
                 'Auto': VideoSource.fromUrl(
-                  'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
+                  'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
                 ),
               },
               looping: true,
@@ -65,8 +79,22 @@ class FeatureBasicPage extends StatelessWidget {
             SenzuPlayer(
               source: {
                 'Auto': VideoSource.fromUrl(
-                  'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
-                ),
+                    'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+                    subtitle: {
+                      'English': SenzuPlayerSubtitle.network(
+                        'https://vjs.zencdn.net/v/oceans.vtt',
+                        type: SubtitleType.webvtt,
+                      ),
+                      'Mongolia': SenzuPlayerSubtitle.network(
+                        'https://raw.githubusercontent.com/videojs/video.js/main/docs/examples/shared/example-captions.vtt',
+                        type: SubtitleType.webvtt,
+                      ),
+                      'Test': SenzuPlayerSubtitle.network(
+                        'https://raw.githubusercontent.com/shaka-project/shaka-player/main/test/test/assets/text-clip.vtt',
+                        type: SubtitleType.webvtt,
+                      ),
+                    },
+                    initialSubtitle: 'English'),
               },
               seekTo: const Duration(minutes: 1),
               defaultAspectRatio: 16 / 9,
@@ -79,7 +107,7 @@ class FeatureBasicPage extends StatelessWidget {
             SenzuPlayer(
               source: {
                 'Auto': VideoSource.fromUrl(
-                  'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
+                  'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
                 ),
               },
               defaultAspectRatio: 4 / 3,

@@ -42,7 +42,7 @@ class FeatureChaptersPage extends StatelessWidget {
             SenzuPlayer(
               source: {
                 'Auto': VideoSource.fromUrl(
-                  'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
+                  'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
                 ),
               },
               chapters: _skipRangeChapters,
@@ -61,7 +61,7 @@ class FeatureChaptersPage extends StatelessWidget {
             SenzuPlayer(
               source: {
                 'Auto': VideoSource.fromUrl(
-                  'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
+                  'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
                 ),
               },
               chapters: _manualChapters,

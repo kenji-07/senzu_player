@@ -26,7 +26,7 @@ class _FeatureTokenRefreshPageState extends State<FeatureTokenRefreshPage> {
     final fakeExpiry =
         (DateTime.now().millisecondsSinceEpoch ~/ 1000) + 30;
     final newUrl =
-        'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8?exp=$fakeExpiry&sig=fake_sig_$_refreshCount';
+        'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8?exp=$fakeExpiry&sig=fake_sig_$_refreshCount';
     _addLog('Refreshed! count=$_refreshCount exp=$fakeExpiry');
     return {
       'url': newUrl,
@@ -39,7 +39,7 @@ class _FeatureTokenRefreshPageState extends State<FeatureTokenRefreshPage> {
     // Build a URL with a fake 30-second expiry
     final expiry = (DateTime.now().millisecondsSinceEpoch ~/ 1000) + 30;
     final signedUrl =
-        'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8?exp=$expiry&sig=initial_sig';
+        'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8?exp=$expiry&sig=initial_sig';
 
     return Scaffold(
       backgroundColor: Colors.black,

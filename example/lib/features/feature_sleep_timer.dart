@@ -37,7 +37,7 @@ class _FeatureSleepTimerPageState extends State<FeatureSleepTimerPage> {
             SenzuPlayer(
               source: {
                 'Auto': VideoSource.fromUrl(
-                  'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
+                  'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
                 ),
               },
               bundle: _bundle,

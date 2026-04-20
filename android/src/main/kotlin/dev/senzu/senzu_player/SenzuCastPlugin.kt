@@ -10,9 +10,6 @@ import com.google.android.gms.cast.MediaStatus
 import com.google.android.gms.cast.MediaTrack
 import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.cast.framework.CastSession
-import com.google.android.gms.cast.framework.DiscoveryManager
-import com.google.android.gms.cast.framework.Session
-import com.google.android.gms.cast.framework.SessionManager
 import com.google.android.gms.cast.framework.SessionManagerListener
 import com.google.android.gms.cast.framework.media.RemoteMediaClient
 import com.google.android.gms.common.images.WebImage
@@ -21,145 +18,72 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONObject
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuCastPlugin (Android)
-// Bridges the Flutter Cast API to the Google Cast SDK on Android.
-// Handles device discovery, session management, media loading, track
-// selection, and emits cast/remote-state events to Flutter.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Android implementation of the Senzu Cast plugin.
- *
- * Implements both [MethodChannel.MethodCallHandler] and [EventChannel.StreamHandler]
- * as well as [SessionManagerListener] to mirror the iOS GCKSessionManagerListener.
- *
- * @param context        Application context.
- * @param methodChannel  Flutter method channel (`senzu_player/cast`).
- * @param eventChannel   Flutter event channel (`senzu_player/cast_events`).
- */
 class SenzuCastPlugin(
     private val context: Context,
-    private val methodChannel: MethodChannel,
-    private val eventChannel: EventChannel,
-) : MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
-
-    // ── Internal state ─────────────────────────────────────────────────────
+) : MethodChannel.MethodCallHandler, EventChannel.StreamHandler,
+    SessionManagerListener<CastSession> {
 
     private var eventSink: EventChannel.EventSink? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pollingRunnable: Runnable? = null
 
-    // Track cache for quality-switch and track-selection continuity
     private var loadedSubtitleTracks: List<Map<String, Any?>> = emptyList()
     private var loadedAudioTracks: List<Map<String, Any?>> = emptyList()
     private var lastLoadArgs: Map<String, Any?>? = null
 
-    // ── Cast SDK accessors ─────────────────────────────────────────────────
-
     private val castContext: CastContext by lazy { CastContext.getSharedInstance(context) }
-    private val sessionManager: SessionManager get() = castContext.sessionManager
-    private val castSession: CastSession? get() = sessionManager.currentCastSession
+    private val castSession: CastSession?
+        get() = castContext.sessionManager.currentCastSession
 
-    // ── Registration ───────────────────────────────────────────────────────
-
-    companion object {
-        /**
-         * Creates and registers a [SenzuCastPlugin] instance on both channels,
-         * then starts Cast device discovery.
-         */
-        fun register(
-            context: Context,
-            methodChannel: MethodChannel,
-            eventChannel: EventChannel,
-        ): SenzuCastPlugin {
-            val instance = SenzuCastPlugin(context, methodChannel, eventChannel)
-            methodChannel.setMethodCallHandler(instance)
-            eventChannel.setStreamHandler(instance)
-
-            try {
-                val castContext = CastContext.getSharedInstance(context)
-                castContext.sessionManager.addSessionManagerListener(
-                    instance,
-                    Session::class.java,
-                )
-                castContext.discoveryManager.startDiscovery()
-                println("SenzuCast: Plugin registered, discovery started")
-            } catch (e: Throwable) {
-                println("SenzuCast: WARNING - CastContext not initialized: ${e.message}")
-            }
-
-            return instance
-        }
-    }
-
-    // ── MethodChannel handler ──────────────────────────────────────────────
+    // ── MethodChannel ──────────────────────────────────────────────────────
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         val args = call.arguments<Map<String, Any?>>()
-
         try {
             when (call.method) {
                 "discoverDevices"  -> discoverDevices(result)
                 "connectToDevice"  -> connectToDevice(args, result)
-
-                // Android uses a native Cast button/dialog managed from Flutter UI.
-                // This no-op keeps API parity with iOS showDevicePicker.
                 "showDevicePicker" -> result.success(true)
-
                 "loadMedia"        -> loadMedia(args, result)
                 "loadQuality"      -> loadQuality(args, result)
-
-                "play"  -> { castSession?.remoteMediaClient?.play();  result.success(null) }
-                "pause" -> { castSession?.remoteMediaClient?.pause(); result.success(null) }
-                "stop"  -> { castSession?.remoteMediaClient?.stop();  result.success(null) }
-
+                "play"   -> { castSession?.remoteMediaClient?.play();  result.success(null) }
+                "pause"  -> { castSession?.remoteMediaClient?.pause(); result.success(null) }
+                "stop"   -> { castSession?.remoteMediaClient?.stop();  result.success(null) }
                 "seekTo" -> {
                     val positionMs = (args?.get("positionMs") as? Number)?.toLong() ?: 0L
                     castSession?.remoteMediaClient?.seek(positionMs)
                     result.success(null)
                 }
-
                 "setActiveTracks" -> {
                     val rawIds = (args?.get("trackIds") as? List<*>)
                         ?.mapNotNull { (it as? Number)?.toLong() } ?: emptyList()
                     setActiveTracks(rawIds)
                     result.success(null)
                 }
-
                 "setSubtitleTrack" -> {
                     val trackId = (args?.get("trackId") as? Number)?.toLong() ?: -1L
                     setSubtitleTrack(trackId)
                     result.success(null)
                 }
-
-                "disableSubtitles" -> {
-                    disableSubtitles()
-                    result.success(null)
-                }
-
+                "disableSubtitles" -> { disableSubtitles(); result.success(null) }
                 "setAudioTrack" -> {
                     val trackId = (args?.get("trackId") as? Number)?.toLong() ?: -1L
                     setAudioTrack(trackId)
                     result.success(null)
                 }
-
                 "setVolume" -> {
                     val volume = (args?.get("volume") as? Number)?.toDouble() ?: 1.0
-                    castSession?.setVolume(volume)
+                    castSession?.volume = volume
                     emitRemoteState()
                     result.success(null)
                 }
-
                 "disconnect" -> {
-                    sessionManager.endCurrentSession(true)
+                    castContext.sessionManager.endCurrentSession(true)
                     result.success(null)
                 }
-
                 "getCastState" -> {
                     result.success(if (castSession != null) "connected" else "notConnected")
                 }
-
                 else -> result.notImplemented()
             }
         } catch (e: Throwable) {
@@ -167,87 +91,92 @@ class SenzuCastPlugin(
         }
     }
 
-    // ── Device discovery ───────────────────────────────────────────────────
+    // ── Discovery ──────────────────────────────────────────────────────────
 
-    /**
-     * Starts discovery and returns the current device list.
-     * Delays 1 second if no devices are found immediately.
-     */
     private fun discoverDevices(result: MethodChannel.Result) {
-        val dm: DiscoveryManager = castContext.discoveryManager
-        dm.startDiscovery()
-
-        if (dm.deviceCount == 0) {
-            mainHandler.postDelayed({ result.success(buildDeviceList(dm)) }, 1000)
-        } else {
-            result.success(buildDeviceList(dm))
+        try {
+            val router = androidx.mediarouter.media.MediaRouter.getInstance(context)
+            val devices = buildDeviceListFromRouter(router)
+            if (devices.isEmpty()) {
+                mainHandler.postDelayed({
+                    result.success(buildDeviceListFromRouter(router))
+                }, 1000)
+            } else {
+                result.success(devices)
+            }
+        } catch (e: Exception) {
+            result.success(emptyList<Map<String, Any?>>())
         }
     }
 
-    /** Connects to a Cast device by its device ID. */
     private fun connectToDevice(args: Map<String, Any?>?, result: MethodChannel.Result) {
         val deviceId = args?.get("deviceId") as? String ?: ""
-        val dm = castContext.discoveryManager
-
-        for (i in 0 until dm.deviceCount) {
-            val device = dm.getDeviceAtIndex(i)
-            if (device?.deviceId == deviceId) {
-                sessionManager.startSession(device)
-                result.success(null)
-                return
+        try {
+            val router = androidx.mediarouter.media.MediaRouter.getInstance(context)
+            for (route in router.routes) {
+                if (route.id == deviceId) {
+                    router.selectRoute(route)
+                    result.success(null)
+                    return
+                }
             }
+            result.error("DEVICE_NOT_FOUND", "Device $deviceId not found", null)
+        } catch (e: Exception) {
+            result.error("CAST_ERROR", e.message, null)
         }
-
-        result.error("DEVICE_NOT_FOUND", "Device $deviceId not found", null)
     }
 
-    /** Converts [DiscoveryManager] results into a list of Flutter-friendly maps. */
-    private fun buildDeviceList(dm: DiscoveryManager): List<Map<String, Any?>> =
-        (0 until dm.deviceCount).mapNotNull { dm.getDeviceAtIndex(it) }.map { d ->
+    private fun buildDeviceListFromRouter(
+    router: androidx.mediarouter.media.MediaRouter
+): List<Map<String, Any?>> {
+    val appId = "519C9F80" // SenzuCastOptionsProvider-тай таарах appId
+    val selector = androidx.mediarouter.media.MediaRouteSelector.Builder()
+        .addControlCategory(
+            com.google.android.gms.cast.CastMediaControlIntent.categoryForCast(appId)
+        )
+        .build()
+    return router.routes
+        .filter { route ->
+            route.matchesSelector(selector) &&
+            route.id != "DEFAULT_ROUTE_ID" &&
+            !route.isDefault
+        }
+        .map { route ->
             mapOf(
-                "deviceId"   to d.deviceId,
-                "deviceName" to (d.friendlyName ?: "Unknown"),
-                "modelName"  to (d.modelName   ?: ""),
+                "deviceId"   to route.id,
+                "deviceName" to route.name,
+                "modelName"  to (route.description ?: ""),
             )
         }
+}
 
     // ── Media loading ──────────────────────────────────────────────────────
 
-    /**
-     * Loads a new media item on the Cast receiver with optional subtitle/audio
-     * tracks and a starting position.
-     */
     private fun loadMedia(args: Map<String, Any?>?, result: MethodChannel.Result) {
-        val session = castSession
-        val client  = session?.remoteMediaClient
-        val url     = args?.get("url") as? String
+        val client = castSession?.remoteMediaClient
+        val url    = args?.get("url") as? String
+        if (client == null || url.isNullOrEmpty()) { result.success(false); return }
 
-        if (client == null || url.isNullOrEmpty()) {
-            result.success(false)
-            return
-        }
+        val title           = args["title"]       as? String  ?: ""
+        val description     = args["description"] as? String  ?: ""
+        val posterUrl       = args["posterUrl"]   as? String  ?: ""
+        val mimeType        = args["mimeType"]    as? String  ?: "application/x-mpegURL"
+        val positionMs      = (args["positionMs"] as? Number)?.toLong() ?: 0L
+        val durationMs      = (args["durationMs"] as? Number)?.toLong() ?: 0L
+        val isLive          = args["isLive"]      as? Boolean ?: false
+        val releaseDate     = args["releaseDate"] as? String  ?: ""
+        val studio          = args["studio"]      as? String  ?: ""
+        val httpHeaders     = args.toStringMap("httpHeaders")
+        val subtitleHeaders = args.toStringMap("subtitleHeaders")
+        val selectedSubId   = (args["selectedSubtitleId"] as? Number)?.toLong()
+        val selectedAudioId = (args["selectedAudioId"]    as? Number)?.toLong()
 
-        val title              = args["title"]       as? String  ?: ""
-        val description        = args["description"] as? String  ?: ""
-        val posterUrl          = args["posterUrl"]   as? String  ?: ""
-        val mimeType           = args["mimeType"]    as? String  ?: "application/x-mpegURL"
-        val positionMs         = (args["positionMs"] as? Number)?.toLong() ?: 0L
-        val durationMs         = (args["durationMs"] as? Number)?.toLong() ?: 0L
-        val isLive             = args["isLive"]      as? Boolean ?: false
-        val releaseDate        = args["releaseDate"] as? String  ?: ""
-        val studio             = args["studio"]      as? String  ?: ""
-        val httpHeaders        = args.toStringMap("httpHeaders")
-        val subtitleHeaders    = args.toStringMap("subtitleHeaders")
-        val selectedSubtitleId = (args["selectedSubtitleId"] as? Number)?.toLong()
-        val selectedAudioId    = (args["selectedAudioId"]    as? Number)?.toLong()
-
-        loadedSubtitleTracks =
-            (args["availableSubtitles"]   as? List<*>)?.filterIsInstance<Map<String, Any?>>() ?: emptyList()
-        loadedAudioTracks =
-            (args["availableAudioTracks"] as? List<*>)?.filterIsInstance<Map<String, Any?>>() ?: emptyList()
+        loadedSubtitleTracks = (args["availableSubtitles"]   as? List<*>)
+            ?.filterIsInstance<Map<String, Any?>>() ?: emptyList()
+        loadedAudioTracks    = (args["availableAudioTracks"] as? List<*>)
+            ?.filterIsInstance<Map<String, Any?>>() ?: emptyList()
         lastLoadArgs = args
 
-        // Build metadata
         val metadata = MediaMetadata(MediaMetadata.MEDIA_TYPE_MOVIE).apply {
             putString(MediaMetadata.KEY_TITLE, title)
             if (description.isNotEmpty()) putString(MediaMetadata.KEY_SUBTITLE, description)
@@ -256,7 +185,6 @@ class SenzuCastPlugin(
             if (posterUrl.isNotEmpty())   addImage(WebImage(android.net.Uri.parse(posterUrl)))
         }
 
-        // Build tracks
         val tracks         = mutableListOf<MediaTrack>()
         val activeTrackIds = mutableListOf<Long>()
 
@@ -264,19 +192,14 @@ class SenzuCastPlugin(
             buildSubtitleTrack(sub, subtitleHeaders)?.let { track ->
                 tracks += track
                 val id = (sub["id"] as? Number)?.toLong()
-                if (selectedSubtitleId != null && id == selectedSubtitleId) {
-                    activeTrackIds += selectedSubtitleId
-                }
+                if (selectedSubId != null && id == selectedSubId) activeTrackIds += selectedSubId
             }
         }
-
         for (audio in loadedAudioTracks) {
             buildAudioTrack(audio)?.let { track ->
                 tracks += track
                 val id = (audio["id"] as? Number)?.toLong()
-                if (selectedAudioId != null && id == selectedAudioId) {
-                    activeTrackIds += selectedAudioId
-                }
+                if (selectedAudioId != null && id == selectedAudioId) activeTrackIds += selectedAudioId
             }
         }
 
@@ -307,118 +230,80 @@ class SenzuCastPlugin(
         result.success(true)
     }
 
-    /**
-     * Reloads the current media at a new URL (quality switch) while preserving
-     * metadata, tracks, and active track selection.
-     */
     private fun loadQuality(args: Map<String, Any?>?, result: MethodChannel.Result) {
-        val session    = castSession
-        val client     = session?.remoteMediaClient
-        val url        = args?.get("url") as? String
+    val client = castSession?.remoteMediaClient
+    val url    = args?.get("url") as? String
+    if (client == null || url.isNullOrEmpty()) { result.success(false); return }
 
-        if (session == null || client == null || url.isNullOrEmpty()) {
-            result.success(false)
-            return
-        }
+    val positionMs  = (args["positionMs"] as? Number)?.toLong() ?: 0L
+    val durationMs  = (args["durationMs"] as? Number)?.toLong() ?: 0L
+    val isLive      = args["isLive"]      as? Boolean ?: false
+    val headers     = args.toStringMap("headers")
+    val activeIds   = client.mediaStatus?.activeTrackIds?.toList() ?: emptyList()
+    val currentInfo = client.mediaInfo
 
-        val positionMs = (args["positionMs"] as? Number)?.toLong()  ?: 0L
-        val durationMs = (args["durationMs"] as? Number)?.toLong()  ?: 0L
-        val isLive     = args["isLive"]      as? Boolean            ?: false
-        val headers    = args.toStringMap("headers")
+    val builder = MediaInfo.Builder(url)
+        .setContentType(currentInfo?.contentType ?: "application/x-mpegURL")
+        .setMetadata(currentInfo?.metadata)
+        .setStreamType(if (isLive) MediaInfo.STREAM_TYPE_LIVE else MediaInfo.STREAM_TYPE_BUFFERED)
 
-        val currentInfo = client.mediaInfo
-        val activeIds   = client.mediaStatus?.activeTrackIds?.toList() ?: emptyList()
+    if (!isLive && durationMs > 0) builder.setStreamDuration(durationMs)
+    else if (!isLive && (currentInfo?.streamDuration ?: 0) > 0)
+        builder.setStreamDuration(currentInfo!!.streamDuration)
 
-        val builder = MediaInfo.Builder(url)
-            .setContentType(currentInfo?.contentType ?: "application/x-mpegURL")
-            .setMetadata(currentInfo?.metadata)
-            .setStreamType(if (isLive) MediaInfo.STREAM_TYPE_LIVE else MediaInfo.STREAM_TYPE_BUFFERED)
+    val existingTracks = currentInfo?.mediaTracks
+    if (!existingTracks.isNullOrEmpty()) builder.setMediaTracks(existingTracks)
 
-        if (!isLive && durationMs > 0) {
-            builder.setStreamDuration(durationMs)
-        } else if (!isLive && (currentInfo?.streamDuration ?: 0) > 0) {
-            builder.setStreamDuration(currentInfo!!.streamDuration)
-        }
+    if (headers.isNotEmpty()) {
+        builder.setCustomData(JSONObject().put("headers", JSONObject(headers)))
+    }
 
-        // Carry over existing tracks, or rebuild from cache
-        val existingTracks = currentInfo?.mediaTracks
-        if (!existingTracks.isNullOrEmpty()) {
-            builder.setMediaTracks(existingTracks)
-        } else {
-            val rebuiltTracks = mutableListOf<MediaTrack>()
-            loadedSubtitleTracks.forEach { buildSubtitleTrack(it, emptyMap())?.let { t -> rebuiltTracks += t } }
-            loadedAudioTracks.forEach    { buildAudioTrack(it)?.let            { t -> rebuiltTracks += t } }
-            if (rebuiltTracks.isNotEmpty()) builder.setMediaTracks(rebuiltTracks)
-        }
+    val pendingResult = client.load(
+        builder.build(),
+        MediaLoadOptions.Builder().setAutoplay(true).setPlayPosition(positionMs).build()
+    )
 
-        if (headers.isNotEmpty()) {
-            builder.setCustomData(JSONObject().put("headers", JSONObject(headers)))
-        }
-
-        val request = client.load(
-            builder.build(),
-            MediaLoadOptions.Builder()
-                .setAutoplay(true)
-                .setPlayPosition(positionMs)
-                .build()
-        )
-
-        // Restore active tracks 500ms after load to ensure the receiver is ready
-        request.setResultCallback { status ->
-            if (status.isSuccess && activeIds.isNotEmpty()) {
+    // isSuccess → setResultCallback дотор RemoteMediaClient.MediaChannelResult ашиглана
+    if (activeIds.isNotEmpty()) {
+        pendingResult.setResultCallback { mediaChannelResult ->
+            if (mediaChannelResult.status.isSuccess && activeIds.isNotEmpty()) {
                 mainHandler.postDelayed({
                     client.setActiveMediaTracks(activeIds.toLongArray())
                 }, 500)
             }
         }
-
-        result.success(true)
     }
+
+    result.success(true)
+}
 
     // ── Track helpers ──────────────────────────────────────────────────────
 
-    /** Builds a subtitle [MediaTrack] from a Flutter track descriptor map. */
-    private fun buildSubtitleTrack(
-        sub: Map<String, Any?>,
-        defaultHeaders: Map<String, String>,
-    ): MediaTrack? {
-        val trackId = (sub["id"] as? Number)?.toLong() ?: return null
-        val subUrl  = sub["url"] as? String            ?: return null
-        val lang    = sub["language"] as? String       ?: "en"
-        val name    = sub["name"]     as? String       ?: "Subtitle"
-
+    private fun buildSubtitleTrack(sub: Map<String, Any?>, defaultHeaders: Map<String, String>): MediaTrack? {
+        val trackId = (sub["id"]  as? Number)?.toLong() ?: return null
+        val subUrl  = sub["url"]  as? String            ?: return null
+        val lang    = sub["language"] as? String        ?: "en"
+        val name    = sub["name"]     as? String        ?: "Subtitle"
         val perSubHeaders = (sub["headers"] as? Map<*, *>)?.mapNotNull {
             val k = it.key as? String; val v = it.value as? String
             if (k != null && v != null) k to v else null
         }?.toMap() ?: defaultHeaders
 
         val builder = MediaTrack.Builder(trackId, MediaTrack.TYPE_TEXT)
-            .setContentId(subUrl)
-            .setContentType("text/vtt")
-            .setSubtype(MediaTrack.SUBTYPE_SUBTITLES)
-            .setLanguage(lang)
-            .setName(name)
-
-        if (perSubHeaders.isNotEmpty()) {
+            .setContentId(subUrl).setContentType("text/vtt")
+            .setSubtype(MediaTrack.SUBTYPE_SUBTITLES).setLanguage(lang).setName(name)
+        if (perSubHeaders.isNotEmpty())
             builder.setCustomData(JSONObject().put("headers", JSONObject(perSubHeaders)))
-        }
-
         return builder.build()
     }
 
-    /** Builds an audio [MediaTrack] from a Flutter track descriptor map. */
     private fun buildAudioTrack(audio: Map<String, Any?>): MediaTrack? {
-        val trackId = (audio["id"]       as? Number)?.toLong() ?: return null
-        val lang    = audio["language"]  as? String            ?: "und"
-        val name    = audio["name"]      as? String            ?: "Audio"
-
+        val trackId = (audio["id"]      as? Number)?.toLong() ?: return null
+        val lang    = audio["language"] as? String            ?: "und"
+        val name    = audio["name"]     as? String            ?: "Audio"
         return MediaTrack.Builder(trackId, MediaTrack.TYPE_AUDIO)
-            .setLanguage(lang)
-            .setName(name)
-            .build()
+            .setLanguage(lang).setName(name).build()
     }
-
-    // ── Active track management ────────────────────────────────────────────
 
     private fun currentActiveTrackIds(): List<Long> =
         castSession?.remoteMediaClient?.mediaStatus?.activeTrackIds?.toList() ?: emptyList()
@@ -433,26 +318,22 @@ class SenzuCastPlugin(
         return currentActiveTrackIds().filter { it in subtitleIds }
     }
 
-    /** Replaces the full active track list with the provided IDs. */
     private fun setActiveTracks(trackIds: List<Long>) {
         castSession?.remoteMediaClient?.setActiveMediaTracks(trackIds.toLongArray())
     }
 
-    /** Activates a subtitle track while preserving the currently active audio track. */
     private fun setSubtitleTrack(trackId: Long) {
         if (trackId < 0) return
         val ids = mutableListOf(trackId) + currentActiveAudioIds()
         castSession?.remoteMediaClient?.setActiveMediaTracks(ids.toLongArray())
     }
 
-    /** Activates an audio track while preserving the currently active subtitle track. */
     private fun setAudioTrack(trackId: Long) {
         if (trackId < 0) return
         val ids = mutableListOf(trackId) + currentActiveSubtitleIds()
         castSession?.remoteMediaClient?.setActiveMediaTracks(ids.toLongArray())
     }
 
-    /** Deactivates all subtitle tracks while keeping the active audio track. */
     private fun disableSubtitles() {
         val audioIds = currentActiveAudioIds()
         castSession?.remoteMediaClient?.setActiveMediaTracks(audioIds.toLongArray())
@@ -463,8 +344,7 @@ class SenzuCastPlugin(
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         eventSink = events
         try {
-            sessionManager.addSessionManagerListener(this, Session::class.java)
-            castContext.discoveryManager.startDiscovery()
+            castContext.sessionManager.addSessionManagerListener(this, CastSession::class.java)
         } catch (e: Throwable) {
             println("SenzuCast: onListen error: ${e.message}")
         }
@@ -478,16 +358,15 @@ class SenzuCastPlugin(
     // ── Event emission ─────────────────────────────────────────────────────
 
     private fun emitCastState(state: String) {
-        mainHandler.post {
-            eventSink?.success(mapOf("type" to "castState", "state" to state))
-        }
+        mainHandler.post { eventSink?.success(mapOf("type" to "castState", "state" to state)) }
     }
 
     private fun emitDevices() {
-        val devices = buildDeviceList(castContext.discoveryManager)
-        mainHandler.post {
-            eventSink?.success(mapOf("type" to "devices", "devices" to devices))
-        }
+        try {
+            val router  = androidx.mediarouter.media.MediaRouter.getInstance(context)
+            val devices = buildDeviceListFromRouter(router)
+            mainHandler.post { eventSink?.success(mapOf("type" to "devices", "devices" to devices)) }
+        } catch (_: Exception) {}
     }
 
     private fun emitRemoteState() {
@@ -513,11 +392,10 @@ class SenzuCastPlugin(
             "isMuted"        to session.isMute,
             "activeTrackIds" to (status.activeTrackIds?.map { it.toInt() } ?: emptyList<Int>()),
         )
-
         mainHandler.post { eventSink?.success(info) }
     }
 
-    // ── Polling (200ms) ────────────────────────────────────────────────────
+    // ── Polling ────────────────────────────────────────────────────────────
 
     private fun startPolling() {
         stopPolling()
@@ -535,44 +413,37 @@ class SenzuCastPlugin(
         pollingRunnable = null
     }
 
-    // ── Track cache helpers ────────────────────────────────────────────────
-
     private fun clearTrackCache() {
         loadedSubtitleTracks = emptyList()
         loadedAudioTracks    = emptyList()
         lastLoadArgs         = null
     }
 
-    // ── SessionManagerListener<Session> ───────────────────────────────────
+    // ── SessionManagerListener<CastSession> ───────────────────────────────
 
-    override fun onSessionStarting(session: Session)                              { emitCastState("connecting") }
-    override fun onSessionStarted(session: Session, sessionId: String)            { emitCastState("connected");    emitDevices(); startPolling() }
-    override fun onSessionStartFailed(session: Session, error: Int)               { emitCastState("notConnected") }
-    override fun onSessionResuming(session: Session, sessionId: String)           { emitCastState("connecting") }
-    override fun onSessionResumed(session: Session, wasSuspended: Boolean)        { emitCastState("connected");    startPolling() }
-    override fun onSessionResumeFailed(session: Session, error: Int)              { emitCastState("notConnected") }
-    override fun onSessionEnding(session: Session)                                {}
-    override fun onSessionEnded(session: Session, error: Int)                     { clearTrackCache(); emitCastState("notConnected"); stopPolling() }
-    override fun onSessionSuspended(session: Session, reason: Int)                { emitCastState("notConnected"); stopPolling() }
+    override fun onSessionStarting(session: CastSession)                              { emitCastState("connecting") }
+    override fun onSessionStarted(session: CastSession, sessionId: String)            { emitCastState("connected");    emitDevices(); startPolling() }
+    override fun onSessionStartFailed(session: CastSession, error: Int)               { emitCastState("notConnected") }
+    override fun onSessionResuming(session: CastSession, sessionId: String)           { emitCastState("connecting") }
+    override fun onSessionResumed(session: CastSession, wasSuspended: Boolean)        { emitCastState("connected");    startPolling() }
+    override fun onSessionResumeFailed(session: CastSession, error: Int)              { emitCastState("notConnected") }
+    override fun onSessionEnding(session: CastSession)                                {}
+    override fun onSessionEnded(session: CastSession, error: Int)                     { clearTrackCache(); emitCastState("notConnected"); stopPolling() }
+    override fun onSessionSuspended(session: CastSession, reason: Int)                { emitCastState("notConnected"); stopPolling() }
 
     // ── Cleanup ────────────────────────────────────────────────────────────
 
-    /** Called from [SenzuPlayerPlugin.onDetachedFromEngine]. */
     fun dispose() {
         stopPolling()
+        try {
+            castContext.sessionManager.removeSessionManagerListener(this, CastSession::class.java)
+        } catch (_: Exception) {}
         eventSink = null
     }
 
-    // ── Activity binding (forwarded from SenzuPlayerPlugin) ───────────────
-
-    fun setActivity(act: android.app.Activity?) {
-        // Reserved for future activity-dependent Cast UI features
-    }
+    fun setActivity(act: android.app.Activity?) { /* reserved */ }
 }
 
-// ── Extension helpers ──────────────────────────────────────────────────────────
-
-/** Extracts a nested String map from a raw method-channel argument map. */
 private fun Map<String, Any?>.toStringMap(key: String): Map<String, String> =
     (this[key] as? Map<*, *>)?.mapNotNull { (k, v) ->
         val ks = k as? String; val vs = v as? String

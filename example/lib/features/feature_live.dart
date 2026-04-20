@@ -19,7 +19,7 @@ class FeatureLivePage extends StatelessWidget {
             SenzuPlayer(
               source: {
                 'Live': VideoSource.fromUrl(
-                  'https://demo.unified-streaming.com/k8s/live/stable/demo.isml/.m3u8',
+                  'https://demo.unified-streaming.com/k8s/live/scte35.isml/.m3u8',
                 ),
               },
               isLive: true,
@@ -33,7 +33,7 @@ class FeatureLivePage extends StatelessWidget {
             SenzuPlayer(
               source: {
                 'LL-HLS': VideoSource.fromUrl(
-                  'https://demo.unified-streaming.com/k8s/live/stable/demo.isml/.m3u8',
+                  'https://demo.unified-streaming.com/k8s/live/scte35.isml/.m3u8',
                   isLowLatency: true,
                   targetLatencyMs: 2000,
                 ),
@@ -52,7 +52,7 @@ class FeatureLivePage extends StatelessWidget {
             SenzuPlayer(
               source: {
                 'DVR': VideoSource.fromUrl(
-                  'https://demo.unified-streaming.com/k8s/live/stable/demo.isml/.m3u8',
+                  'https://demo.unified-streaming.com/k8s/live/scte35.isml/.m3u8',
                 ),
               },
               isLive: true,

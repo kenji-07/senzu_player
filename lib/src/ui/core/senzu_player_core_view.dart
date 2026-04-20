@@ -19,7 +19,8 @@ import 'package:senzu_player/src/data/models/subtitle_model.dart';
 import 'package:senzu_player/src/data/models/senzu_metadata.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
 import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
-import 'package:senzu_player/src/cast/senzu_cast_controller.dart' hide SenzuCastPanel;
+import 'package:senzu_player/src/cast/senzu_cast_controller.dart'
+    hide SenzuCastPanel;
 
 class SenzuPlayerCoreView extends StatefulWidget {
   const SenzuPlayerCoreView({
@@ -674,11 +675,12 @@ class _MainPlayerStack extends StatelessWidget {
               final showOverlay = bundle.ui.isShowingOverlay.value;
               final isFs = bundle.core.isFullScreen.value;
               final isDragging = bundle.playback.isDragging.value;
+
               return AnimatedOpacity(
                 duration: const Duration(milliseconds: 200),
                 opacity: showOverlay && !isDragging && !panelOpen ? 1.0 : 0.0,
                 child: IgnorePointer(
-                  ignoring: !showOverlay || isDragging || !panelOpen,
+                  ignoring: !showOverlay || isDragging || panelOpen,
                   child: AnimatedAlign(
                     key: ValueKey(isLocked),
                     duration: const Duration(milliseconds: 350),

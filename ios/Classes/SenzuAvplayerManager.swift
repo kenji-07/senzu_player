@@ -335,7 +335,7 @@ import MediaPlayer
 
     private func setLooping(args: [String: Any]?, result: @escaping FlutterResult) {
         let looping = args?["looping"] as? Bool ?? false
-        DispatchQueue.main.async { [weak self] in
+    DispatchQueue.main.async { [weak self] in
             guard let self, let item = self.playerItem else { result(nil); return }
             if let obs = self.itemEndObserver {
                 NotificationCenter.default.removeObserver(obs)

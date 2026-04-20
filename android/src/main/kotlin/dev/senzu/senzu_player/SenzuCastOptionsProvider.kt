@@ -24,6 +24,7 @@ import com.google.android.gms.cast.framework.SessionProvider
 class SenzuCastOptionsProvider : OptionsProvider {
 
     companion object {
+
         /** Default Media Receiver App ID. Replace with a custom receiver if needed. */
         private const val RECEIVER_APP_ID = "519C9F80"
     }
