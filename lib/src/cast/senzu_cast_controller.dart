@@ -45,19 +45,11 @@ class SenzuCastController extends GetxController {
   Duration get resumePosition =>
       Duration(milliseconds: remoteState.value.positionMs);
 
-  // FIX: Track how many active consumers are subscribed so we know when it is
-  // safe to stop the underlying event channel.  Each player page calls
-  // attach() in initState / setCastController and detach() in dispose.
-  // The service is started on the first attach and stopped on the last detach.
   int _attachCount = 0;
 
   @override
   void onInit() {
     super.onInit();
-    // The service is started lazily via attach() so that navigating between
-    // player pages does not stop/restart the event channel unnecessarily.
-    // We still do an initial attach here so the controller works when used
-    // without explicit attach/detach calls (backward compatibility).
     _attach();
   }
 
@@ -69,14 +61,10 @@ class SenzuCastController extends GetxController {
 
   // ── Lifecycle helpers called by SenzuCoreController ───────────────────────
 
-  /// Call this when a new player page registers this cast controller.
-  /// Ensures the underlying event stream is running and re-subscribes if
-  /// subscriptions were cancelled after a previous detach.
   void attach() {
     _attach();
   }
 
-  /// Call this when a player page is disposed.
   void detach() {
     _detach();
   }
@@ -97,20 +85,14 @@ class SenzuCastController extends GetxController {
     _attachCount--;
 
     if (_attachCount == 0) {
-      // Last consumer gone — cancel subscriptions but do NOT stop the service
-      // if we are still casting.  Stopping the service while casting would
-      // lose the remote state stream.  We only stop the service when no one
-      // is casting and no one is listening.
       _cancelSubscriptions();
       if (!isCasting) {
         SenzuCastService.stopListening();
       }
     }
-    // If _attachCount > 0 there are still other consumers; do nothing.
   }
 
   void _subscribeStreams() {
-    // Cancel existing subs first to avoid duplicate listeners.
     _cancelSubscriptions();
 
     _castStateSub = SenzuCastService.castStateStream.listen((state) {

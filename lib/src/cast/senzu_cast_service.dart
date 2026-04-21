@@ -82,8 +82,12 @@ class SenzuCastRemoteState {
 class SenzuCastService {
   SenzuCastService._();
 
-  static const _method = MethodChannel('senzu_player/cast');
-  static const _event = EventChannel('senzu_player/cast_events');
+  // Cast channel — senzu_player/cast
+  static const _castMethod = MethodChannel('senzu_player/cast');
+  static const _castEvent  = EventChannel('senzu_player/cast_events');
+
+  // Native channel — senzu_player/native (initCast энд дуудагдана)
+  static const _nativeMethod = MethodChannel('senzu_player/native');
 
   static StreamSubscription<dynamic>? _eventSub;
 
@@ -100,9 +104,22 @@ class SenzuCastService {
   static Stream<List<SenzuCastDeviceInfo>> get devicesStream =>
       _devicesCtrl.stream;
 
+  // ── Cast SDK Initialize ──────────────────────────────────────────────────
+  static Future<void> initCast({String? appId}) async {
+    try {
+      await _nativeMethod.invokeMethod('initCast', {
+        if (appId != null) 'appId': appId,
+      });
+    } on PlatformException catch (e) {
+      debugPrint('SenzuCast initCast error: ${e.message}');
+    }
+  }
+
+  // ── Event stream ─────────────────────────────────────────────────────────
+
   static Future<List<SenzuCastDeviceInfo>> discoverDevices() async {
     try {
-      final result = await _method.invokeMethod<List>('discoverDevices');
+      final result = await _castMethod.invokeMethod<List>('discoverDevices');
       return result
               ?.map((e) => SenzuCastDeviceInfo.fromMap(e as Map))
               .toList() ??
@@ -115,14 +132,14 @@ class SenzuCastService {
 
   static Future<void> connectToDevice(String deviceId) async {
     try {
-      await _method.invokeMethod('connectToDevice', {'deviceId': deviceId});
+      await _castMethod.invokeMethod('connectToDevice', {'deviceId': deviceId});
     } on PlatformException catch (e) {
       debugPrint('SenzuCast connectToDevice error: ${e.message}');
     }
   }
 
   static void startListening() {
-    _eventSub ??= _event.receiveBroadcastStream().listen((event) {
+    _eventSub ??= _castEvent.receiveBroadcastStream().listen((event) {
       final m = Map<dynamic, dynamic>.from(event as Map);
       switch (m['type'] as String?) {
         case 'castState':
@@ -159,12 +176,12 @@ class SenzuCastService {
   }
 
   static Future<void> showDevicePicker() =>
-      _method.invokeMethod('showDevicePicker');
+      _castMethod.invokeMethod('showDevicePicker');
 
   static Future<bool> loadMedia(SenzuCastMedia media) async {
     try {
       final result =
-          await _method.invokeMethod<bool>('loadMedia', media.toMap());
+          await _castMethod.invokeMethod<bool>('loadMedia', media.toMap());
       return result ?? false;
     } on PlatformException catch (e) {
       debugPrint('SenzuCast loadMedia error: ${e.message}');
@@ -172,31 +189,31 @@ class SenzuCastService {
     }
   }
 
-  static Future<void> play() => _method.invokeMethod('play');
-  static Future<void> pause() => _method.invokeMethod('pause');
+  static Future<void> play()  => _castMethod.invokeMethod('play');
+  static Future<void> pause() => _castMethod.invokeMethod('pause');
   static Future<void> seekTo(int positionMs) =>
-      _method.invokeMethod('seekTo', {'positionMs': positionMs});
-  static Future<void> stop() => _method.invokeMethod('stop');
+      _castMethod.invokeMethod('seekTo', {'positionMs': positionMs});
+  static Future<void> stop()  => _castMethod.invokeMethod('stop');
   static Future<void> setVolume(double volume) =>
-      _method.invokeMethod('setVolume', {'volume': volume});
-  static Future<void> disconnect() => _method.invokeMethod('disconnect');
+      _castMethod.invokeMethod('setVolume', {'volume': volume});
+  static Future<void> disconnect() => _castMethod.invokeMethod('disconnect');
 
   static Future<SenzuCastState> getCastState() async {
-    final s = await _method.invokeMethod<String>('getCastState');
+    final s = await _castMethod.invokeMethod<String>('getCastState');
     return _parseCastState(s);
   }
 
   static Future<void> setSubtitleTrack(int trackId) =>
-      _method.invokeMethod('setSubtitleTrack', {'trackId': trackId});
+      _castMethod.invokeMethod('setSubtitleTrack', {'trackId': trackId});
 
   static Future<void> disableSubtitles() =>
-      _method.invokeMethod('disableSubtitles');
+      _castMethod.invokeMethod('disableSubtitles');
 
   static Future<void> setAudioTrack(int trackId) =>
-      _method.invokeMethod('setAudioTrack', {'trackId': trackId});
+      _castMethod.invokeMethod('setAudioTrack', {'trackId': trackId});
 
   static Future<void> setActiveTracks(List<int> trackIds) =>
-      _method.invokeMethod('setActiveTracks', {'trackIds': trackIds});
+      _castMethod.invokeMethod('setActiveTracks', {'trackIds': trackIds});
 
   static Future<bool> loadQuality(
     String url, {
@@ -206,7 +223,7 @@ class SenzuCastService {
     bool isLive = false,
   }) async {
     try {
-      final result = await _method.invokeMethod<bool>('loadQuality', {
+      final result = await _castMethod.invokeMethod<bool>('loadQuality', {
         'url': url,
         'headers': headers,
         'positionMs': positionMs,

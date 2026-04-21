@@ -14,6 +14,7 @@ import android.os.Build
 import android.provider.Settings
 import android.view.WindowManager
 import androidx.media3.common.util.UnstableApi
+import com.google.android.gms.cast.CastMediaControlIntent
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -21,52 +22,24 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuPlayerPlugin (Android)
-// Flutter plugin entry point.  Wires method and event channels, delegates
-// playback calls to SenzuExoPlayerManager, and handles device-level APIs
-// (volume, brightness, battery, network, HDR, codec detection, secure mode).
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * The root Flutter plugin class for SenzuPlayer on Android.
- *
- * Channel layout:
- * - `senzu_player/native`      — playback & device method channel
- * - `senzu_player/events`      — playback & device event channel
- * - `senzu_player/cast`        — Cast method channel
- * - `senzu_player/cast_events` — Cast event channel
- *
- * Implements [ActivityAware] so sub-managers ([SenzuExoPlayerManager],
- * [SenzuCastPlugin]) receive the foreground [Activity] for PiP, wakelock, etc.
- */
 @UnstableApi
 class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
     ActivityAware, EventChannel.StreamHandler {
 
-    // ── Channel references ─────────────────────────────────────────────────
-
     private lateinit var methodChannel: MethodChannel
     private lateinit var eventChannel: EventChannel
-
-    // ── State ──────────────────────────────────────────────────────────────
 
     private var appContext: Context? = null
     private var activity: Activity? = null
     private var eventSink: EventChannel.EventSink? = null
     private var batteryReceiver: BroadcastReceiver? = null
 
-    // ── Sub-managers ───────────────────────────────────────────────────────
-
     private var exoManager: SenzuExoPlayerManager? = null
     private var castPlugin: SenzuCastPlugin? = null
-
-    // ── FlutterPlugin ──────────────────────────────────────────────────────
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         appContext = binding.applicationContext
 
-        // Cast plugin is created early (context only); Activity is set later
         val cp = SenzuCastPlugin(binding.applicationContext)
         castPlugin = cp
 
@@ -104,8 +77,6 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
         appContext = null
     }
 
-    // ── ActivityAware ──────────────────────────────────────────────────────
-
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
         exoManager?.setActivity(binding.activity)
@@ -130,16 +101,23 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
         castPlugin?.setActivity(null)
     }
 
-    // ── MethodCallHandler ──────────────────────────────────────────────────
-
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         val args = call.arguments as? Map<*, *>
         val ctx  = activity ?: appContext
 
-        // Delegate playback calls first; return if handled
         if (exoManager != null && exoManager!!.handleMethodCall(call, result)) return
 
         when (call.method) {
+
+            // ── Cast initialize ────────────────────────────────────────────
+            // appId дамжуулан Cast SDK-г configure хийнэ.
+            // appId дамжуулаагүй бол DEFAULT_MEDIA_RECEIVER_APPLICATION_ID ашиглана.
+            "initCast" -> {
+                val appId = args?.get("appId") as? String
+                    ?: CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID
+                SenzuCastOptionsProvider.setAppId(appId)
+                result.success(null)
+            }
 
             // ── Secure mode ────────────────────────────────────────────────
             "enableSecureMode"  -> { activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE);   result.success(null) }
@@ -259,13 +237,10 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
         }
     }
 
-    // ── EventChannel.StreamHandler ─────────────────────────────────────────
-
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         eventSink = events
         exoManager?.setEventSink(events)
 
-        // Battery + volume broadcast receiver
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_BATTERY_CHANGED)
             addAction("android.media.VOLUME_CHANGED_ACTION")
@@ -305,8 +280,6 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
         eventSink = null
         exoManager?.setEventSink(null)
     }
-
-    // ── Helpers ────────────────────────────────────────────────────────────
 
     private fun batteryString(status: Int) = when (status) {
         BatteryManager.BATTERY_STATUS_CHARGING    -> "charging"

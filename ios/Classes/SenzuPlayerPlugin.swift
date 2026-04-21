@@ -11,37 +11,19 @@ import GoogleCast
 // ─────────────────────────────────────────────────────────────────────────────
 // SenzuPlayerPlugin — root Flutter plugin class for SenzuPlayer on iOS
 //
-// Channel layout:
-//   senzu_player/native        — playback & device method channel
-//   senzu_player/events        — playback & device event channel
-//   senzu_player/cast          — Cast method channel
-//   senzu_player/cast_events   — Cast event channel
-//   senzu_player/surface       — Platform View (AVPlayerLayer host)
+// ӨӨРЧЛӨЛТ (flutter_chrome_cast загварыг дуурайсан):
+// - GCKCastContext native тал дээр initialize хийхгүй болсон
+// - "initCast" method channel нэмэгдсэн
+//   Flutter тал дээрээс SenzuCastService.initCast() дуудахад
+//   native тал GCKCastContext-г kDefaultApplicationId-р initialize хийнэ
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Root [FlutterPlugin] for SenzuPlayer on iOS.
- *
- * Delegates all AVPlayer operations to [SenzuAVPlayerManager] and Google Cast
- * operations to [SenzuCastPlugin].  Handles device-level APIs directly:
- * screen protection, wakelock, volume, brightness, battery, network, HDR,
- * codec detection, low-latency live, and audio-track selection.
- */
 public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
-
-    // ── Sub-managers ───────────────────────────────────────────────────────
 
     private var avManager: SenzuAVPlayerManager?
     private static var screenProtector: ScreenProtectorKit?
-
-    // ── EventChannel state ─────────────────────────────────────────────────
-
     private var eventSink: FlutterEventSink?
-    /// Tracks whether the Flutter event stream is currently active to prevent
-    /// "No active stream" errors from stale observers.
     private var isStreamActive = false
-
-    // ── Registration ───────────────────────────────────────────────────────
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let method = FlutterMethodChannel(
@@ -61,34 +43,16 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             SenzuSurfaceViewFactory(messenger: registrar.messenger()),
             withId: "senzu_player/surface")
 
-        // ── Google Cast SDK initialisation ────────────────────────────────
-        // Initialise inside the plugin to avoid coupling the host app's
-        // AppDelegate.  Guard against duplicate initialisation on hot restart.
-        DispatchQueue.main.async {
-            if !GCKCastContext.isSharedInstanceInitialized() {
-                let criteria = GCKDiscoveryCriteria(
-                    applicationID: kGCKDefaultMediaReceiverApplicationID)
-                let options = GCKCastOptions(discoveryCriteria: criteria)
-                options.physicalVolumeButtonsWillControlDeviceVolume = true
-                options.startDiscoveryAfterFirstTapOnCastButton      = false
-                GCKCastContext.setSharedInstanceWith(options)
-                GCKCastContext.sharedInstance().useDefaultExpandedMediaControls = true
-                print("SenzuPlayer: GCKCastContext initialized successfully")
-            } else {
-                print("SenzuPlayer: GCKCastContext already initialized, skipping")
-            }
+        // Cast channels — GCKCastContext-г энд initialize хийхгүй.
+        // Flutter тал дээрээс "initCast" method дуудагдах үед initialize хийнэ.
+        let castMethod = FlutterMethodChannel(
+            name: "senzu_player/cast",
+            binaryMessenger: registrar.messenger())
+        let castEvent = FlutterEventChannel(
+            name: "senzu_player/cast_events",
+            binaryMessenger: registrar.messenger())
+        SenzuCastPlugin.register(with: registrar, method: castMethod, event: castEvent)
 
-            // Register Cast channels after the context is ready
-            let castMethod = FlutterMethodChannel(
-                name: "senzu_player/cast",
-                binaryMessenger: registrar.messenger())
-            let castEvent = FlutterEventChannel(
-                name: "senzu_player/cast_events",
-                binaryMessenger: registrar.messenger())
-            SenzuCastPlugin.register(with: registrar, method: castMethod, event: castEvent)
-        }
-
-        // ── Screen protection ─────────────────────────────────────────────
         DispatchQueue.main.async {
             let kit = ScreenProtectorKit(window: SenzuPlayerPlugin.keyWindow())
             kit.setRootViewResolver(SenzuRootViewResolver())
@@ -97,15 +61,34 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         }
     }
 
-    // ── MethodCallHandler ─────────────────────────────────────────────────
-
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         let args = call.arguments as? [String: Any]
 
-        // Delegate all playback calls to the AV manager first
         if avManager?.handle(call, result: result) == true { return }
 
         switch call.method {
+
+        // ── Cast initialize ────────────────────────────────────────────────
+        // flutter_chrome_cast загварыг дуурайж Flutter тал дээрээс
+        // appId дамжуулан GCKCastContext-г initialize хийнэ.
+        // appId дамжуулаагүй бол kGCKDefaultMediaReceiverApplicationID ашиглана.
+        case "initCast":
+            let appId = args?["appId"] as? String ?? kGCKDefaultMediaReceiverApplicationID
+            DispatchQueue.main.async {
+                if !GCKCastContext.isSharedInstanceInitialized() {
+                    let criteria = GCKDiscoveryCriteria(applicationID: appId)
+                    let options  = GCKCastOptions(discoveryCriteria: criteria)
+                    options.physicalVolumeButtonsWillControlDeviceVolume = true
+                    options.startDiscoveryAfterFirstTapOnCastButton      = false
+                    GCKCastContext.setSharedInstanceWith(options)
+                    GCKCastContext.sharedInstance().useDefaultExpandedMediaControls = true
+                    print("SenzuPlayer: GCKCastContext initialized with appId=\(appId)")
+                } else {
+                    print("SenzuPlayer: GCKCastContext already initialized, skipping")
+                }
+                SenzuCastPlugin.setupAfterInit()
+                result(nil)
+            }
 
         // ── Screen protection ──────────────────────────────────────────────
         case "enableSecureMode":
@@ -232,21 +215,18 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         }
     }
 
-    // ── EventChannel — FlutterStreamHandler ───────────────────────────────
+    // ── EventChannel ──────────────────────────────────────────────────────
 
     public func onListen(
         withArguments arguments: Any?,
         eventSink events: @escaping FlutterEventSink
     ) -> FlutterError? {
-        // Remove stale observers if the stream is re-opened (e.g. hot restart)
         if isStreamActive { NotificationCenter.default.removeObserver(self) }
-
         self.eventSink = events
         isStreamActive = true
         avManager?.setEventSink(events)
         avManager?.setupRemoteCommands(eventSink: events)
 
-        // Battery monitoring
         UIDevice.current.isBatteryMonitoringEnabled = true
         NotificationCenter.default.addObserver(
             self, selector: #selector(batteryChanged),
@@ -255,19 +235,14 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             self, selector: #selector(batteryChanged),
             name: UIDevice.batteryStateDidChangeNotification, object: nil)
 
-        // System volume monitoring
         try? AVAudioSession.sharedInstance().setActive(true)
         NotificationCenter.default.addObserver(
             self, selector: #selector(volumeChanged(_:)),
             name: NSNotification.Name("AVSystemController_SystemVolumeDidChangeNotification"),
             object: nil)
-
-        // Audio session interruption (e.g. phone call)
         NotificationCenter.default.addObserver(
             self, selector: #selector(audioSessionInterrupted(_:)),
             name: AVAudioSession.interruptionNotification, object: nil)
-
-        // Audio route changes (e.g. headphones unplugged)
         NotificationCenter.default.addObserver(
             self, selector: #selector(audioRouteChanged(_:)),
             name: AVAudioSession.routeChangeNotification, object: nil)
@@ -284,8 +259,6 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         eventSink = nil
         return nil
     }
-
-    // ── Notification handlers ──────────────────────────────────────────────
 
     @objc private func batteryChanged() {
         guard isStreamActive else { return }
@@ -325,8 +298,6 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         }
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────
-
     static func keyWindow() -> UIWindow? {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -335,14 +306,7 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuRootViewResolver
-// Provides the Flutter root view to ScreenProtectorKit without coupling
-// the plugin to a concrete view controller type.
-// ─────────────────────────────────────────────────────────────────────────────
-
 final class SenzuRootViewResolver: ScreenProtectorRootViewResolving {
-
     func resolveRootView() -> UIView? {
         guard Thread.isMainThread else { return nil }
         guard let scene = UIApplication.shared.connectedScenes
@@ -357,18 +321,8 @@ final class SenzuRootViewResolver: ScreenProtectorRootViewResolving {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuVolume — system volume setter via MPVolumeView slider
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Sets the system media volume by manipulating the hidden MPVolumeView slider.
- * The view is placed far off-screen so it is never visible to the user.
- */
 class SenzuVolume {
-
     private static var slider: UISlider?
-
     static func set(_ v: Float) {
         DispatchQueue.main.async {
             if slider == nil {
@@ -384,10 +338,6 @@ class SenzuVolume {
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SenzuBattery — UIDevice.BatteryState to string converter
-// ─────────────────────────────────────────────────────────────────────────────
 
 class SenzuBattery {
     static func stateString(_ s: UIDevice.BatteryState) -> String {

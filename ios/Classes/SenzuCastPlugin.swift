@@ -4,31 +4,22 @@ import GoogleCast
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SenzuCastPlugin (iOS)
-// Bridges the Flutter Cast API to the Google Cast SDK on iOS.
-// Handles device discovery, session management, media loading, track
-// selection, and emits cast/remote-state events to Flutter.
+//
+// ӨӨРЧЛӨЛТ (flutter_chrome_cast загварыг дуурайсан):
+// 1. register() функцаас isSharedInstanceInitialized() guard устгагдсан.
+//    GCKCastContext-г Flutter тал дээрээс "initCast" method дуудаж initialize хийнэ.
+// 2. setupAfterInit() static функц нэмэгдсэн.
+//    SenzuPlayerPlugin-ийн "initCast" handler дуусмагц энэ функцийг дуудна.
+//    Discovery болон session manager-г энд setup хийнэ.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * iOS implementation of the Senzu Cast plugin.
- *
- * Conforms to:
- * - [FlutterStreamHandler]              — EventChannel lifecycle.
- * - [GCKDiscoveryManagerListener]       — Device list changes.
- * - [GCKSessionManagerListener]         — Session state changes.
- *
- * The plugin is registered by [SenzuPlayerPlugin] after [GCKCastContext] has
- * been initialised, so [GCKCastContext.isSharedInstanceInitialized()] is
- * always true by the time Flutter methods arrive.
- */
 public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
 
-    // ── Internal state ─────────────────────────────────────────────────────
+    // ── Singleton — setupAfterInit-д хандахад ашиглана ──────────────────────
+    private static var shared: SenzuCastPlugin?
 
     private var eventSink:    FlutterEventSink?
     private var pollingTimer: Timer?
-
-    // ── Cast SDK accessors ─────────────────────────────────────────────────
 
     private var sessionManager: GCKSessionManager {
         GCKCastContext.sharedInstance().sessionManager
@@ -40,21 +31,29 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
 
     // ── Registration ───────────────────────────────────────────────────────
 
-    /**
-     * Creates an instance and wires it to [method] and [event] channels.
-     * Must be called after [GCKCastContext] is initialized.
-     */
     public static func register(
         with registrar: FlutterPluginRegistrar,
         method: FlutterMethodChannel,
         event: FlutterEventChannel
     ) {
         let instance = SenzuCastPlugin()
+        SenzuCastPlugin.shared = instance
         method.setMethodCallHandler(instance.handle)
         event.setStreamHandler(instance)
 
+        // GCKCastContext initialized эсэхийг шалгахгүй.
+        // Flutter тал "initCast" дуудсаны дараа setupAfterInit() дуудагдана.
+        print("SenzuCast: Channels registered. Waiting for initCast() call from Flutter.")
+    }
+
+    // ── Flutter-аас initCast дуудагдсаны дараа setup хийнэ ─────────────────
+
+    /// SenzuPlayerPlugin-ийн "initCast" method handler дуусмагц дуудагдана.
+    /// GCKCastContext initialized болсон тул discovery болон session setup хийж болно.
+    public static func setupAfterInit() {
+        guard let instance = SenzuCastPlugin.shared else { return }
         guard GCKCastContext.isSharedInstanceInitialized() else {
-            print("SenzuCast: WARNING - GCKCastContext not initialized. Discovery will not work.")
+            print("SenzuCast: setupAfterInit called but GCKCastContext not ready!")
             return
         }
 
@@ -65,7 +64,7 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         dm.add(instance)
         dm.startDiscovery()
 
-        print("SenzuCast: Plugin registered, discovery started")
+        print("SenzuCast: setupAfterInit complete. Discovery started.")
     }
 
     // ── MethodChannel handler ──────────────────────────────────────────────
@@ -74,10 +73,10 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         let args = call.arguments as? [String: Any]
 
         guard GCKCastContext.isSharedInstanceInitialized() else {
-            print("SenzuCast: GCKCastContext not initialized for method: \(call.method)")
+            print("SenzuCast: '\(call.method)' called before initCast. Call SenzuCastService.initCast() first.")
             result(FlutterError(
                 code: "NOT_INITIALIZED",
-                message: "GCKCastContext is not initialized",
+                message: "Cast not initialized. Call SenzuNativeChannel.initCast() first.",
                 details: nil))
             return
         }
@@ -148,8 +147,6 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
             castSession?.remoteMediaClient?.setActiveTrackIDs([NSNumber(value: trackId)])
             result(nil)
 
-        /// Accepts an array of track IDs (subtitle + audio combined) from Flutter.
-        /// An empty array disables all tracks.
         case "setActiveTracks":
             let rawIds = args?["trackIds"] as? [Int] ?? []
             let nsIds  = rawIds.map { NSNumber(value: $0) }
@@ -188,12 +185,8 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         }
     }
 
-    // ── Quality reload (URL switch) ────────────────────────────────────────
+    // ── Quality reload ────────────────────────────────────────────────────
 
-    /**
-     * Reloads the current media at a new URL (quality switch) while preserving
-     * the existing metadata, tracks, and active track IDs.
-     */
     private func loadQuality(args: [String: Any]?, result: @escaping FlutterResult) {
         guard
             let session = castSession,
@@ -235,10 +228,6 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
 
     // ── Full media load ────────────────────────────────────────────────────
 
-    /**
-     * Loads a new media item on the Cast receiver with optional subtitle/audio
-     * tracks, HTTP headers, and a starting position.
-     */
     private func loadMedia(args: [String: Any]?, result: @escaping FlutterResult) {
         guard
             let session           = castSession,
@@ -261,7 +250,6 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         let selectedSubtitleId = args?["selectedSubtitleId"] as? Int
         let selectedAudioId    = args?["selectedAudioId"]    as? Int
 
-        // ── Metadata ───────────────────────────────────────────────────────
         let metadata = GCKMediaMetadata(metadataType: .movie)
         metadata.setString(title, forKey: kGCKMetadataKeyTitle)
         if !description.isEmpty { metadata.setString(description, forKey: kGCKMetadataKeySubtitle) }
@@ -276,7 +264,6 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
             }
         }
 
-        // ── Subtitle tracks ────────────────────────────────────────────────
         var tracks:         [GCKMediaTrack] = []
         var activeTrackIDs: [NSNumber]      = []
 
@@ -288,9 +275,7 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
             let subName       = sub["name"]      as? String ?? "Subtitle"
             let perSubHeaders = sub["headers"]   as? [String: String] ?? subtitleHeaders
             guard !subUrl.isEmpty else { continue }
-
             let trackCustomData: [String: Any]? = perSubHeaders.isEmpty ? nil : ["headers": perSubHeaders]
-
             if let track = GCKMediaTrack(
                 identifier:        trackId,
                 contentIdentifier: subUrl,
@@ -308,13 +293,11 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
             }
         }
 
-        // ── Audio tracks ───────────────────────────────────────────────────
         let audioList = args?["availableAudioTracks"] as? [[String: Any]] ?? []
         for audio in audioList {
             let trackId = audio["id"]       as? Int    ?? 0
             let lang    = audio["language"] as? String ?? "und"
             let name    = audio["name"]     as? String ?? "Audio"
-
             if let track = GCKMediaTrack(
                 identifier:        trackId,
                 contentIdentifier: nil,
@@ -332,13 +315,11 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
             }
         }
 
-        // ── Custom data (headers forwarded to the receiver) ────────────────
         var customData: [String: Any] = [:]
         if !httpHeaders.isEmpty { customData["headers"]     = httpHeaders }
         if !releaseDate.isEmpty { customData["releaseDate"] = releaseDate }
         if !studio.isEmpty      { customData["studio"]      = studio      }
 
-        // ── MediaInformation ───────────────────────────────────────────────
         let mediaInfoBuilder = GCKMediaInformationBuilder(contentURL: url)
         mediaInfoBuilder.contentType  = mimeType
         mediaInfoBuilder.metadata     = metadata
@@ -349,13 +330,11 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         if !tracks.isEmpty     { mediaInfoBuilder.mediaTracks = tracks }
         if !customData.isEmpty { mediaInfoBuilder.customData  = customData }
 
-        // ── Load request ───────────────────────────────────────────────────
         let requestDataBuilder               = GCKMediaLoadRequestDataBuilder()
         requestDataBuilder.mediaInformation  = mediaInfoBuilder.build()
         requestDataBuilder.autoplay          = true
         requestDataBuilder.startTime         = TimeInterval(positionMs) / 1000.0
 
-        // Pass HTTP Authorization header via credentials if present
         if !httpHeaders.isEmpty,
            let jsonData = try? JSONSerialization.data(withJSONObject: httpHeaders),
            let jsonStr  = String(data: jsonData, encoding: .utf8) {
@@ -371,21 +350,17 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
         result(true)
     }
 
-    // ── EventChannel — FlutterStreamHandler ───────────────────────────────
+    // ── EventChannel ──────────────────────────────────────────────────────
 
     public func onListen(
         withArguments arguments: Any?,
         eventSink events: @escaping FlutterEventSink
     ) -> FlutterError? {
         self.eventSink = events
-
-        guard GCKCastContext.isSharedInstanceInitialized() else { return nil }
-
-        sessionManager.add(self)
-
-        let dm = GCKCastContext.sharedInstance().discoveryManager
-        if !dm.discoveryActive { dm.passiveScan = false; dm.startDiscovery() }
-
+        // GCKCastContext initialized болсон байвал discovery эхлүүлнэ
+        if GCKCastContext.isSharedInstanceInitialized() {
+            SenzuCastPlugin.setupAfterInit()
+        }
         return nil
     }
 
@@ -433,8 +408,6 @@ public class SenzuCastPlugin: NSObject, FlutterStreamHandler {
             self?.eventSink?(info)
         }
     }
-
-    // ── Polling (200ms) ────────────────────────────────────────────────────
 
     private func startPolling() {
         stopPolling()
