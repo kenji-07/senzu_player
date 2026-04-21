@@ -7,6 +7,8 @@ import 'dart:developer';
 enum SenzuCastPanel { caption, quality, episode, audio, cast, none }
 
 class SenzuCastController extends GetxController {
+  final String? appId;
+  SenzuCastController({this.appId});
   // ── Rx State ──────────────────────────────────────────────────────────────
   final castState = SenzuCastState.notConnected.obs;
   final remoteState = const SenzuCastRemoteState().obs;
@@ -50,6 +52,7 @@ class SenzuCastController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    SenzuCastService.initCast(appId: appId);
     _attach();
   }
 
@@ -172,8 +175,9 @@ class SenzuCastController extends GetxController {
   }
 
   void toggleCastPanel(SenzuCastPanel panel) {
-    activePanel.value =
-        activePanel.value == panel ? SenzuCastPanel.none : panel;
+    activePanel.value = activePanel.value == panel
+        ? SenzuCastPanel.none
+        : panel;
   }
 
   // ── Device Discovery & Connection ─────────────────────────────────────────

@@ -1,5 +1,3 @@
-<!-- example/android/app/src/main/AndroidManifest.xml -->
-<!-- MediaButtonReceiver-г устга, MediaBrowserService байхгүй тул crash болно -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.example">
 

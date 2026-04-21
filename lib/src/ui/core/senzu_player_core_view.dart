@@ -662,6 +662,7 @@ class _MainPlayerStack extends StatelessWidget {
                       enableEpisode: widget.enableEpisode,
                       enablePip: widget.enablePip,
                       chapters: chapters,
+                      enableAudio: widget.enableAudio,
                     ),
                   ),
                 ),

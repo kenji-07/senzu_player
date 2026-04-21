@@ -86,7 +86,7 @@ class SenzuCastService {
   static const _castMethod = MethodChannel('senzu_player/cast');
   static const _castEvent  = EventChannel('senzu_player/cast_events');
 
-  // Native channel — senzu_player/native (initCast энд дуудагдана)
+  // Native channel — senzu_player/native
   static const _nativeMethod = MethodChannel('senzu_player/native');
 
   static StreamSubscription<dynamic>? _eventSub;

@@ -15,6 +15,7 @@ class SenzuOverlayBottom extends StatelessWidget {
     this.enableFullscreen = true,
     this.enablePip = false,
     this.enableEpisode = false,
+    this.enableAudio = false,
     this.chapters = const [],
   });
 
@@ -22,6 +23,7 @@ class SenzuOverlayBottom extends StatelessWidget {
   final SenzuPlayerStyle style;
   final bool enableFullscreen;
   final bool enablePip;
+  final bool enableAudio;
   final bool enableEpisode;
   final List<SenzuChapter> chapters;
 
@@ -42,10 +44,10 @@ class SenzuOverlayBottom extends StatelessWidget {
         ),
       ),
       child: Obx(() {
-        final isFS   = bundle.core.isFullScreen.value;
+        final isFS = bundle.core.isFullScreen.value;
         final isLive = bundle.core.isLiveRx.value;
         final hasDvr = isLive && bundle.stream.liveEdge.value > Duration.zero;
-        final hPad   = isFS ? 28.0 : 14.0;
+        final hPad = isFS ? 28.0 : 14.0;
 
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -66,8 +68,8 @@ class SenzuOverlayBottom extends StatelessWidget {
 
                     if (!isLive)
                       Obx(() {
-                        final pos     = bundle.playback.position.value;
-                        final dur     = bundle.playback.duration.value;
+                        final pos = bundle.playback.position.value;
+                        final dur = bundle.playback.duration.value;
                         final pending = bundle.core.pendingSeek.value;
                         final displayPos = pending != Duration.zero
                             ? _clampDur(pos + pending, Duration.zero, dur)
@@ -80,23 +82,40 @@ class SenzuOverlayBottom extends StatelessWidget {
 
                     const Spacer(),
 
-                    _Btn(
-                      icon: const Icon(Icons.headphones, color: Colors.white, size: 20),
-                      onTap: () => bundle.ui.togglePanel(SenzuPanel.audio),
-                    ),
+                    if (enableAudio)
+                      _Btn(
+                        icon: const Icon(
+                          Icons.headphones,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        onTap: () => bundle.ui.togglePanel(SenzuPanel.audio),
+                      ),
                     if (enablePip) SenzuPipButton(bundle: bundle),
                     if (enableEpisode && style.episodeWidget != null)
                       _Btn(
-                        icon: const Icon(Icons.view_list, color: Colors.white, size: 20),
+                        icon: const Icon(
+                          Icons.view_list,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                         onTap: () => bundle.ui.togglePanel(SenzuPanel.episode),
                       ),
                     if (enableFullscreen)
                       _Btn(
                         icon: isFS
-                            ? const Icon(Icons.fullscreen_exit, color: Colors.white, size: 20)
-                            : const Icon(Icons.fullscreen, color: Colors.white, size: 20),
+                            ? const Icon(
+                                Icons.fullscreen_exit,
+                                color: Colors.white,
+                                size: 20,
+                              )
+                            : const Icon(
+                                Icons.fullscreen,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                         onTap: () => bundle.core.openOrCloseFullscreen(),
-                      )
+                      ),
                   ],
                 ),
               );
@@ -110,11 +129,11 @@ class SenzuOverlayBottom extends StatelessWidget {
                   bottom: isFS ? 16 : 8,
                 ),
                 child: SenzuProgressBar(
-                        style: style.progressBarStyle,
-                        bundle: bundle,
-                        thumbnailSprite: bundle.core.activeSource?.thumbnailSprite,
-                        chapters: chapters,
-                      ),
+                  style: style.progressBarStyle,
+                  bundle: bundle,
+                  thumbnailSprite: bundle.core.activeSource?.thumbnailSprite,
+                  chapters: chapters,
+                ),
               )
             else
               SizedBox(height: isFS ? 16 : 8),
@@ -145,35 +164,35 @@ class _LiveBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Obx(() {
-        final atEdge = bundle.stream.isAtLiveEdge.value;
-        return GestureDetector(
-          onTap: (!hasDvr || atEdge) ? null : bundle.core.goToLiveEdge,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: atEdge ? Colors.red : Colors.grey.shade700,
-              borderRadius: BorderRadius.circular(4),
+    final atEdge = bundle.stream.isAtLiveEdge.value;
+    return GestureDetector(
+      onTap: (!hasDvr || atEdge) ? null : bundle.core.goToLiveEdge,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: atEdge ? Colors.red : Colors.grey.shade700,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasDvr && !atEdge) ...[
+              const Icon(Icons.circle, color: Colors.white, size: 7),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              style.senzuLanguage.live,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (hasDvr && !atEdge) ...[
-                  const Icon(Icons.circle, color: Colors.white, size: 7),
-                  const SizedBox(width: 4),
-                ],
-                Text(
-                  style.senzuLanguage.live,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      });
+          ],
+        ),
+      ),
+    );
+  });
 }
 
 class _Btn extends StatelessWidget {
@@ -182,8 +201,8 @@ class _Btn extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(padding: const EdgeInsets.all(6), child: icon),
-      );
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(20),
+    child: Padding(padding: const EdgeInsets.all(6), child: icon),
+  );
 }

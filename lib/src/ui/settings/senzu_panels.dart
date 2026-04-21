@@ -288,7 +288,7 @@ class SenzuCaptionPanel extends StatelessWidget {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _PanelList(
+        Expanded(child:   _PanelList(
             items: [
               _PanelItem(
                 label: style.senzuLanguage.none,
@@ -309,8 +309,7 @@ class SenzuCaptionPanel extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-          const Divider(color: Colors.white24, height: 24),
+          )),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Obx(

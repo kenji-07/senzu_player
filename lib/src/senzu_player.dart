@@ -160,7 +160,6 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
       _ownsBundle = true;
     }
 
-    // Listen to fullscreen changes to insert/remove overlay
     ever(_bundle.core.isFullScreen, _onFullscreenChanged);
 
     _init();
@@ -223,7 +222,6 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
   try {
     _bundle.ui.isShowingThumbnail.value = _style.thumbnail != null;
 
-    // Cast controller-г core-тэй холбох ← нэмэх
     if (widget.castController != null) {
       _bundle.core.setCastController(widget.castController!);
     }
