@@ -55,7 +55,8 @@ class SenzuCastRemoteState {
         volume: (m['volume'] as num?)?.toDouble() ?? 1.0,
         isMuted: (m['isMuted'] as bool?) ?? false,
         errorMessage: m['errorMessage'] as String?,
-        activeTrackIds: (m['activeTrackIds'] as List?)
+        activeTrackIds:
+            (m['activeTrackIds'] as List?)
                 ?.map((e) => (e as num).toInt())
                 .toList() ??
             [],
@@ -84,15 +85,14 @@ class SenzuCastService {
 
   // Cast channel — senzu_player/cast
   static const _castMethod = MethodChannel('senzu_player/cast');
-  static const _castEvent  = EventChannel('senzu_player/cast_events');
+  static const _castEvent = EventChannel('senzu_player/cast_events');
 
   // Native channel — senzu_player/native
   static const _nativeMethod = MethodChannel('senzu_player/native');
 
   static StreamSubscription<dynamic>? _eventSub;
 
-  static final _castStateCtrl =
-      StreamController<SenzuCastState>.broadcast();
+  static final _castStateCtrl = StreamController<SenzuCastState>.broadcast();
   static final _remoteStateCtrl =
       StreamController<SenzuCastRemoteState>.broadcast();
   static final _devicesCtrl =
@@ -107,9 +107,7 @@ class SenzuCastService {
   // ── Cast SDK Initialize ──────────────────────────────────────────────────
   static Future<void> initCast({required String appId}) async {
     try {
-      await _nativeMethod.invokeMethod('initCast', {
-        'appId': appId,
-      });
+      await _nativeMethod.invokeMethod('initCast', {'appId': appId});
     } on PlatformException catch (e) {
       debugPrint('SenzuCast initCast error: ${e.message}');
     }
@@ -180,8 +178,10 @@ class SenzuCastService {
 
   static Future<bool> loadMedia(SenzuCastMedia media) async {
     try {
-      final result =
-          await _castMethod.invokeMethod<bool>('loadMedia', media.toMap());
+      final result = await _castMethod.invokeMethod<bool>(
+        'loadMedia',
+        media.toMap(),
+      );
       return result ?? false;
     } on PlatformException catch (e) {
       debugPrint('SenzuCast loadMedia error: ${e.message}');
@@ -189,11 +189,11 @@ class SenzuCastService {
     }
   }
 
-  static Future<void> play()  => _castMethod.invokeMethod('play');
+  static Future<void> play() => _castMethod.invokeMethod('play');
   static Future<void> pause() => _castMethod.invokeMethod('pause');
   static Future<void> seekTo(int positionMs) =>
       _castMethod.invokeMethod('seekTo', {'positionMs': positionMs});
-  static Future<void> stop()  => _castMethod.invokeMethod('stop');
+  static Future<void> stop() => _castMethod.invokeMethod('stop');
   static Future<void> setVolume(double volume) =>
       _castMethod.invokeMethod('setVolume', {'volume': volume});
   static Future<void> disconnect() => _castMethod.invokeMethod('disconnect');

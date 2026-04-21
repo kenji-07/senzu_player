@@ -11,7 +11,6 @@ class SenzuCastController extends GetxController {
   SenzuCastController({this.appId = kDefaultApplicationId});
   static const String kDefaultApplicationId = 'CC1AD845';
 
-
   // ── Rx State ──────────────────────────────────────────────────────────────
   final castState = SenzuCastState.notConnected.obs;
   final remoteState = const SenzuCastRemoteState().obs;
@@ -55,7 +54,11 @@ class SenzuCastController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    SenzuCastService.initCast(appId: appId);
+    _initAndAttach();
+  }
+
+  Future<void> _initAndAttach() async {
+    await SenzuCastService.initCast(appId: appId);
     _attach();
   }
 
@@ -170,6 +173,8 @@ class SenzuCastController extends GetxController {
 
   Future<void> _syncInitialState() async {
     try {
+      // fore init
+      await SenzuCastService.initCast(appId: appId);
       final state = await SenzuCastService.getCastState();
       castState.value = state;
     } catch (e) {

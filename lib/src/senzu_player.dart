@@ -39,6 +39,7 @@ class SenzuPlayer extends StatefulWidget {
   const SenzuPlayer({
     super.key,
     required this.source,
+    required this.bundle,
     this.seekTo = Duration.zero,
     this.looping = false,
     this.autoPlay = false,
@@ -70,7 +71,6 @@ class SenzuPlayer extends StatefulWidget {
     this.watermark,
     this.tokenConfig,
     this.imaAdTagUrl,
-    this.bundle,
     this.annotations = const [],
     this.castController,
   });
@@ -126,7 +126,6 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
   late final SenzuPlayerBundle _bundle;
   late final SenzuPlayerStyle _style;
   late final SenzuMetaData _meta;
-  late final bool _ownsBundle;
 
   bool _initialized = false;
   String? _initError;
@@ -140,25 +139,7 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
     _style = widget.style ?? SenzuPlayerStyle();
     _meta = widget.meta ?? const SenzuMetaData();
 
-    if (widget.bundle != null) {
-      _bundle = widget.bundle!;
-      _ownsBundle = false;
-    } else {
-      _bundle = SenzuPlayerBundle.create(
-        looping: widget.looping,
-        adaptiveBitrate: widget.adaptiveBitrate,
-        minBufferSec: widget.minBufferThreshold,
-        maxBufferSec: widget.maxBufferThreshold,
-        secureMode: widget.secureMode,
-        onQualityChanged: widget.onQualityChanged,
-        watermark: widget.watermark,
-        dataPolicy: widget.dataPolicy,
-        tokenConfig: widget.tokenConfig,
-        annotations: widget.annotations,
-        notification: widget.notification,
-      );
-      _ownsBundle = true;
-    }
+    _bundle = widget.bundle!;
 
     ever(_bundle.core.isFullScreen, _onFullscreenChanged);
 
@@ -211,58 +192,57 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
   void dispose() {
     _overlayEntry?.remove();
     _overlayEntry = null;
-    if (_ownsBundle) {
-      _bundle.dispose();
-      if (widget.enablePip) SenzuNativeChannel.disablePip();
-    }
+    // _bundle.dispose();
+    if (widget.enablePip) SenzuNativeChannel.disablePip();
+
     super.dispose();
   }
 
   Future<void> _init() async {
-  try {
-    _bundle.ui.isShowingThumbnail.value = _style.thumbnail != null;
+    try {
+      _bundle.ui.isShowingThumbnail.value = _style.thumbnail != null;
 
-    if (widget.castController != null) {
-      _bundle.core.setCastController(widget.castController!);
+      if (widget.castController != null) {
+        _bundle.core.setCastController(widget.castController!);
+      }
+
+      _bundle.core.setCastMeta(_meta);
+
+      final bool hasAdTagUrl =
+          widget.imaAdTagUrl != null && widget.imaAdTagUrl!.isNotEmpty;
+
+      if (hasAdTagUrl) {
+        _bundle.ad.setImaAdTagUrl(widget.imaAdTagUrl!);
+        _bundle.ad.setupAdDisplayContainer();
+      } else {
+        _bundle.ad.isAdLoaded.value = false;
+        _bundle.ad.isAdInitializing.value = false;
+      }
+
+      await _bundle.core.initialize(
+        widget.source,
+        autoPlay: widget.autoPlay,
+        seekTo: widget.seekTo,
+        isLive: widget.isLive,
+      );
+
+      _bundle.ui.setChapters(widget.chapters);
+
+      if (widget.enablePip) await SenzuNativeChannel.enablePip();
+
+      if (!mounted) return;
+      setState(() {
+        _initialized = true;
+        _initError = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _initialized = false;
+        _initError = e.toString();
+      });
     }
-
-    _bundle.core.setCastMeta(_meta);
-
-    final bool hasAdTagUrl =
-        widget.imaAdTagUrl != null && widget.imaAdTagUrl!.isNotEmpty;
-
-    if (hasAdTagUrl) {
-      _bundle.ad.setImaAdTagUrl(widget.imaAdTagUrl!);
-      _bundle.ad.setupAdDisplayContainer();
-    } else {
-      _bundle.ad.isAdLoaded.value = false;
-      _bundle.ad.isAdInitializing.value = false;
-    }
-
-    await _bundle.core.initialize(
-      widget.source,
-      autoPlay: widget.autoPlay,
-      seekTo: widget.seekTo,
-      isLive: widget.isLive,
-    );
-
-    _bundle.ui.setChapters(widget.chapters);
-
-    if (widget.enablePip) await SenzuNativeChannel.enablePip();
-
-    if (!mounted) return;
-    setState(() {
-      _initialized = true;
-      _initError = null;
-    });
-  } catch (e) {
-    if (!mounted) return;
-    setState(() {
-      _initialized = false;
-      _initError = e.toString();
-    });
   }
-}
 
   Future<void> _retry() async {
     setState(() {

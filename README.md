@@ -91,6 +91,16 @@ Add to `AndroidManifest.xml`:
     android:value="dev.senzu.senzu_player.SenzuCastOptionsProvider" />
 ```
 
+Add to `android/app/build.gradle`:
+
+```
+
+coreLibraryDesugaringEnabled true
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+}
+```
+
 ---
 
 ## Basic Usage

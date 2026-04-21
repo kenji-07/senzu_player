@@ -16,6 +16,8 @@ import android.os.Build
 import android.provider.Settings
 import android.view.WindowManager
 import androidx.media3.common.util.UnstableApi
+import android.os.Handler
+import android.os.Looper
 import com.google.android.gms.cast.CastMediaControlIntent
 import com.google.android.gms.cast.framework.CastContext
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -114,29 +116,27 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
 
             // ── Cast initialize ────────────────────────────────────────────
             "initCast" -> {
-                val appId = args?.get("appId") as? String
-                    ?: CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID
+    val appId = args?.get("appId") as? String
+        ?: CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID
 
-                // SenzuCastOptionsProvider-д appId тохируулна —
-                // CastContext.getSharedInstance() дуудагдахаас өмнө хийх ёстой
-                SenzuCastOptionsProvider.setAppId(appId)
+    SenzuCastOptionsProvider.setAppId(appId)
 
-                val appCtx = appContext ?: run { result.success(null); return }
+    val appCtx = appContext ?: run { result.success(null); return }
 
-                try {
-                    // CastContext initialize хийгдсэн эсэхийг шалгана
-                    if (!isCastContextInitialized()) {
-                        CastContext.getSharedInstance(appCtx)
-                    }
-                    // Cast plugin-д initialize болсныг мэдэгдэнэ —
-                    // SessionManagerListener-г энд бүртгэнэ
-                    castPlugin?.onCastInitialized()
-                    result.success(null)
-                } catch (e: Exception) {
-                    println("SenzuPlayerPlugin: initCast failed — ${e.message}")
-                    result.error("CAST_INIT_ERROR", e.message, null)
-                }
+    // Main thread дээр хийх ёстой
+    Handler(Looper.getMainLooper()).post {
+        try {
+            if (!isCastContextInitialized()) {
+                CastContext.getSharedInstance(appCtx)
             }
+            castPlugin?.onCastInitialized()
+            result.success(null)
+        } catch (e: Exception) {
+            println("SenzuPlayerPlugin: initCast failed — ${e.message}")
+            result.error("CAST_INIT_ERROR", e.message, null)
+        }
+    }
+}
 
             // ── Secure mode ────────────────────────────────────────────────
             "enableSecureMode"  -> { activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE);   result.success(null) }

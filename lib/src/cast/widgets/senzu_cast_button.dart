@@ -24,55 +24,43 @@ class SenzuCastButton extends StatelessWidget {
     return Obx(() {
       final state = castController.castState.value;
 
-      final (icon, color, tooltip) = switch (state) {
+      final (icon, color) = switch (state) {
         SenzuCastState.connected => (
           Icons.cast_connected,
-          Colors.lightBlueAccent,
-          'Cast холбогдсон',
+          Colors.green,
         ),
-        SenzuCastState.connecting => (
-          Icons.cast,
-          Colors.orangeAccent,
-          'Холбогдож байна...',
-        ),
-        SenzuCastState.noDevicesAvailable => (
-          Icons.cast,
-          Colors.white38,
-          'Төхөөрөмж олдсонгүй',
-        ),
-        _ => (Icons.cast, iconColor, 'Cast хийх'),
+        SenzuCastState.connecting => (Icons.cast, Colors.orangeAccent),
+        SenzuCastState.noDevicesAvailable => (Icons.cast, Colors.white38),
+        _ => (Icons.cast, iconColor),
       };
 
-      return Tooltip(
-        message: tooltip,
-        child: InkWell(
-          onTap: () {
-            if (state == SenzuCastState.connected) {
-              castController.disconnect();
-            } else if (state == SenzuCastState.connecting) {
-              bundle.ui.togglePanel(SenzuPanel.cast);
-            } else if (state == SenzuCastState.noDevicesAvailable) {
-              bundle.ui.togglePanel(SenzuPanel.cast);
-            } else if (state == SenzuCastState.notConnected) {
-              bundle.ui.togglePanel(SenzuPanel.cast);
-            } else {
-              bundle.ui.togglePanel(SenzuPanel.cast);
-            }
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: state == SenzuCastState.connecting
-                ? SizedBox(
-                    width: iconSize,
-                    height: iconSize,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.8,
-                      color: color,
-                    ),
-                  )
-                : Icon(icon, color: color, size: iconSize),
-          ),
+      return InkWell(
+        onTap: () {
+          if (state == SenzuCastState.connected) {
+            castController.disconnect();
+          } else if (state == SenzuCastState.connecting) {
+            bundle.ui.togglePanel(SenzuPanel.cast);
+          } else if (state == SenzuCastState.noDevicesAvailable) {
+            bundle.ui.togglePanel(SenzuPanel.cast);
+          } else if (state == SenzuCastState.notConnected) {
+            bundle.ui.togglePanel(SenzuPanel.cast);
+          } else {
+            bundle.ui.togglePanel(SenzuPanel.cast);
+          }
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: state == SenzuCastState.connecting
+              ? SizedBox(
+                  width: iconSize,
+                  height: iconSize,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    color: color,
+                  ),
+                )
+              : Icon(icon, color: color, size: iconSize),
         ),
       );
     });
