@@ -15,7 +15,8 @@ class _FeatureCastPageState extends State<FeatureCastPage> {
   @override
   void initState() {
     super.initState();
-    _castController = SenzuCastController();
+    _castController =
+        SenzuCastController(appId: SenzuCastController.kDefaultApplicationId);
     _castController.onInit();
   }
 
@@ -44,7 +45,8 @@ class _FeatureCastPageState extends State<FeatureCastPage> {
                   _stateLabel(state),
                   style: TextStyle(color: _stateColor(state), fontSize: 11),
                 ),
-                side: BorderSide(color: _stateColor(state).withValues(alpha: 0.4)),
+                side: BorderSide(
+                    color: _stateColor(state).withValues(alpha: 0.4)),
               ),
             );
           }),
@@ -76,7 +78,8 @@ class _FeatureCastPageState extends State<FeatureCastPage> {
                     '• Select device → connects and transfers playback\n'
                     '• Quality / Subtitle / Audio available on receiver\n'
                     '• Disconnect → resumes local at cast position',
-                    style: TextStyle(color: Colors.white38, fontSize: 11, height: 1.7),
+                    style: TextStyle(
+                        color: Colors.white38, fontSize: 11, height: 1.7),
                   ),
                 ],
               ),
@@ -119,7 +122,7 @@ class _FeatureCastPageState extends State<FeatureCastPage> {
             _label('Remote State'),
             Obx(() {
               final remote = _castController.remoteState.value;
-              final cast   = _castController.castState.value;
+              final cast = _castController.castState.value;
               if (cast != SenzuCastState.connected) {
                 return const Text(
                   'Not connected',
@@ -150,7 +153,8 @@ class _FeatureCastPageState extends State<FeatureCastPage> {
             // ── Manual cast controls ───────────────────────────────────────
             _label('Manual Cast Controls'),
             Obx(() {
-              final connected = _castController.castState.value == SenzuCastState.connected;
+              final connected =
+                  _castController.castState.value == SenzuCastState.connected;
               return Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -161,7 +165,8 @@ class _FeatureCastPageState extends State<FeatureCastPage> {
                     _btn('Play', () => _castController.play()),
                     _btn('Pause', () => _castController.pause()),
                     _btn('Seek +30s', () {
-                      final pos = _castController.remoteState.value.positionMs + 30000;
+                      final pos =
+                          _castController.remoteState.value.positionMs + 30000;
                       _castController.seekTo(Duration(milliseconds: pos));
                     }),
                     _btn('Disconnect', () => _castController.disconnect(),
@@ -188,11 +193,14 @@ class _FeatureCastPageState extends State<FeatureCastPage> {
                     .map((d) => ListTile(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.cast, color: Colors.white54, size: 20),
+                          leading: const Icon(Icons.cast,
+                              color: Colors.white54, size: 20),
                           title: Text(d.deviceName,
-                              style: const TextStyle(color: Colors.white, fontSize: 13)),
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 13)),
                           subtitle: Text(d.modelName,
-                              style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                              style: const TextStyle(
+                                  color: Colors.white38, fontSize: 11)),
                           onTap: () => _castController.connectToDevice(d),
                         ))
                     .toList(),
@@ -208,19 +216,27 @@ class _FeatureCastPageState extends State<FeatureCastPage> {
 
   Color _stateColor(SenzuCastState s) {
     switch (s) {
-      case SenzuCastState.connected: return Colors.lightBlueAccent;
-      case SenzuCastState.connecting: return Colors.orange;
-      case SenzuCastState.noDevicesAvailable: return Colors.white38;
-      default: return Colors.white24;
+      case SenzuCastState.connected:
+        return Colors.lightBlueAccent;
+      case SenzuCastState.connecting:
+        return Colors.orange;
+      case SenzuCastState.noDevicesAvailable:
+        return Colors.white38;
+      default:
+        return Colors.white24;
     }
   }
 
   String _stateLabel(SenzuCastState s) {
     switch (s) {
-      case SenzuCastState.connected: return 'Connected';
-      case SenzuCastState.connecting: return 'Connecting…';
-      case SenzuCastState.noDevicesAvailable: return 'No devices';
-      default: return 'Not connected';
+      case SenzuCastState.connected:
+        return 'Connected';
+      case SenzuCastState.connecting:
+        return 'Connecting…';
+      case SenzuCastState.noDevicesAvailable:
+        return 'No devices';
+      default:
+        return 'Not connected';
     }
   }
 
@@ -228,7 +244,9 @@ class _FeatureCastPageState extends State<FeatureCastPage> {
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(t,
             style: const TextStyle(
-                color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                color: Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w600)),
       );
 
   Widget _infoRow(String k, String v) => Padding(
@@ -246,7 +264,8 @@ class _FeatureCastPageState extends State<FeatureCastPage> {
         ),
       );
 
-  Widget _btn(String label, VoidCallback onTap, {Color color = const Color(0xFF00CA13)}) =>
+  Widget _btn(String label, VoidCallback onTap,
+          {Color color = const Color(0xFF00CA13)}) =>
       ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: color.withValues(alpha: 0.15),
