@@ -1,3 +1,5 @@
+// android/src/main/kotlin/dev/senzu/senzu_player/SenzuPlayerPlugin.kt
+
 package dev.senzu.senzu_player
 
 import android.app.Activity
@@ -15,6 +17,7 @@ import android.provider.Settings
 import android.view.WindowManager
 import androidx.media3.common.util.UnstableApi
 import com.google.android.gms.cast.CastMediaControlIntent
+import com.google.android.gms.cast.framework.CastContext
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -110,13 +113,29 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
         when (call.method) {
 
             // ── Cast initialize ────────────────────────────────────────────
-            // appId дамжуулан Cast SDK-г configure хийнэ.
-            // appId дамжуулаагүй бол DEFAULT_MEDIA_RECEIVER_APPLICATION_ID ашиглана.
             "initCast" -> {
                 val appId = args?.get("appId") as? String
                     ?: CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID
+
+                // SenzuCastOptionsProvider-д appId тохируулна —
+                // CastContext.getSharedInstance() дуудагдахаас өмнө хийх ёстой
                 SenzuCastOptionsProvider.setAppId(appId)
-                result.success(null)
+
+                val appCtx = appContext ?: run { result.success(null); return }
+
+                try {
+                    // CastContext initialize хийгдсэн эсэхийг шалгана
+                    if (!isCastContextInitialized()) {
+                        CastContext.getSharedInstance(appCtx)
+                    }
+                    // Cast plugin-д initialize болсныг мэдэгдэнэ —
+                    // SessionManagerListener-г энд бүртгэнэ
+                    castPlugin?.onCastInitialized()
+                    result.success(null)
+                } catch (e: Exception) {
+                    println("SenzuPlayerPlugin: initCast failed — ${e.message}")
+                    result.error("CAST_INIT_ERROR", e.message, null)
+                }
             }
 
             // ── Secure mode ────────────────────────────────────────────────
@@ -234,6 +253,16 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
             "checkDrmSupport" -> result.success(SenzuDrmManager.isWidevineSupported())
 
             else -> result.notImplemented()
+        }
+    }
+
+    // CastContext initialize болсон эсэхийг аюулгүйгээр шалгана
+    private fun isCastContextInitialized(): Boolean {
+        return try {
+            CastContext.getSharedInstance()
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 

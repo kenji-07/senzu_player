@@ -7,8 +7,11 @@ import 'dart:developer';
 enum SenzuCastPanel { caption, quality, episode, audio, cast, none }
 
 class SenzuCastController extends GetxController {
-  final String? appId;
-  SenzuCastController({this.appId});
+  final String appId;
+  SenzuCastController({this.appId = kDefaultApplicationId});
+  static const String kDefaultApplicationId = 'CC1AD845';
+
+
   // ── Rx State ──────────────────────────────────────────────────────────────
   final castState = SenzuCastState.notConnected.obs;
   final remoteState = const SenzuCastRemoteState().obs;

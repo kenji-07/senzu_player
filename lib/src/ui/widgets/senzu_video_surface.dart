@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -11,13 +12,11 @@ class _NativeSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Map<String, dynamic> creationParams = {};
-
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        return _buildAndroid(creationParams);
+        return _buildAndroid();
       case TargetPlatform.iOS:
-        return _buildIOS(creationParams);
+        return _buildIOS();
       default:
         return const SizedBox.expand(
           child: ColoredBox(color: Color(0xFF111111)),
@@ -25,23 +24,38 @@ class _NativeSurface extends StatelessWidget {
     }
   }
 
-  Widget _buildAndroid(Map<String, dynamic> params) {
-    return AndroidView(
+  Widget _buildAndroid() {
+    return PlatformViewLink(
       viewType: _viewType,
-      layoutDirection: TextDirection.ltr,
-      creationParams: params,
-      creationParamsCodec: const StandardMessageCodec(),
-      gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{},
+      surfaceFactory: (context, controller) {
+        return AndroidViewSurface(
+          controller: controller as AndroidViewController,
+          gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{},
+          hitTestBehavior: PlatformViewHitTestBehavior.opaque,
+        );
+      },
+      onCreatePlatformView: (params) {
+        return PlatformViewsService.initExpensiveAndroidView(
+          id: params.id,
+          viewType: _viewType,
+          layoutDirection: TextDirection.ltr,
+          creationParams: const <String, dynamic>{},
+          creationParamsCodec: const StandardMessageCodec(),
+          onFocus: () => params.onFocusChanged(true),
+        )
+          ..addOnPlatformViewCreatedListener(params.onPlatformViewCreated)
+          ..create();
+      },
     );
   }
 
-  Widget _buildIOS(Map<String, dynamic> params) {
-    return UiKitView(
+  Widget _buildIOS() {
+    return const UiKitView(
       viewType: _viewType,
       layoutDirection: TextDirection.ltr,
-      creationParams: params,
-      creationParamsCodec: const StandardMessageCodec(),
-      gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{},
+      creationParams:  <String, dynamic>{},
+      creationParamsCodec:  StandardMessageCodec(),
+      gestureRecognizers:  <Factory<OneSequenceGestureRecognizer>>{},
     );
   }
 }
@@ -71,7 +85,6 @@ class SenzuVideoSurfaceWithFit extends StatelessWidget {
           case BoxFit.cover:
             final scaleToFitWidth = boxW / videoAspectRatio;
             final scaleToFitHeight = boxH * videoAspectRatio;
-
             if (scaleToFitWidth >= boxH) {
               width = boxW;
               height = scaleToFitWidth;
@@ -105,7 +118,6 @@ class SenzuVideoSurfaceWithFit extends StatelessWidget {
           case BoxFit.scaleDown:
             final byWidth = boxW / videoAspectRatio;
             final byHeight = boxH * videoAspectRatio;
-
             if (byWidth <= boxH) {
               width = boxW;
               height = byWidth;

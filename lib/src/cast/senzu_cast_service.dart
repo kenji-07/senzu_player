@@ -105,10 +105,10 @@ class SenzuCastService {
       _devicesCtrl.stream;
 
   // ── Cast SDK Initialize ──────────────────────────────────────────────────
-  static Future<void> initCast({String? appId}) async {
+  static Future<void> initCast({required String appId}) async {
     try {
       await _nativeMethod.invokeMethod('initCast', {
-        if (appId != null) 'appId': appId,
+        'appId': appId,
       });
     } on PlatformException catch (e) {
       debugPrint('SenzuCast initCast error: ${e.message}');

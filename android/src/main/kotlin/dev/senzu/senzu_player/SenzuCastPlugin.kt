@@ -31,14 +31,30 @@ class SenzuCastPlugin(
     private var loadedAudioTracks: List<Map<String, Any?>> = emptyList()
     private var lastLoadArgs: Map<String, Any?>? = null
 
-    private val castContext: CastContext by lazy { CastContext.getSharedInstance(context) }
+    // CastContext-г аюулгүйгээр авна — initCast дуудагдаагүй үед null буцаана
+    private val castContext: CastContext?
+        get() = try {
+            CastContext.getSharedInstance(context)
+        } catch (e: Exception) {
+            null
+        }
+
     private val castSession: CastSession?
-        get() = castContext.sessionManager.currentCastSession
+        get() = castContext?.sessionManager?.currentCastSession
 
     // ── MethodChannel ──────────────────────────────────────────────────────
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         val args = call.arguments<Map<String, Any?>>()
+
+        // CastContext initialize болоогүй байхад зарим method-г зөвшөөрнө
+        val ctx = castContext
+        if (ctx == null && call.method !in listOf("getCastState", "discoverDevices")) {
+            result.error("NOT_INITIALIZED",
+                "Cast not initialized. Call SenzuCastService.initCast() first.", null)
+            return
+        }
+
         try {
             when (call.method) {
                 "discoverDevices"  -> discoverDevices(result)
@@ -78,7 +94,7 @@ class SenzuCastPlugin(
                     result.success(null)
                 }
                 "disconnect" -> {
-                    castContext.sessionManager.endCurrentSession(true)
+                    ctx?.sessionManager?.endCurrentSession(true)
                     result.success(null)
                 }
                 "getCastState" -> {
@@ -94,6 +110,11 @@ class SenzuCastPlugin(
     // ── Discovery ──────────────────────────────────────────────────────────
 
     private fun discoverDevices(result: MethodChannel.Result) {
+        // CastContext initialize болоогүй үед хоосон list буцаана
+        if (castContext == null) {
+            result.success(emptyList<Map<String, Any?>>())
+            return
+        }
         try {
             val router = androidx.mediarouter.media.MediaRouter.getInstance(context)
             val devices = buildDeviceListFromRouter(router)
@@ -127,28 +148,33 @@ class SenzuCastPlugin(
     }
 
     private fun buildDeviceListFromRouter(
-    router: androidx.mediarouter.media.MediaRouter
-): List<Map<String, Any?>> {
-    val appId = "519C9F80" // SenzuCastOptionsProvider-тай таарах appId
-    val selector = androidx.mediarouter.media.MediaRouteSelector.Builder()
-        .addControlCategory(
-            com.google.android.gms.cast.CastMediaControlIntent.categoryForCast(appId)
-        )
-        .build()
-    return router.routes
-        .filter { route ->
-            route.matchesSelector(selector) &&
-            route.id != "DEFAULT_ROUTE_ID" &&
-            !route.isDefault
+        router: androidx.mediarouter.media.MediaRouter
+    ): List<Map<String, Any?>> {
+        // SenzuCastOptionsProvider-аас динамик appId уншина (хардкод биш)
+        val appId = SenzuCastOptionsProvider.getAppId()
+        return try {
+            val selector = androidx.mediarouter.media.MediaRouteSelector.Builder()
+                .addControlCategory(
+                    com.google.android.gms.cast.CastMediaControlIntent.categoryForCast(appId)
+                )
+                .build()
+            router.routes
+                .filter { route ->
+                    route.matchesSelector(selector) &&
+                    route.id != "DEFAULT_ROUTE_ID" &&
+                    !route.isDefault
+                }
+                .map { route ->
+                    mapOf(
+                        "deviceId"   to route.id,
+                        "deviceName" to route.name,
+                        "modelName"  to (route.description ?: ""),
+                    )
+                }
+        } catch (e: Exception) {
+            emptyList()
         }
-        .map { route ->
-            mapOf(
-                "deviceId"   to route.id,
-                "deviceName" to route.name,
-                "modelName"  to (route.description ?: ""),
-            )
-        }
-}
+    }
 
     // ── Media loading ──────────────────────────────────────────────────────
 
@@ -231,51 +257,50 @@ class SenzuCastPlugin(
     }
 
     private fun loadQuality(args: Map<String, Any?>?, result: MethodChannel.Result) {
-    val client = castSession?.remoteMediaClient
-    val url    = args?.get("url") as? String
-    if (client == null || url.isNullOrEmpty()) { result.success(false); return }
+        val client = castSession?.remoteMediaClient
+        val url    = args?.get("url") as? String
+        if (client == null || url.isNullOrEmpty()) { result.success(false); return }
 
-    val positionMs  = (args["positionMs"] as? Number)?.toLong() ?: 0L
-    val durationMs  = (args["durationMs"] as? Number)?.toLong() ?: 0L
-    val isLive      = args["isLive"]      as? Boolean ?: false
-    val headers     = args.toStringMap("headers")
-    val activeIds   = client.mediaStatus?.activeTrackIds?.toList() ?: emptyList()
-    val currentInfo = client.mediaInfo
+        val positionMs  = (args["positionMs"] as? Number)?.toLong() ?: 0L
+        val durationMs  = (args["durationMs"] as? Number)?.toLong() ?: 0L
+        val isLive      = args["isLive"]      as? Boolean ?: false
+        val headers     = args.toStringMap("headers")
+        val activeIds   = client.mediaStatus?.activeTrackIds?.toList() ?: emptyList()
+        val currentInfo = client.mediaInfo
 
-    val builder = MediaInfo.Builder(url)
-        .setContentType(currentInfo?.contentType ?: "application/x-mpegURL")
-        .setMetadata(currentInfo?.metadata)
-        .setStreamType(if (isLive) MediaInfo.STREAM_TYPE_LIVE else MediaInfo.STREAM_TYPE_BUFFERED)
+        val builder = MediaInfo.Builder(url)
+            .setContentType(currentInfo?.contentType ?: "application/x-mpegURL")
+            .setMetadata(currentInfo?.metadata)
+            .setStreamType(if (isLive) MediaInfo.STREAM_TYPE_LIVE else MediaInfo.STREAM_TYPE_BUFFERED)
 
-    if (!isLive && durationMs > 0) builder.setStreamDuration(durationMs)
-    else if (!isLive && (currentInfo?.streamDuration ?: 0) > 0)
-        builder.setStreamDuration(currentInfo!!.streamDuration)
+        if (!isLive && durationMs > 0) builder.setStreamDuration(durationMs)
+        else if (!isLive && (currentInfo?.streamDuration ?: 0) > 0)
+            builder.setStreamDuration(currentInfo!!.streamDuration)
 
-    val existingTracks = currentInfo?.mediaTracks
-    if (!existingTracks.isNullOrEmpty()) builder.setMediaTracks(existingTracks)
+        val existingTracks = currentInfo?.mediaTracks
+        if (!existingTracks.isNullOrEmpty()) builder.setMediaTracks(existingTracks)
 
-    if (headers.isNotEmpty()) {
-        builder.setCustomData(JSONObject().put("headers", JSONObject(headers)))
-    }
+        if (headers.isNotEmpty()) {
+            builder.setCustomData(JSONObject().put("headers", JSONObject(headers)))
+        }
 
-    val pendingResult = client.load(
-        builder.build(),
-        MediaLoadOptions.Builder().setAutoplay(true).setPlayPosition(positionMs).build()
-    )
+        val pendingResult = client.load(
+            builder.build(),
+            MediaLoadOptions.Builder().setAutoplay(true).setPlayPosition(positionMs).build()
+        )
 
-    // isSuccess → setResultCallback дотор RemoteMediaClient.MediaChannelResult ашиглана
-    if (activeIds.isNotEmpty()) {
-        pendingResult.setResultCallback { mediaChannelResult ->
-            if (mediaChannelResult.status.isSuccess && activeIds.isNotEmpty()) {
-                mainHandler.postDelayed({
-                    client.setActiveMediaTracks(activeIds.toLongArray())
-                }, 500)
+        if (activeIds.isNotEmpty()) {
+            pendingResult.setResultCallback { mediaChannelResult ->
+                if (mediaChannelResult.status.isSuccess && activeIds.isNotEmpty()) {
+                    mainHandler.postDelayed({
+                        client.setActiveMediaTracks(activeIds.toLongArray())
+                    }, 500)
+                }
             }
         }
-    }
 
-    result.success(true)
-}
+        result.success(true)
+    }
 
     // ── Track helpers ──────────────────────────────────────────────────────
 
@@ -343,8 +368,13 @@ class SenzuCastPlugin(
 
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         eventSink = events
+        // CastContext initialize болоогүй үед listener бүртгэхгүй
+        val ctx = castContext ?: run {
+            println("SenzuCast: onListen — CastContext not initialized yet. Call initCast() first.")
+            return
+        }
         try {
-            castContext.sessionManager.addSessionManagerListener(this, CastSession::class.java)
+            ctx.sessionManager.addSessionManagerListener(this, CastSession::class.java)
         } catch (e: Throwable) {
             println("SenzuCast: onListen error: ${e.message}")
         }
@@ -353,6 +383,28 @@ class SenzuCastPlugin(
     override fun onCancel(arguments: Any?) {
         eventSink = null
         stopPolling()
+        try {
+            castContext?.sessionManager?.removeSessionManagerListener(this, CastSession::class.java)
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * CastContext initialize болсны дараа SenzuPlayerPlugin-ийн "initCast" handler дуудна.
+     * SessionManagerListener-г энд бүртгэнэ.
+     */
+    fun onCastInitialized() {
+        val ctx = castContext ?: return
+        try {
+            ctx.sessionManager.removeSessionManagerListener(this, CastSession::class.java)
+            ctx.sessionManager.addSessionManagerListener(this, CastSession::class.java)
+            // Одоо cast session идэвхтэй байвал мэдэгдэнэ
+            if (ctx.sessionManager.currentCastSession != null) {
+                emitCastState("connected")
+                startPolling()
+            }
+        } catch (e: Exception) {
+            println("SenzuCast: onCastInitialized error: ${e.message}")
+        }
     }
 
     // ── Event emission ─────────────────────────────────────────────────────
@@ -436,7 +488,7 @@ class SenzuCastPlugin(
     fun dispose() {
         stopPolling()
         try {
-            castContext.sessionManager.removeSessionManagerListener(this, CastSession::class.java)
+            castContext?.sessionManager?.removeSessionManagerListener(this, CastSession::class.java)
         } catch (_: Exception) {}
         eventSink = null
     }
