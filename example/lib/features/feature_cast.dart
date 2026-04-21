@@ -103,6 +103,7 @@ class _FeatureCastPageState extends State<FeatureCastPage> {
                 title: 'Tears of Steel',
                 description: 'Cast demo — Unified Streaming',
               ),
+              isLive: false,
               style: SenzuPlayerStyle(
                 senzuLanguage: const SenzuLanguage(
                   cast: 'Cast',

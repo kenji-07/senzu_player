@@ -198,14 +198,14 @@ class _CastActiveView extends StatelessWidget {
       onVerticalDragEnd: onDragEnd,
       child: Stack(
         children: [
-           Positioned.fill(
-          child: CachedNetworkImage(
-            imageUrl: 'https://image.tmdb.org/t/p/original/cm2oUAPiTE1ERoYYOzzgloQw4YZ.jpg',
-            fit: BoxFit.contain,
-            placeholder: (_, __) => const ColoredBox(color: Colors.black),
-            errorWidget: (_, __, ___) => const ColoredBox(color: Colors.black),
+          Positioned.fill(
+            child: CachedNetworkImage(
+              imageUrl: meta.posterUrl ?? '',
+              fit: BoxFit.contain,
+              placeholder: (_, __) => const ColoredBox(color: Colors.black),
+              errorWidget: (_, __, ___) => const ColoredBox(color: Colors.black),
+            ),
           ),
-        ),
           Positioned.fill(
             child: Obx(() {
               final panelOpen =
@@ -280,7 +280,6 @@ class _CastActiveView extends StatelessWidget {
             ),
           ),
 
-          // 👇 ЭХЛЭЭД close overlay
           Obx(() {
             final panelOpen =
                 castController.activePanel.value != SenzuCastPanel.none;
@@ -473,9 +472,14 @@ class _CastBottomBar extends StatelessWidget {
         final hPad = isFS ? 28.0 : 14.0;
         final dur = Duration(milliseconds: remote.durationMs);
         final pos = Duration(milliseconds: remote.positionMs);
-        final isLive = remote.durationMs == 0 || bundle.core.isLiveRx.value;
 
-        final ratio = remote.durationMs > 0
+        // FIX: Use bundle.core.isLiveRx as the single source of truth.
+        // remote.durationMs can be non-zero even for live streams (the value
+        // is copied from the native player at cast-start time), so checking
+        // only durationMs == 0 produces wrong results.
+        final isLive = bundle.core.isLiveRx.value;
+
+        final ratio = remote.durationMs > 0 && !isLive
             ? (remote.positionMs / remote.durationMs).clamp(0.0, 1.0)
             : 0.0;
 
@@ -486,6 +490,7 @@ class _CastBottomBar extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: hPad),
               child: Row(
                 children: [
+                  // Cast device name
                   Obx(() {
                     return Row(
                       mainAxisSize: MainAxisSize.min,
@@ -507,8 +512,13 @@ class _CastBottomBar extends StatelessWidget {
                     );
                   }),
                   const SizedBox(width: 8),
-                  if (!isLive)
+
+                  // Time label — show LIVE badge for live, time for VOD
+                  if (isLive)
+                    _CastLiveBadge(style: style)
+                  else
                     Text('${_fmt(pos)} / ${_fmt(dur)}', style: style.textStyle),
+
                   const Spacer(),
                   InkWell(
                     onTap: () => bundle.core.openOrCloseFullscreen(),
@@ -525,6 +535,8 @@ class _CastBottomBar extends StatelessWidget {
                 ],
               ),
             ),
+
+            // Progress bar — hidden for live
             if (!isLive)
               Padding(
                 padding: EdgeInsets.only(
@@ -554,6 +566,31 @@ class _CastBottomBar extends StatelessWidget {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return h > 0 ? '$h:$m:$s' : '$m:$s';
+  }
+}
+
+// ── Live badge for cast ───────────────────────────────────────────────────────
+class _CastLiveBadge extends StatelessWidget {
+  const _CastLiveBadge({required this.style});
+  final SenzuPlayerStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.red,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        style.senzuLanguage.live,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
   }
 }
 
@@ -739,7 +776,6 @@ class _CastProgressBarState extends State<_CastProgressBar> {
             child: Stack(
               alignment: AlignmentDirectional.centerStart,
               children: [
-                // Background
                 Container(
                   height: s.height,
                   decoration: BoxDecoration(
@@ -747,7 +783,6 @@ class _CastProgressBarState extends State<_CastProgressBar> {
                     borderRadius: s.borderRadius,
                   ),
                 ),
-                // Played
                 AnimatedContainer(
                   duration: _dragging
                       ? Duration.zero
@@ -759,7 +794,6 @@ class _CastProgressBarState extends State<_CastProgressBar> {
                     borderRadius: s.borderRadius,
                   ),
                 ),
-                // Chapter markers
                 if (widget.chapters.isNotEmpty)
                   Positioned.fill(
                     child: IgnorePointer(
@@ -776,7 +810,6 @@ class _CastProgressBarState extends State<_CastProgressBar> {
                       ),
                     ),
                   ),
-                // Dot
                 Builder(
                   builder: (_) {
                     final sz = s.dotSize * (_dragging ? 1.8 : 1.0);

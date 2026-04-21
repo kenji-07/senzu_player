@@ -15,63 +15,6 @@ class FeatureAdsPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Custom inline ads ──────────────────────────────────────────
-            _label('Custom inline ad — pre-roll at 0:00'),
-            SenzuPlayer(
-              source: {
-                'Auto': VideoSource.fromUrl(
-                    'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-                    ads: [
-                      SenzuPlayerAd(
-                        durationToStart: Duration.zero,
-                        durationToEnd: const Duration(seconds: 8),
-                        durationToSkip: const Duration(seconds: 5),
-                        deepLink: 'https://example.com/ad1',
-                        child: Container(
-                          color: Colors.blue.shade900,
-                          child: const Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.ad_units,
-                                    color: Colors.white, size: 48),
-                                SizedBox(height: 8),
-                                Text('Pre-roll Ad',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold)),
-                                SizedBox(height: 4),
-                                Text('Skippable after 5s',
-                                    style: TextStyle(
-                                        color: Colors.white60, fontSize: 13)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                    subtitle: {
-                      'English': SenzuPlayerSubtitle.network(
-                        'https://vjs.zencdn.net/v/oceans.vtt',
-                        type: SubtitleType.webvtt,
-                      ),
-                      'Mongolia': SenzuPlayerSubtitle.network(
-                        'https://raw.githubusercontent.com/videojs/video.js/main/docs/examples/shared/example-captions.vtt',
-                        type: SubtitleType.webvtt,
-                      ),
-                      'Test': SenzuPlayerSubtitle.network(
-                        'https://raw.githubusercontent.com/shaka-project/shaka-player/main/test/test/assets/text-clip.vtt',
-                        type: SubtitleType.webvtt,
-                      ),
-                    },
-                    initialSubtitle: 'English'),
-              },
-              defaultAspectRatio: 16 / 9,
-              autoPlay: false,
-              meta: const SenzuMetaData(title: 'Pre-roll Ad'),
-            ),
-            const SizedBox(height: 24),
 
             _label('Mid-roll ad at 50% + custom skip button'),
             SenzuPlayer(

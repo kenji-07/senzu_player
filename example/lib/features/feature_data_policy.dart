@@ -51,20 +51,6 @@ class FeatureDataPolicyPage extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-
-            _label('No warning (SenzuDataPolicy.none)'),
-            SenzuPlayer(
-              source: {
-                'Auto': VideoSource.fromUrl(
-                  'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-                ),
-              },
-              dataPolicy: SenzuDataPolicy.none,
-              defaultAspectRatio: 16 / 9,
-              meta: const SenzuMetaData(title: 'No Data Warning'),
-            ),
-            const SizedBox(height: 40),
           ],
         ),
       ),

@@ -45,24 +45,74 @@ class SenzuCastController extends GetxController {
   Duration get resumePosition =>
       Duration(milliseconds: remoteState.value.positionMs);
 
+  // FIX: Track how many active consumers are subscribed so we know when it is
+  // safe to stop the underlying event channel.  Each player page calls
+  // attach() in initState / setCastController and detach() in dispose.
+  // The service is started on the first attach and stopped on the last detach.
+  int _attachCount = 0;
+
   @override
   void onInit() {
     super.onInit();
-    SenzuCastService.startListening();
-    _subscribeStreams();
-    _syncInitialState();
+    // The service is started lazily via attach() so that navigating between
+    // player pages does not stop/restart the event channel unnecessarily.
+    // We still do an initial attach here so the controller works when used
+    // without explicit attach/detach calls (backward compatibility).
+    _attach();
   }
 
   @override
   void onClose() {
-    _castStateSub?.cancel();
-    _remoteStateSub?.cancel();
-    _devicesSub?.cancel();
-    SenzuCastService.stopListening();
+    _detach();
     super.onClose();
   }
 
+  // ── Lifecycle helpers called by SenzuCoreController ───────────────────────
+
+  /// Call this when a new player page registers this cast controller.
+  /// Ensures the underlying event stream is running and re-subscribes if
+  /// subscriptions were cancelled after a previous detach.
+  void attach() {
+    _attach();
+  }
+
+  /// Call this when a player page is disposed.
+  void detach() {
+    _detach();
+  }
+
+  void _attach() {
+    _attachCount++;
+    if (_attachCount == 1) {
+      // First consumer — start the native event channel.
+      SenzuCastService.startListening();
+    }
+    // Always re-subscribe streams in case they were cancelled.
+    _subscribeStreams();
+    _syncInitialState();
+  }
+
+  void _detach() {
+    if (_attachCount <= 0) return;
+    _attachCount--;
+
+    if (_attachCount == 0) {
+      // Last consumer gone — cancel subscriptions but do NOT stop the service
+      // if we are still casting.  Stopping the service while casting would
+      // lose the remote state stream.  We only stop the service when no one
+      // is casting and no one is listening.
+      _cancelSubscriptions();
+      if (!isCasting) {
+        SenzuCastService.stopListening();
+      }
+    }
+    // If _attachCount > 0 there are still other consumers; do nothing.
+  }
+
   void _subscribeStreams() {
+    // Cancel existing subs first to avoid duplicate listeners.
+    _cancelSubscriptions();
+
     _castStateSub = SenzuCastService.castStateStream.listen((state) {
       castState.value = state;
 
@@ -71,6 +121,11 @@ class SenzuCastController extends GetxController {
         _currentMedia = null;
         _resetTrackState();
         activeQuality.value = null;
+
+        // Now it is safe to stop the service if no consumers remain.
+        if (_attachCount == 0) {
+          SenzuCastService.stopListening();
+        }
       }
     });
 
@@ -87,6 +142,15 @@ class SenzuCastController extends GetxController {
     _devicesSub = SenzuCastService.devicesStream.listen((devices) {
       availableDevices.value = devices;
     });
+  }
+
+  void _cancelSubscriptions() {
+    _castStateSub?.cancel();
+    _castStateSub = null;
+    _remoteStateSub?.cancel();
+    _remoteStateSub = null;
+    _devicesSub?.cancel();
+    _devicesSub = null;
   }
 
   void _syncTrackStateFromNative(List<int> activeIds) {
@@ -118,7 +182,8 @@ class SenzuCastController extends GetxController {
 
   Future<void> _syncInitialState() async {
     try {
-      castState.value = await SenzuCastService.getCastState();
+      final state = await SenzuCastService.getCastState();
+      castState.value = state;
     } catch (e) {
       log('SenzuCast: initial state sync failed: $e');
     }

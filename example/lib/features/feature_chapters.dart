@@ -4,13 +4,6 @@ import 'package:senzu_player/senzu_player.dart';
 class FeatureChaptersPage extends StatelessWidget {
   const FeatureChaptersPage({Key? key}) : super(key: key);
 
-  // ── fromSkipRanges helper ────────────────────────────────────────────────
-  static final _skipRangeChapters = SenzuChapter.fromSkipRanges(
-    opStart: const Duration(seconds: 5),
-    opEnd:   const Duration(seconds: 30),
-    edStart: const Duration(minutes: 1, seconds: 30),
-    edEnd:   const Duration(minutes: 2),
-  );
 
   // ── Manual chapters ──────────────────────────────────────────────────────
   static const _manualChapters = [
@@ -37,24 +30,6 @@ class FeatureChaptersPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── fromSkipRanges ─────────────────────────────────────────────
-            _label('fromSkipRanges — OP at 0:05 / ED at 1:30'),
-            SenzuPlayer(
-              source: {
-                'Auto': VideoSource.fromUrl(
-                  'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-                ),
-              },
-              chapters: _skipRangeChapters,
-              defaultAspectRatio: 16 / 9,
-              meta: const SenzuMetaData(
-                title: 'Anime Episode 1',
-                description: 'OP/ED skip demo',
-              ),
-            ),
-            const SizedBox(height: 16),
-            _chapterList(_skipRangeChapters),
-            const SizedBox(height: 24),
 
             // ── Manual chapters ────────────────────────────────────────────
             _label('Manual chapters — Cold Open / Act I / Act II / ED / Post-credits'),

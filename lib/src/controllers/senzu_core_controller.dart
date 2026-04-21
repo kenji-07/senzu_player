@@ -60,7 +60,6 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   // ── Cast metadata ──────────────────────────────────────────────────────────
   SenzuMetaData? _meta;
 
-  /// SenzuPlayer-аас meta дамжуулна
   void setCastMeta(SenzuMetaData? meta) {
     _meta = meta;
   }
@@ -92,9 +91,12 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
 
   // ── Cast integration ───────────────────────────────────────────────────────
   SenzuCastController? _castController;
+  StreamSubscription<SenzuCastState>? _castStateSub;
 
   bool? _explicitIsLive;
   bool _wasPlaying = false;
+
+  bool castHandledForCurrentSession = false;
 
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
@@ -170,6 +172,14 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     _reconnectTimer?.cancel();
     _volSub?.cancel();
     _batSub?.cancel();
+
+    _castStateSub?.cancel();
+    _castStateSub = null;
+
+    // Detach from cast controller — decrements the consumer count so the
+    // event channel can be stopped when no pages are listening.
+    _castController?.detach();
+
     WidgetsBinding.instance.removeObserver(this);
     SenzuNativeChannel.stopListening();
     _releaseNative();
@@ -180,7 +190,6 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Cast горимд байх үед lifecycle-г skip хийнэ
     if (isCastActive.value) return;
     switch (state) {
       case AppLifecycleState.inactive:
@@ -227,6 +236,16 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
       _pendingDataSaver = false;
       _applyDataSaver();
     }
+
+    final ctrl = _castController;
+    if (ctrl != null && ctrl.isCasting && !_disposed) {
+      log('SenzuCoreController: new player initialized while cast active → reloading cast source');
+      isCastActive.value = true;
+      await SenzuNativeChannel.setNowPlayingEnabled(false);
+      // Release the native player (we're casting, no need for local playback)
+      await _releaseNative();
+      await castCurrentSource();
+    }
   }
 
   // ── Source change ──────────────────────────────────────────────────────────
@@ -238,6 +257,14 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   }) async {
     if (_disposed) return;
     if (isAdActiveCallback?.call() == true) return;
+
+    if (isCastActive.value) {
+      rxSources.value = {...?rxSources.value, name: source};
+      rxActiveSource.value = name;
+      onPendingAdsChanged?.call(source.ads?.toList() ?? []);
+      log('SenzuCoreController: cast active → skipping native source change for "$name"');
+      return;
+    }
 
     final myGen = ++_sourceGeneration;
     bool stale() => _disposed || _sourceGeneration != myGen;
@@ -430,11 +457,28 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
 
   // ── Cast integration ───────────────────────────────────────────────────────
   void setCastController(SenzuCastController ctrl) {
+    // Detach from the previous controller if we are switching to a new one.
+    if (_castController != null && _castController != ctrl) {
+      _castController!.detach();
+    }
+
+    _castStateSub?.cancel();
+    _castStateSub = null;
     _castController = ctrl;
-    ever(ctrl.castState, _onCastStateChanged);
+
+    // attach() ensures the underlying EventChannel stays open and
+    // re-subscribes the remoteState / castState streams so play/pause
+    // commands reach the TV after page navigation.
+    ctrl.attach();
+
+    _castStateSub = ctrl.castState.listen(_onCastStateChanged);
+
+    if (ctrl.isCasting) {
+      log('SenzuCoreController: registered with already-connected cast session');
+      isCastActive.value = true;
+    }
   }
 
-  /// Cast тасарсан үед source-г дахин initialize хийж resume position-оос тоглуулна
   Future<void> _resumeLocalPlayback(Duration resumePos) async {
     if (_disposed) return;
 
@@ -445,6 +489,14 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     final src = srcs[name];
     if (src == null) return;
 
+    // Restore isLiveRx from _explicitIsLive BEFORE changeSource() runs so
+    // the "isLive" getter does not read the stale native state (which has
+    // duration == 0 right now and would incorrectly return true).
+    if (_explicitIsLive != null) {
+      isLiveRx.value = _explicitIsLive!;
+    }
+
+    // Reset so changeSource() doesn't short-circuit the "same name" check.
     rxActiveSource.value = null;
 
     await changeSource(
@@ -465,17 +517,16 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
 
     if (_disposed) return;
 
-    if (resumePos > Duration.zero) {
+    // Live stream-д seek хийхгүй.
+    if (resumePos > Duration.zero && !isLive) {
       await seekTo(resumePos + beginRange);
     }
 
     await play();
 
-    // Notification дахин идэвхжүүлнэ
     await SenzuNativeChannel.setNowPlayingEnabled(notification);
   }
 
-  /// Одоогийн source-г cast руу илгээх — meta автоматаар дүүргэнэ
   Future<void> castCurrentSource({Duration? overridePosition}) async {
     final ctrl = _castController;
     if (ctrl == null) return;
@@ -500,9 +551,6 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     final subtitleMap = source.subtitle ?? {};
     final srcs = rxSources.value ?? {};
 
-    // ─────────────────────────────────────────
-    // QUALITY
-    // ─────────────────────────────────────────
     final castQualities = srcs.entries.map((e) {
       return CastQualityOption(
         label: e.key,
@@ -511,9 +559,6 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
       );
     }).toList();
 
-    // ─────────────────────────────────────────
-    // SUBTITLE (ID = 1000+)
-    // ─────────────────────────────────────────
     final castSubtitles = subtitleMap.entries
         .where((e) => e.value.url_.isNotEmpty)
         .mapIndexed((i, e) {
@@ -527,28 +572,15 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
         })
         .toList();
 
-    // ─────────────────────────────────────────
-    // AUDIO (ID = 2000+)
-    // ─────────────────────────────────────────
     final castAudio = audioTracks.mapIndexed((i, t) {
       return CastAudioTrack(id: 2000 + i, language: t.language, name: t.name);
     }).toList();
 
-    // ─────────────────────────────────────────
-    // SELECTED STATE
-    // ─────────────────────────────────────────
-
-    // subtitle
     final selectedSubtitleId = ctrl.activeSubtitleTrackId.value;
-
-    // audio
     final selectedAudioId =
         ctrl.activeAudioTrackId.value ??
         (castAudio.isNotEmpty ? castAudio.first.id : null);
 
-    // ─────────────────────────────────────────
-    // MEDIA
-    // ─────────────────────────────────────────
     final media = SenzuCastMedia(
       url: source.dataSource,
       title: title,
@@ -557,7 +589,6 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
       positionMs: currentPosition.inMilliseconds,
       durationMs: castDurationMs,
       isLive: castIsLive,
-
       mimeType: source.protocol == VideoProtocol.dash
           ? 'application/dash+xml'
           : source.protocol == VideoProtocol.hls
@@ -565,13 +596,10 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
           : source.protocol == VideoProtocol.mp4
           ? 'video/mp4'
           : null,
-
       httpHeaders: source.httpHeaders ?? {},
-
       availableSubtitles: castSubtitles,
       availableAudioTracks: castAudio,
       availableQualities: castQualities,
-
       selectedSubtitleId: selectedSubtitleId,
       selectedAudioId: selectedAudioId,
     );
@@ -580,9 +608,15 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
   }
 
   void _onCastStateChanged(SenzuCastState state) {
-    log('SenzuCast: state changed → $state');
+    if (_disposed) return;
+    log('SenzuCoreController: cast state → $state');
+
     switch (state) {
       case SenzuCastState.connected:
+        if (isCastActive.value) {
+          log('SenzuCoreController: already cast-active, ignoring duplicate connected event');
+          return;
+        }
         isCastActive.value = true;
         SenzuNativeChannel.setNowPlayingEnabled(false);
         final savedPosition = rxNativeState.value.position;
@@ -590,9 +624,9 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
         castCurrentSource(overridePosition: savedPosition);
 
       case SenzuCastState.notConnected:
-        // isCastActive шалгалтгүйгээр үргэлж resume хийнэ
         final wasActive = isCastActive.value;
         isCastActive.value = false;
+        castHandledForCurrentSession = false;
         if (wasActive) {
           SenzuNativeChannel.setNowPlayingEnabled(notification);
           final resumePos = _castController?.resumePosition ?? Duration.zero;

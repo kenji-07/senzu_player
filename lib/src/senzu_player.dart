@@ -43,6 +43,7 @@ class SenzuPlayer extends StatefulWidget {
     this.looping = false,
     this.autoPlay = false,
     this.isLive,
+    this.isTv = false,
     this.style,
     this.meta,
     this.chapters = const [],
@@ -71,7 +72,6 @@ class SenzuPlayer extends StatefulWidget {
     this.imaAdTagUrl,
     this.bundle,
     this.annotations = const [],
-    this.isTv = false,
     this.castController,
   });
 

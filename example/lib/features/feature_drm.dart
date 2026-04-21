@@ -97,23 +97,6 @@ class FeatureDrmPage extends StatelessWidget {
               ),
               const SizedBox(height: 24),
             ],
-
-            // ── Secure mode (screenshot block) ────────────────────────────
-            _label('Secure Mode — Screenshot Blocked'),
-            SenzuPlayer(
-              source: {
-                'Auto': VideoSource.fromUrl(
-                  'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-                ),
-              },
-              defaultAspectRatio: 16 / 9,
-              secureMode: true,
-              meta: const SenzuMetaData(
-                title: 'Secure Mode',
-                description: 'Screenshots and screen recording blocked',
-              ),
-            ),
-            const SizedBox(height: 40),
           ],
         ),
       ),
