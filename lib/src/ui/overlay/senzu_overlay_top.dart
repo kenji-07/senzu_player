@@ -47,7 +47,7 @@ class SenzuOverlayTop extends StatelessWidget {
           if (meta.show ?? true)
             Expanded(
               child: GestureDetector(
-                onTap: () => bundle.core.closeFullscreen(),
+                onTap: () => bundle.core.closeFullscreen(context),
                 child: Row(
                   children: [
                     Icon(meta.icon, color: meta.iconColor, size: meta.iconSize),

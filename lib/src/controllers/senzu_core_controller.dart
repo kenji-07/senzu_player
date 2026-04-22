@@ -239,7 +239,9 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
 
     final ctrl = _castController;
     if (ctrl != null && ctrl.isCasting && !_disposed) {
-      log('SenzuCoreController: new player initialized while cast active → reloading cast source');
+      log(
+        'SenzuCoreController: new player initialized while cast active → reloading cast source',
+      );
       isCastActive.value = true;
       await SenzuNativeChannel.setNowPlayingEnabled(false);
       // Release the native player (we're casting, no need for local playback)
@@ -262,7 +264,9 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
       rxSources.value = {...?rxSources.value, name: source};
       rxActiveSource.value = name;
       onPendingAdsChanged?.call(source.ads?.toList() ?? []);
-      log('SenzuCoreController: cast active → skipping native source change for "$name"');
+      log(
+        'SenzuCoreController: cast active → skipping native source change for "$name"',
+      );
       return;
     }
 
@@ -474,7 +478,9 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     _castStateSub = ctrl.castState.listen(_onCastStateChanged);
 
     if (ctrl.isCasting) {
-      log('SenzuCoreController: registered with already-connected cast session');
+      log(
+        'SenzuCoreController: registered with already-connected cast session',
+      );
       isCastActive.value = true;
     }
   }
@@ -614,7 +620,9 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     switch (state) {
       case SenzuCastState.connected:
         if (isCastActive.value) {
-          log('SenzuCoreController: already cast-active, ignoring duplicate connected event');
+          log(
+            'SenzuCoreController: already cast-active, ignoring duplicate connected event',
+          );
           return;
         }
         isCastActive.value = true;
@@ -742,13 +750,11 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     update();
   }
 
-  Future<void> closeFullscreen() async {
+  Future<void> closeFullscreen(BuildContext context) async {
     if (isFullScreen.value) {
       isFullScreen.value = false;
     } else {
-      if (Get.context != null && Navigator.canPop(Get.context!)) {
-        Navigator.of(Get.context!).pop();
-      }
+      Navigator.of(context).pop();
     }
   }
 

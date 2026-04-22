@@ -19,7 +19,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### 🎉 Initial Release
 
 #### Core Player
-- Native **AVPlayer** (iOS) and **ExoPlayer / Media3** (Android) backend
+- Native **AVPlayer** (iOS) and **ExoPlayer / Media3** (Android)
 - HLS, DASH, and MP4 playback support
 - Adaptive Bitrate (ABR) streaming with automatic quality switching
 - Configurable buffer thresholds (`minBufferSec`, `maxBufferSec`)

@@ -323,7 +323,7 @@ class _MainPlayerStack extends StatelessWidget {
           if (!bundle.ad.isAdLoaded.value &&
                   !bundle.ad.isAdInitializing.value ||
               bundle.ad.shouldShowContentVideo.value)
-            _buildContentPlayer(panelOpen),
+            _buildContentPlayer(panelOpen, context),
 
           // ── Ad loading spinner ─────────────────────────────────────────────
           if (bundle.ad.isAdInitializing.value)
@@ -361,7 +361,7 @@ class _MainPlayerStack extends StatelessWidget {
     });
   }
 
-  Widget _buildContentPlayer(bool panelOpen) {
+  Widget _buildContentPlayer(bool panelOpen, BuildContext context) {
     return GestureDetector(
       onLongPress: panelOpen ? null : onLongPress,
       onLongPressUp: panelOpen ? null : onLongPressUp,
@@ -472,7 +472,7 @@ class _MainPlayerStack extends StatelessWidget {
                     ),
                   ),
                   SizedBox(
-                    width: MediaQuery.of(Get.context!).size.width / 3,
+                    width: MediaQuery.of(context).size.width / 3,
                     child: GestureDetector(
                       behavior: HitTestBehavior.translucent,
                       onTap: () => bundle.ui.showAndHideOverlay(),

@@ -22,13 +22,10 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void initState() {
     super.initState();
-   
-    _externalBundle = SenzuPlayerBundle.create(
-      onQualityChanged: (q) => debugPrint('[ABR] Quality → $q'),
-    );
-     _castController =
+
+    _externalBundle = SenzuPlayerBundle.create();
+    _castController =
         SenzuCastController(appId: SenzuCastController.kDefaultApplicationId);
-    
   }
 
   @override
@@ -160,7 +157,7 @@ class _PlayerPageState extends State<PlayerPage> {
               // ABR
               adaptiveBitrate: false,
               minBufferThreshold: 0,
-              maxBufferThreshold: 2500,
+              maxBufferThreshold: 10000,
               onQualityChanged: (q) => _showSnack('Quality: $q'),
 
               // UI features
@@ -428,7 +425,6 @@ class _PlayerPageState extends State<PlayerPage> {
                 ),
               ),
             ),
-         
           ],
         ),
       ),

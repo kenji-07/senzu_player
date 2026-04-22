@@ -39,8 +39,8 @@ class SenzuPlayerBundle {
 
   factory SenzuPlayerBundle.create({
     bool looping = false,
-    bool adaptiveBitrate = true,
-    int minBufferSec = 10,
+    bool adaptiveBitrate = false,
+    int minBufferSec = 0,
     int maxBufferSec = 30,
     bool secureMode = false,
     bool notification = true,

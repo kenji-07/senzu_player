@@ -65,7 +65,7 @@ class SenzuPlayer extends StatefulWidget {
     this.enableLockScreen = true,
     this.adaptiveBitrate = true,
     this.minBufferThreshold = 10,
-    this.maxBufferThreshold = 30,
+    this.maxBufferThreshold = 2000,
     this.onQualityChanged,
     this.dataPolicy = const SenzuDataPolicy(),
     this.watermark,
