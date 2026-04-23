@@ -2,13 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'package:senzu_player/src/data/models/video_source_model.dart';
-import 'package:senzu_player/src/data/models/senzu_annotation_model.dart';
 import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
 import 'package:senzu_player/src/ui/core/senzu_player_core_view.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
-import 'package:senzu_player/src/data/models/senzu_watermark.dart';
-import 'package:senzu_player/src/data/models/senzu_token_provider.dart';
-import 'package:senzu_player/src/data/models/senzu_player_config.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/data/models/senzu_metadata.dart';
 import 'package:senzu_player/src/platform/senzu_native_channel.dart';
@@ -41,7 +37,6 @@ class SenzuPlayer extends StatefulWidget {
     required this.source,
     required this.bundle,
     this.seekTo = Duration.zero,
-    this.looping = false,
     this.autoPlay = false,
     this.isLive,
     this.style,
@@ -59,21 +54,13 @@ class SenzuPlayer extends StatefulWidget {
     this.enableLock = true,
     this.enableEpisode = true,
     this.enablePip = true,
-    this.dataPolicy = const SenzuDataPolicy(),
-    this.watermark,
-    this.tokenConfig,
     this.imaAdTagUrl,
-    this.annotations = const [],
     this.castController,
   });
 
-  final SenzuWatermark? watermark;
-  final SenzuDataPolicy dataPolicy;
-  final SenzuTokenConfig? tokenConfig;
 
   final Map<String, VideoSource> source;
   final Duration seekTo;
-  final bool looping;
   final bool autoPlay;
   final bool? isLive;
 
@@ -97,8 +84,7 @@ class SenzuPlayer extends StatefulWidget {
   final String? imaAdTagUrl;
 
 
-  final List<SenzuAnnotation> annotations;
-  final SenzuPlayerBundle? bundle;
+  final SenzuPlayerBundle bundle;
   final SenzuCastController? castController;
 
   @override
@@ -122,7 +108,7 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
     _style = widget.style ?? SenzuPlayerStyle();
     _meta = widget.meta ?? const SenzuMetaData();
 
-    _bundle = widget.bundle!;
+    _bundle = widget.bundle;
 
     ever(_bundle.core.isFullScreen, _onFullscreenChanged);
 

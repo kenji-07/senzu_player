@@ -21,7 +21,7 @@ flutter:
 dependencies:
   flutter:
     sdk: flutter
-  # State management — GetX only, no provider
+  # State management
   get: ^4.7.3
   # AES subtitle decryption
   pointycastle: ^4.0.0

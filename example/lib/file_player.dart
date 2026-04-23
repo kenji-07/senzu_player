@@ -63,13 +63,12 @@ class _FilePageState extends State<FilePage> {
                 )
               },
 
-              bundle: _externalBundle,
+              bundle: _externalBundle!,
               defaultAspectRatio: 16 / 9,
 
               autoPlay: true,
               seekTo: Duration.zero,
               isLive: false,
-              looping: true,
 
               // UI features
               enableFullscreen: true,
@@ -157,54 +156,6 @@ class _FilePageState extends State<FilePage> {
                   ),
                 ),
               ),
-
-              // Watermark
-              watermark: const SenzuWatermark(
-                userId: 'user_42',
-                opacity: 0.14,
-                position: WatermarkPosition.random,
-                moveDuration: Duration(seconds: 20),
-                showTimestamp: true,
-                fontSize: 13,
-                color: Colors.white,
-              ),
-
-              // Annotations
-              annotations: [
-                SenzuAnnotation(
-                  id: 'promo_1',
-                  text: '🎁 Special offer — Tap to claim!',
-                  appearAt: const Duration(seconds: 5),
-                  disappearAt: const Duration(seconds: 15),
-                  alignment: Alignment.topRight,
-                  onTap: () => setState(() => lastTap = 'Promo tapped at 0:05'),
-                ),
-                SenzuAnnotation(
-                  id: 'chapter_2',
-                  text: '📖 Chapter 2 starts',
-                  appearAt: const Duration(seconds: 20),
-                  disappearAt: const Duration(seconds: 28),
-                  alignment: Alignment.topLeft,
-                  onTap: () =>
-                      setState(() => lastTap = 'Chapter 2 annotation tapped'),
-                ),
-                SenzuAnnotation(
-                  id: 'subscribe',
-                  text: '🔔 Subscribe now',
-                  appearAt: const Duration(seconds: 40),
-                  disappearAt: const Duration(seconds: 55),
-                  alignment: Alignment.bottomRight,
-                  onTap: () => setState(() => lastTap = 'Subscribe tapped'),
-                ),
-                SenzuAnnotation(
-                  id: 'poll',
-                  text: '📊 Vote: Did you like this?',
-                  appearAt: const Duration(minutes: 1),
-                  disappearAt: const Duration(minutes: 1, seconds: 15),
-                  alignment: Alignment.center,
-                  onTap: () => setState(() => lastTap = 'Poll tapped'),
-                ),
-              ],
             ),
           ],
         ),

@@ -33,6 +33,66 @@ class _PlayerPageState extends State<PlayerPage> {
       secureMode: true,
       notification: true,
       onQualityChanged: (q) => _showSnack('Quality: $q'),
+
+      // Data policy
+      dataPolicy: const SenzuDataPolicy(
+        warnOnCellular: true,
+        dataSaverOnCellular: false,
+        dataSaverQualityKey: '480p',
+      ),
+
+      // Watermark
+      watermark: const SenzuWatermark(
+        userId: 'user_42',
+        opacity: 0.14,
+        position: WatermarkPosition.bottomRight,
+        moveDuration: Duration(seconds: 20),
+        showTimestamp: true,
+        fontSize: 13,
+        color: Colors.white,
+      ),
+
+      // Token refresh
+      tokenConfig: SenzuTokenConfig(
+        refreshBeforeExpirySec: 60,
+        onRefresh: _onRefresh,
+      ),
+
+      // Annotations
+      annotations: [
+        SenzuAnnotation(
+          id: 'promo_1',
+          text: '🎁 Special offer — Tap to claim!',
+          appearAt: const Duration(seconds: 5),
+          disappearAt: const Duration(seconds: 15),
+          alignment: Alignment.topRight,
+          onTap: () => setState(() => lastTap = 'Promo tapped at 0:05'),
+        ),
+        SenzuAnnotation(
+          id: 'chapter_2',
+          text: '📖 Chapter 2 starts',
+          appearAt: const Duration(seconds: 20),
+          disappearAt: const Duration(seconds: 28),
+          alignment: Alignment.topLeft,
+          onTap: () => setState(() => lastTap = 'Chapter 2 annotation tapped'),
+        ),
+        SenzuAnnotation(
+          id: 'subscribe',
+          text: '🔔 Subscribe now',
+          appearAt: const Duration(seconds: 40),
+          disappearAt: const Duration(seconds: 55),
+          alignment: Alignment.bottomRight,
+          onTap: () => setState(() => lastTap = 'Subscribe tapped'),
+        ),
+        SenzuAnnotation(
+          id: 'poll',
+          text: '📊 Vote: Did you like this?',
+          appearAt: const Duration(minutes: 1),
+          disappearAt: const Duration(minutes: 1, seconds: 15),
+          alignment: Alignment.center,
+          onTap: () => setState(() => lastTap = 'Poll tapped'),
+        ),
+      ],
     );
     _castController =
         SenzuCastController(appId: SenzuCastController.kDefaultApplicationId);
@@ -153,13 +213,13 @@ class _PlayerPageState extends State<PlayerPage> {
                 ),
               ),
 
-              bundle: _externalBundle,
+              bundle: _externalBundle!,
               defaultAspectRatio: 16 / 9,
 
               autoPlay: true,
               seekTo: Duration.zero,
               isLive: false,
-              looping: true,
+
               castController: _castController,
 
               // UI features
@@ -248,67 +308,6 @@ class _PlayerPageState extends State<PlayerPage> {
                   ),
                 ),
               ),
-
-              // Data policy
-              dataPolicy: const SenzuDataPolicy(
-                warnOnCellular: true,
-                dataSaverOnCellular: false,
-                dataSaverQualityKey: '480p',
-              ),
-
-              // Watermark
-              watermark: const SenzuWatermark(
-                userId: 'user_42',
-                opacity: 0.14,
-                position: WatermarkPosition.bottomRight,
-                moveDuration: Duration(seconds: 20),
-                showTimestamp: true,
-                fontSize: 13,
-                color: Colors.white,
-              ),
-
-              // Token refresh
-              tokenConfig: SenzuTokenConfig(
-                refreshBeforeExpirySec: 60,
-                onRefresh: _onRefresh,
-              ),
-
-              // Annotations
-              annotations: [
-                SenzuAnnotation(
-                  id: 'promo_1',
-                  text: '🎁 Special offer — Tap to claim!',
-                  appearAt: const Duration(seconds: 5),
-                  disappearAt: const Duration(seconds: 15),
-                  alignment: Alignment.topRight,
-                  onTap: () => setState(() => lastTap = 'Promo tapped at 0:05'),
-                ),
-                SenzuAnnotation(
-                  id: 'chapter_2',
-                  text: '📖 Chapter 2 starts',
-                  appearAt: const Duration(seconds: 20),
-                  disappearAt: const Duration(seconds: 28),
-                  alignment: Alignment.topLeft,
-                  onTap: () =>
-                      setState(() => lastTap = 'Chapter 2 annotation tapped'),
-                ),
-                SenzuAnnotation(
-                  id: 'subscribe',
-                  text: '🔔 Subscribe now',
-                  appearAt: const Duration(seconds: 40),
-                  disappearAt: const Duration(seconds: 55),
-                  alignment: Alignment.bottomRight,
-                  onTap: () => setState(() => lastTap = 'Subscribe tapped'),
-                ),
-                SenzuAnnotation(
-                  id: 'poll',
-                  text: '📊 Vote: Did you like this?',
-                  appearAt: const Duration(minutes: 1),
-                  disappearAt: const Duration(minutes: 1, seconds: 15),
-                  alignment: Alignment.center,
-                  onTap: () => setState(() => lastTap = 'Poll tapped'),
-                ),
-              ],
             ),
 
             Expanded(
