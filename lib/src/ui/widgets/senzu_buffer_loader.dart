@@ -30,16 +30,13 @@ class SenzuBufferLoader extends StatefulWidget {
 
 class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
     with SingleTickerProviderStateMixin {
-  // ── Speed estimation ──────────────────────────────────────────────────────
-  double _speedMbps = 0.0; // displayed speed
+  double _speedMbps = 0.0;
   Duration _lastBuffered = Duration.zero;
   DateTime _lastTime = DateTime.now();
   Timer? _speedTimer;
 
-  // Smoothing: keep last 3 samples
   final List<double> _speedSamples = [];
 
-  // ── Animation ─────────────────────────────────────────────────────────────
   late final AnimationController _shimmerCtrl;
   late final Animation<double> _shimmerAnim;
 
@@ -139,7 +136,6 @@ class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
   }
 }
 
-// ── Overlay ────────────────────────────────────────────────────────
 
 class LoadingOverlay extends StatelessWidget {
   const LoadingOverlay({
@@ -176,7 +172,6 @@ class LoadingOverlay extends StatelessWidget {
   }
 }
 
-// ── Speed label ────────────────────────────────────────────────────────────────
 
 class _SpeedLabel extends StatelessWidget {
   const _SpeedLabel({
@@ -210,7 +205,6 @@ class _SpeedLabel extends StatelessWidget {
   }
 }
 
-// ── RuntimeBufferingIndicator (unchanged, used by center button) ───────────────
 
 class RuntimeBufferingIndicator extends StatelessWidget {
   const RuntimeBufferingIndicator({

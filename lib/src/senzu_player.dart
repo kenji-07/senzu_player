@@ -28,6 +28,7 @@ export 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 export 'package:senzu_player/src/cast/senzu_cast_controller.dart';
 export 'package:senzu_player/src/cast/senzu_cast_service.dart';
 export 'package:senzu_player/src/data/models/senzu_metadata.dart';
+export 'package:senzu_player/src/cast/senzu_cast_media_builder.dart';
 export 'package:senzu_player/src/controllers/senzu_ui_controller.dart'
     show SenzuPanel;
 

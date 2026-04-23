@@ -17,75 +17,54 @@ class SenzuCellularWarning extends StatelessWidget {
     if (!bundle.core.showCellularWarning.value) return const SizedBox.shrink();
     return Positioned.fill(
       child: Container(
-        color: Colors.black87,
-        child: Center(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 32),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white12),
+        margin: const EdgeInsets.symmetric(horizontal: 32),
+        padding: const EdgeInsets.all(24),
+        decoration: style.cellularWarningStyle.decoration,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            style.cellularWarningStyle.icon,
+            const SizedBox(height: 12),
+            Text(
+              style.senzuLanguage.cellularWarningTitle,
+              style: style.cellularWarningStyle.titleStyle,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            const SizedBox(height: 8),
+            Text(
+              style.senzuLanguage.cellularWarningBody,
+              style: style.cellularWarningStyle.bodyStyle,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Row(
               children: [
-                const Icon(
-                  Icons.signal_cellular_alt,
-                  color: Colors.orangeAccent,
-                  size: 36,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  style.senzuLanguage.cellularWarningTitle,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      side: const BorderSide(color: Colors.white24),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () =>
+                        bundle.core.dismissCellularWarning(dataSaver: true),
+                    child: Text(style.senzuLanguage.dataSaver),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  style.senzuLanguage.cellularWarningBody,
-                  style: const TextStyle(
-                    color: Colors.white60,
-                    fontSize: 13,
-                    height: 1.5,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () => bundle.core.dismissCellularWarning(),
+                    child: Text(style.senzuLanguage.cellularContinue),
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white70,
-                          side: const BorderSide(color: Colors.white24),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: () =>
-                            bundle.core.dismissCellularWarning(dataSaver: true),
-                        child: Text(style.senzuLanguage.dataSaver),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: () => bundle.core.dismissCellularWarning(),
-                        child: Text(style.senzuLanguage.cellularContinue),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
-          ),
+          ],
         ),
       ),
     );

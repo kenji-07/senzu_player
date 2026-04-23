@@ -131,6 +131,7 @@ class SenzuSleepPanel extends StatelessWidget {
       final items = [
         if (remainingMin > 0)
           _PanelItem(
+            style: style,
             label:
                 '${style.senzuLanguage.untilVideoEnds}($remainingMin ${style.senzuLanguage.minutesShort})',
             selected: isSelected(remainingMin),
@@ -139,6 +140,7 @@ class SenzuSleepPanel extends StatelessWidget {
           ),
         ...base.map(
           (k) => _PanelItem(
+            style: style,
             label: '$k ${style.senzuLanguage.minutes}',
             selected: isSelected(k),
             onTap: () => bundle.sleepTimer.start(Duration(minutes: k)),
@@ -146,6 +148,7 @@ class SenzuSleepPanel extends StatelessWidget {
         ),
 
         _PanelItem(
+          style: style,
           label: style.senzuLanguage.cancel,
           selected: !isActive,
           onTap: () => bundle.sleepTimer.stop(),
@@ -180,6 +183,7 @@ class SenzuQualityPanel extends StatelessWidget {
         items: sources.keys
             .map(
               (k) => _PanelItem(
+                style: style,
                 label: k,
                 selected: k == active,
                 onTap: k == active
@@ -249,6 +253,7 @@ class _SpeedContentState extends State<_SpeedContent> {
       items: _speeds
           .map(
             (s) => _PanelItem(
+              style: widget.style,
               label: s == 1.0
                   ? '1× (${widget.style.senzuLanguage.normal})'
                   : '$s×',
@@ -288,28 +293,32 @@ class SenzuCaptionPanel extends StatelessWidget {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-        Expanded(child:   _PanelList(
-            items: [
-              _PanelItem(
-                label: style.senzuLanguage.none,
-                selected: active == style.senzuLanguage.none,
-                onTap: () => bundle.subtitle.changeSubtitle(
-                  subtitle: null,
-                  name: style.senzuLanguage.none,
-                ),
-              ),
-              ...subs.entries.map(
-                (e) => _PanelItem(
-                  label: e.key,
-                  selected: active == e.key,
+          Expanded(
+            child: _PanelList(
+              items: [
+                _PanelItem(
+                  style: style,
+                  label: style.senzuLanguage.none,
+                  selected: active == style.senzuLanguage.none,
                   onTap: () => bundle.subtitle.changeSubtitle(
-                    subtitle: e.value,
-                    name: e.key,
+                    subtitle: null,
+                    name: style.senzuLanguage.none,
                   ),
                 ),
-              ),
-            ],
-          )),
+                ...subs.entries.map(
+                  (e) => _PanelItem(
+                    style: style,
+                    label: e.key,
+                    selected: active == e.key,
+                    onTap: () => bundle.subtitle.changeSubtitle(
+                      subtitle: e.value,
+                      name: e.key,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Obx(
@@ -321,11 +330,12 @@ class SenzuCaptionPanel extends StatelessWidget {
                   ),
                   SliderTheme(
                     data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: Colors.red,
-                      inactiveTrackColor: Colors.white30,
-                      thumbColor: Colors.red,
+                      activeTrackColor: style.progressBarStyle.color,
+                      inactiveTrackColor:
+                          style.progressBarStyle.backgroundColor,
+                      thumbColor: style.progressBarStyle.dotColor,
                       overlayShape: SliderComponentShape.noOverlay,
-                      trackHeight: 3,
+                      trackHeight: style.progressBarStyle.height,
                     ),
                     child: Slider(
                       value: bundle.subtitle.subtitleSize.value.toDouble(),
@@ -361,6 +371,7 @@ class SenzuAudioPanel extends StatelessWidget {
         items: bundle.core.audioTracks
             .map(
               (t) => _PanelItem(
+                style: style,
                 label: '${t.name} (${t.language})',
                 selected: bundle.core.activeAudioTrack.value == t.id,
                 onTap: () => bundle.core.setAudioTrack(t),
@@ -401,6 +412,7 @@ class SenzuAspectPanel extends StatelessWidget {
           items: aspects.entries
               .map(
                 (e) => _PanelItem(
+                  style: style,
                   label: e.value,
                   selected: bundle.ui.currentAspect.value == e.key,
                   onTap: () => bundle.ui.setAspect(e.key),
@@ -457,7 +469,6 @@ class SenzuCastPanel extends StatelessWidget {
   );
 }
 
-// _CastPanelContentState → бүхэлд нь устгаад доорхоор солино
 class _CastPanelContent extends StatelessWidget {
   final SenzuCastController cc;
   const _CastPanelContent({required this.cc});
@@ -582,38 +593,20 @@ class _CastPanelContent extends StatelessWidget {
             ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: ElevatedButton(
-              onPressed: isDiscovering ? null : () => cc.discoverDevices(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black.withValues(alpha: 0.4),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+            child: InkWell(
+              onTap: isDiscovering ? null : () => cc.discoverDevices(),
+
+              child: Center(
+                child: isDiscovering
+                    ? const Text(
+                        'Хайж байна...',
+                        style: TextStyle(fontSize: 12),
+                      )
+                    : const Text(
+                        'Төхөөрөмж хайх',
+                        style: TextStyle(fontSize: 12),
+                      ),
               ),
-              child: isDiscovering
-                  ? const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        Text('Хайж байна...', style: TextStyle(fontSize: 12)),
-                      ],
-                    )
-                  : const Text(
-                      'Төхөөрөмж хайх',
-                      style: TextStyle(fontSize: 12),
-                    ),
             ),
           ),
         ],
@@ -637,10 +630,16 @@ class _PanelList extends StatelessWidget {
 }
 
 class _PanelItem extends StatelessWidget {
-  const _PanelItem({required this.label, required this.selected, this.onTap});
+  const _PanelItem({
+    required this.label,
+    required this.selected,
+    this.onTap,
+    required this.style,
+  });
   final String label;
   final bool selected;
   final VoidCallback? onTap;
+  final SenzuPlayerStyle style;
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: onTap,
@@ -653,14 +652,15 @@ class _PanelItem extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                color: selected ? Colors.red : Colors.white,
-                fontSize: 12,
+                color: selected
+                    ? style.settingsPanelStyle.selectedTextColor
+                    : style.settingsPanelStyle.unselectedTextColor,
+                fontSize: style.settingsPanelStyle.selectedTextSize,
                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
           ),
-          if (selected)
-            const Icon(Icons.multitrack_audio, size: 16, color: Colors.red),
+          if (selected) style.settingsPanelStyle.selectedIcon,
         ],
       ),
     ),

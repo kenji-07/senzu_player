@@ -30,7 +30,6 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
   double _totalW = 1.0;
 
   int _lastHapticSecond = -1;
-  // Chapter boundary haptic: chapter startMs-г track хийнэ
   int _lastChapterHapticMs = -1;
 
   SenzuPlayerBundle get bundle => widget.bundle;
@@ -59,14 +58,11 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
         .round();
     final currentSec = currentMs ~/ 1000;
 
-    // ── 1. Second-tick haptic (light) ────────────────────────────────────
     if (currentSec != _lastHapticSecond) {
       _lastHapticSecond = currentSec;
       HapticFeedback.selectionClick();
     }
 
-    // ── 2. Chapter boundary haptic (medium) ──────────────────────────────
-    // Chapter-ийн startMs-т ойртох үед (±80ms tolerance) нэг удаа дуугарна
     _checkChapterHaptic(currentMs);
 
     setState(() {});
@@ -84,9 +80,8 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
 
       if (diff <= toleranceMs && _lastChapterHapticMs != startMs) {
         _lastChapterHapticMs = startMs;
-        // Chapter boundary дээр илүү хүчтэй haptic
         HapticFeedback.mediumImpact();
-        return; // Нэг frame-д нэг chapter-т хангалттай
+        return;
       }
     }
   }
@@ -443,8 +438,8 @@ class SeekThumbnail extends StatelessWidget {
             ),
             child: Text(
               _fmt(position),
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: style.positionColor,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -480,8 +475,8 @@ class Tooltips extends StatelessWidget {
         ),
         child: Text(
           _fmt(position),
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: style.positionColor,
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
