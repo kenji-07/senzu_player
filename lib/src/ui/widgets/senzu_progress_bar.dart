@@ -418,16 +418,18 @@ class SeekThumbnail extends StatelessWidget {
         CachedNetworkImage(
           imageUrl: sprite.url,
           fit: BoxFit.none,
-          width: Get.width,
-          height: Get.height,
+          width: MediaQuery.of(context).size.width,
+          height: MediaQuery.of(context).size.height,
           alignment: offset,
           placeholder: (_, __) => const SizedBox.shrink(),
           errorWidget: (_, __, ___) => Container(
             color: Colors.black45,
-            child: const Icon(
-              Icons.image_not_supported,
-              color: Colors.white38,
-              size: 24,
+            child: const Center(
+              child: Icon(
+                Icons.image_not_supported,
+                color: Colors.white38,
+                size: 24,
+              ),
             ),
           ),
         ),

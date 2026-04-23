@@ -23,7 +23,17 @@ class _PlayerPageState extends State<PlayerPage> {
   void initState() {
     super.initState();
 
-    _externalBundle = SenzuPlayerBundle.create();
+    _externalBundle = SenzuPlayerBundle.create(
+      // ABR
+      adaptiveBitrate: true,
+      minBufferSec: 0,
+      maxBufferSec: 30,
+
+      looping: true,
+      secureMode: true,
+      notification: true,
+      onQualityChanged: (q) => _showSnack('Quality: $q'),
+    );
     _castController =
         SenzuCastController(appId: SenzuCastController.kDefaultApplicationId);
   }
@@ -150,15 +160,7 @@ class _PlayerPageState extends State<PlayerPage> {
               seekTo: Duration.zero,
               isLive: false,
               looping: true,
-              secureMode: false,
-              enableLockScreen: true,
               castController: _castController,
-
-              // ABR
-              adaptiveBitrate: false,
-              minBufferThreshold: 0,
-              maxBufferThreshold: 10000,
-              onQualityChanged: (q) => _showSnack('Quality: $q'),
 
               // UI features
               enableFullscreen: true,
@@ -258,7 +260,7 @@ class _PlayerPageState extends State<PlayerPage> {
               watermark: const SenzuWatermark(
                 userId: 'user_42',
                 opacity: 0.14,
-                position: WatermarkPosition.random,
+                position: WatermarkPosition.bottomRight,
                 moveDuration: Duration(seconds: 20),
                 showTimestamp: true,
                 fontSize: 13,

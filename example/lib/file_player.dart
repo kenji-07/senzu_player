@@ -51,11 +51,11 @@ class _FilePageState extends State<FilePage> {
             SenzuPlayer(
               source: {
                 'Auto': VideoSource.fromFile(
-                  '/images/testvideo.mp4',
+                  'var/testvideo.mp4',
                   initialSubtitle: 'English',
                   subtitle: {
                     'English': SenzuPlayerSubtitle.content(
-                      '/images/bumble_bee_captions.srt',
+                      'var/bumble_bee_captions.srt',
                       '',
                       type: SubtitleType.srt,
                     ),
@@ -70,14 +70,6 @@ class _FilePageState extends State<FilePage> {
               seekTo: Duration.zero,
               isLive: false,
               looping: true,
-              secureMode: true,
-              enableLockScreen: true,
-
-              // ABR
-              adaptiveBitrate: false,
-              minBufferThreshold: 0,
-              maxBufferThreshold: 10000,
-              onQualityChanged: (q) => _showSnack('Quality: $q'),
 
               // UI features
               enableFullscreen: true,

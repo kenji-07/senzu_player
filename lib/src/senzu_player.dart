@@ -44,7 +44,6 @@ class SenzuPlayer extends StatefulWidget {
     this.looping = false,
     this.autoPlay = false,
     this.isLive,
-    this.isTv = false,
     this.style,
     this.meta,
     this.chapters = const [],
@@ -60,13 +59,6 @@ class SenzuPlayer extends StatefulWidget {
     this.enableLock = true,
     this.enableEpisode = true,
     this.enablePip = true,
-    this.notification = true,
-    this.secureMode = false,
-    this.enableLockScreen = true,
-    this.adaptiveBitrate = true,
-    this.minBufferThreshold = 10,
-    this.maxBufferThreshold = 2000,
-    this.onQualityChanged,
     this.dataPolicy = const SenzuDataPolicy(),
     this.watermark,
     this.tokenConfig,
@@ -102,17 +94,8 @@ class SenzuPlayer extends StatefulWidget {
       enableSleep,
       enableEpisode;
 
-  final bool notification;
-  final bool secureMode;
-  final bool enableLockScreen;
-  final bool isTv;
-
   final String? imaAdTagUrl;
 
-  final bool adaptiveBitrate;
-  final int minBufferThreshold;
-  final int maxBufferThreshold;
-  final void Function(String)? onQualityChanged;
 
   final List<SenzuAnnotation> annotations;
   final SenzuPlayerBundle? bundle;
