@@ -30,7 +30,6 @@ class _PlayerPageState extends State<PlayerPage> {
       maxBufferSec: 30,
 
       looping: true,
-      isTv: true,
       secureMode: true,
       notification: true,
       onQualityChanged: (q) => _showSnack('Quality: $q'),

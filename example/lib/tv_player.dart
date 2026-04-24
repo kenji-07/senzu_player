@@ -24,7 +24,6 @@ class _TVPageState extends State<TVPage> {
       adaptiveBitrate: false,
 
       looping: true,
-      isTv: true,
       secureMode: true,
       notification: true,
       onQualityChanged: (q) => _showSnack('Quality: $q'),
@@ -135,6 +134,7 @@ class _TVPageState extends State<TVPage> {
                 autoPlay: true,
                 seekTo: Duration.zero,
                 isLive: false,
+                isTv: true,
 
                 // UI features
                 enableFullscreen: false,
