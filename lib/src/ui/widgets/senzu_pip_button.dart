@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/platform/senzu_native_channel.dart';
@@ -15,12 +16,15 @@ class SenzuPipButton extends StatefulWidget {
 class _SenzuPipButtonState extends State<SenzuPipButton> {
   bool _supported = false;
   bool _active = false;
+  StreamSubscription<Map<String, dynamic>>? _pipSub;
+
+  SenzuPipButtonStyle get _pipStyle => widget.style.pipButtonStyle;
 
   @override
   void initState() {
     super.initState();
     _checkSupport();
-    SenzuNativeChannel.pipStream.listen((event) {
+    _pipSub = SenzuNativeChannel.pipStream.listen((event) {
       if (!mounted) return;
       setState(() => _active = event['isActive'] as bool? ?? false);
     });
@@ -32,17 +36,23 @@ class _SenzuPipButtonState extends State<SenzuPipButton> {
   }
 
   @override
+  void dispose() {
+    _pipSub?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (!_supported) return const SizedBox.shrink();
     return InkWell(
       onTap: _active ? SenzuNativeChannel.exitPip : SenzuNativeChannel.enterPip,
       borderRadius: BorderRadius.circular(20),
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: _pipStyle.padding,
         child: Icon(
-          _active ? widget.style.enterPipIcon : widget.style.enterPipIcon,
-          color: widget.style.pipIconColor,
-          size: widget.style.pipIconSize,
+          _active ? _pipStyle.exitIcon : _pipStyle.enterIcon,
+          color: _pipStyle.iconColor,
+          size: _pipStyle.iconSize,
         ),
       ),
     );

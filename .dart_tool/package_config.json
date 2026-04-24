@@ -141,7 +141,7 @@
     },
     {
       "name": "hooks",
-      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/hooks-1.0.2",
+      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/hooks-1.0.3",
       "packageUri": "lib/",
       "languageVersion": "3.10"
     },
@@ -314,6 +314,12 @@
       "languageVersion": "3.4"
     },
     {
+      "name": "record_use",
+      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/record_use-0.6.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
       "name": "rxdart",
       "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/rxdart-0.28.0",
       "packageUri": "lib/",
@@ -333,9 +339,9 @@
     },
     {
       "name": "sqflite",
-      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/sqflite-2.4.2",
+      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/sqflite-2.4.2+1",
       "packageUri": "lib/",
-      "languageVersion": "3.7"
+      "languageVersion": "3.10"
     },
     {
       "name": "sqflite_android",
@@ -345,9 +351,9 @@
     },
     {
       "name": "sqflite_common",
-      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/sqflite_common-2.5.6",
+      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/sqflite_common-2.5.6+1",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.10"
     },
     {
       "name": "sqflite_darwin",
@@ -381,9 +387,9 @@
     },
     {
       "name": "synchronized",
-      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/synchronized-3.4.0",
+      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/synchronized-3.4.0+1",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.11"
     },
     {
       "name": "term_glyph",
@@ -465,7 +471,7 @@
     },
     {
       "name": "vm_service",
-      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/vm_service-15.0.2",
+      "rootUri": "file:///Users/max/.pub-cache/hosted/pub.dev/vm_service-15.1.0",
       "packageUri": "lib/",
       "languageVersion": "3.5"
     },
@@ -491,7 +497,7 @@
       "name": "senzu_player",
       "rootUri": "../",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.0"
     }
   ],
   "generator": "pub",

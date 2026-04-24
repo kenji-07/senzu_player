@@ -20,9 +20,9 @@ class SkipChapterButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final isFs       = bundle.core.isFullScreen.value;
+      final isFs = bundle.core.isFullScreen.value;
       final isDragging = bundle.playback.isDragging.value;
-      final chapters   = bundle.ui.activeSkipChapters;
+      final chapters = bundle.ui.activeSkipChapters;
 
       if (chapters.isEmpty) return const SizedBox.shrink();
 
@@ -40,9 +40,7 @@ class SkipChapterButtons extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Left side: OP (эсвэл эхний chapter)
                   _buildButton(chapters.first, isFs),
-                  // Right side: ED (хоёр дахь chapter байвал)
                   if (chapters.length > 1)
                     _buildButton(chapters[1], isFs)
                   else
@@ -57,51 +55,52 @@ class SkipChapterButtons extends StatelessWidget {
   }
 
   Widget _buildButton(SenzuChapter chapter, bool isFullscreen) {
-    // label() null бол fallback
-    final label = chapter.label ?? 'Skip';
+    final label = chapter.label ?? style.senzuLanguage.next;
     return _SkipButton(
       label: 'Skip $label',
       isFullscreen: isFullscreen,
+      skipStyle: style.skipButtonStyle,
       onTap: () => bundle.ui.skipChapter(chapter),
     );
   }
 }
 
-
 class _SkipButton extends StatelessWidget {
   const _SkipButton({
     required this.label,
     required this.isFullscreen,
+    required this.skipStyle,
     required this.onTap,
   });
   final String label;
   final bool isFullscreen;
+  final SenzuSkipButtonStyle skipStyle;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: isFullscreen ? 16 : 10,
-            vertical: isFullscreen ? 10 : 5,
-          ),
+          padding: isFullscreen
+              ? skipStyle.paddingFullscreen
+              : skipStyle.paddingNormal,
           decoration: BoxDecoration(
-            color: const Color(0xFF00CA13),
-            borderRadius: BorderRadius.circular(7),
+            color: skipStyle.backgroundColor,
+            borderRadius: skipStyle.borderRadius,
           ),
           child: Text(
             label,
             style: TextStyle(
-              color: Colors.white,
-              fontSize: isFullscreen ? 16 : 11,
-              fontWeight: FontWeight.w600,
+              color: skipStyle.textColor,
+              fontSize: isFullscreen
+                  ? skipStyle.fontSizeFullscreen
+                  : skipStyle.fontSizeNormal,
+              fontWeight: skipStyle.fontWeight,
             ),
           ),
         ),
       );
 }
-
 
 class SeekDragTooltipWithChapter extends StatelessWidget {
   const SeekDragTooltipWithChapter({
@@ -121,15 +120,14 @@ class SeekDragTooltipWithChapter extends StatelessWidget {
       final isDragging = bundle.playback.isDragging.value;
       if (!isDragging) return const SizedBox.shrink();
 
-      final dur        = bundle.playback.duration.value;
-      final posR       = bundle.playback.dragRatio.value;
+      final dur = bundle.playback.duration.value;
+      final posR = bundle.playback.dragRatio.value;
       final displayPos = dur * posR;
 
       return Positioned.fill(
         child: IgnorePointer(
           child: Stack(
             children: [
-              // Existing thumbnail / time tooltip
               bundle.core.activeSource?.thumbnailSprite != null
                   ? SeekThumbnail(
                       position: displayPos,
@@ -140,8 +138,6 @@ class SeekDragTooltipWithChapter extends StatelessWidget {
                       position: displayPos,
                       style: style.progressBarStyle,
                     ),
-
-              // Chapter name overlay (chapters байвал)
               if (chapters.isNotEmpty)
                 SenzuChapterTooltip(
                   position: displayPos,

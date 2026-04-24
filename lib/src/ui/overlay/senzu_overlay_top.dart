@@ -92,42 +92,42 @@ class SenzuOverlayTop extends StatelessWidget {
               children: [
                 // Sleep timer
                 _Btn(
-                  Icons.bedtime_outlined,
+                  style.overlayIconsStyle.sleep,
                   () => bundle.ui.togglePanel(SenzuPanel.sleep),
                 ),
 
                 // Aspect ratio
                 if (enableAspect)
                   _Btn(
-                    Icons.aspect_ratio,
+                    style.overlayIconsStyle.aspect,
                     () => bundle.ui.togglePanel(SenzuPanel.aspect),
                   ),
 
                 // Speed (not available for live)
                 if (enableSpeed && !isLive)
                   _Btn(
-                    Icons.speed,
+                    style.overlayIconsStyle.speed,
                     () => bundle.ui.togglePanel(SenzuPanel.speed),
                   ),
 
                 // Captions
                 if (enableCaption)
                   _Btn(
-                    Icons.closed_caption,
+                    style.overlayIconsStyle.caption,
                     () => bundle.ui.togglePanel(SenzuPanel.caption),
                   ),
 
                 // Quality
                 if (enableQuality)
                   _Btn(
-                    Icons.hd,
+                    style.overlayIconsStyle.quality,
                     () => bundle.ui.togglePanel(SenzuPanel.quality),
                   ),
 
                 // Audio tracks
                 if (enableAudio)
                   _Btn(
-                    Icons.audiotrack,
+                    style.overlayIconsStyle.audio,
                     () => bundle.ui.togglePanel(SenzuPanel.audio),
                   ),
 
@@ -136,6 +136,7 @@ class SenzuOverlayTop extends StatelessWidget {
                   SenzuCastButton(
                     castController: castController!,
                     bundle: bundle,
+                    style: style
                   ),
               ],
             );
@@ -148,7 +149,7 @@ class SenzuOverlayTop extends StatelessWidget {
 
 class _Btn extends StatelessWidget {
   const _Btn(this.icon, this.onTap);
-  final IconData icon;
+  final Icon icon;
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => InkWell(
@@ -156,7 +157,8 @@ class _Btn extends StatelessWidget {
     borderRadius: BorderRadius.circular(20),
     child: Padding(
       padding: const EdgeInsets.all(8),
-      child: Icon(icon, color: Colors.white, size: 20),
+      child: icon,
     ),
   );
 }
+

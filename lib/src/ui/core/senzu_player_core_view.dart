@@ -16,6 +16,7 @@ import 'package:senzu_player/src/ui/widgets/senzu_buffer_loader.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_watermark_overlay.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/data/models/subtitle_model.dart';
+import 'package:senzu_player/src/data/language/language.dart';
 import 'package:senzu_player/src/data/models/senzu_metadata.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
 import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
@@ -69,17 +70,14 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
   SenzuPlayerStyle get style => widget.style ?? SenzuPlayerStyle();
   SenzuMetaData get meta => widget.meta ?? const SenzuMetaData();
 
-  // ── Double-tap seek ────────────────────────────────────────────────────────
   int _rewindCount = 0, _forwardCount = 0;
   bool _showRewind = false, _showForward = false;
   Timer? _rewindTimer, _forwardTimer;
 
-  // ── Volume/brightness drag ─────────────────────────────────────────────────
   bool _dragLeft = false;
   final _dragVol = Rxn<double>();
   final _dragBri = Rxn<double>();
 
-  // ── Long-press 2× speed ───────────────────────────────────────────────────
   bool _longPress = false;
   double _savedSpeed = 1.0;
 
@@ -94,7 +92,6 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
     super.dispose();
   }
 
-  // ── Double-tap ─────────────────────────────────────────────────────────────
   void _doubleTap({required bool rewind}) {
     final offset = Duration(seconds: rewind ? -10 : 10);
     final isBuffering = bundle.core.rxNativeState.value.isBuffering;
@@ -121,7 +118,6 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
     });
   }
 
-  // ── Drag volume / brightness ───────────────────────────────────────────────
   void _onDragStart(DragStartDetails d) {
     _dragLeft = d.localPosition.dx < (context.size?.width ?? 400) / 2;
     if (_dragLeft) {
@@ -147,7 +143,6 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
     _dragBri.value = null;
   }
 
-  // ── Long press ─────────────────────────────────────────────────────────────
   void _onLongPress() {
     if (!bundle.playback.isPlaying.value) return;
     HapticFeedback.lightImpact();
@@ -161,7 +156,6 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
     setState(() => _longPress = false);
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Obx(() {
@@ -206,27 +200,24 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
     });
   }
 
-  // ── Error ──────────────────────────────────────────────────────────────────
   Widget _buildError() {
     final err = bundle.core.errorState.value;
+    final errStyle = style.errorStyle;
     return Container(
-      color: Colors.black,
+      color: errStyle.backroundColor,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, color: Colors.white60, size: 48),
+          errStyle.icon,
           const SizedBox(height: 12),
-          Text(
-            style.senzuLanguage.failedToLoad,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-          ),
+          Text(style.senzuLanguage.failedToLoad, style: errStyle.titleStyle),
           if (err != null) ...[
             const SizedBox(height: 6),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
                 err.message,
-                style: const TextStyle(color: Colors.white54, fontSize: 11),
+                style: errStyle.messageStyle,
                 textAlign: TextAlign.center,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
@@ -235,12 +226,13 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
           ],
           const SizedBox(height: 16),
           ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white24,
-              foregroundColor: Colors.white,
-            ),
+            style: errStyle.buttonStyle ??
+                ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white24,
+                  foregroundColor: Colors.white,
+                ),
             onPressed: bundle.core.retrySource,
-            icon: const Icon(Icons.refresh, size: 18),
+            icon: errStyle.refreshIcon,
             label: Text(style.senzuLanguage.retry),
           ),
         ],
@@ -365,15 +357,12 @@ class _MainPlayerStack extends StatelessWidget {
     return GestureDetector(
       onLongPress: panelOpen ? null : onLongPress,
       onLongPressUp: panelOpen ? null : onLongPressUp,
-      onVerticalDragStart: (panelOpen || !bundle.core.isFullScreen.value)
-          ? null
-          : onDragStart,
-      onVerticalDragUpdate: (panelOpen || !bundle.core.isFullScreen.value)
-          ? null
-          : onDragUpdate,
-      onVerticalDragEnd: (panelOpen || !bundle.core.isFullScreen.value)
-          ? null
-          : onDragEnd,
+      onVerticalDragStart:
+          (panelOpen || !bundle.core.isFullScreen.value) ? null : onDragStart,
+      onVerticalDragUpdate:
+          (panelOpen || !bundle.core.isFullScreen.value) ? null : onDragUpdate,
+      onVerticalDragEnd:
+          (panelOpen || !bundle.core.isFullScreen.value) ? null : onDragEnd,
       child: Stack(
         children: [
           // 1. Video frame
@@ -407,17 +396,16 @@ class _MainPlayerStack extends StatelessWidget {
             () => IgnorePointer(
               child: AnimatedOpacity(
                 duration: style.transitions,
-                opacity: bundle.ui.isShowingOverlay.value && !panelOpen
-                    ? 1.0
-                    : 0.0,
+                opacity:
+                    bundle.ui.isShowingOverlay.value && !panelOpen ? 1.0 : 0.0,
                 child: Container(color: const Color(0x99000000)),
               ),
             ),
           ),
 
           // 3.2. Annotations
-          Obx(() {
-            return IgnorePointer(
+          Obx(
+            () => IgnorePointer(
               child: AnimatedOpacity(
                 duration: style.transitions,
                 opacity: bundle.ui.isShowingOverlay.value ? 0.0 : 1.0,
@@ -431,22 +419,10 @@ class _MainPlayerStack extends StatelessWidget {
                             child: GestureDetector(
                               onTap: a.onTap,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.7),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.white24),
-                                ),
-                                child: Text(
-                                  a.text,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                  ),
-                                ),
+                                padding: style.annotationStyle.padding,
+                                decoration: style.annotationStyle.decoration,
+                                child: Text(a.text,
+                                    style: style.annotationStyle.textStyle),
                               ),
                             ),
                           ),
@@ -455,8 +431,8 @@ class _MainPlayerStack extends StatelessWidget {
                       .toList(),
                 ),
               ),
-            );
-          }),
+            ),
+          ),
 
           // 4. Tap & double-tap zones
           Positioned.fill(
@@ -493,12 +469,10 @@ class _MainPlayerStack extends StatelessWidget {
           // 5. Center button
           if (!bundle.ui.isLocked.value)
             Obx(() {
-              final loaderActive =
-                  bundle.ui.isShowingThumbnail.value ||
+              final loaderActive = bundle.ui.isShowingThumbnail.value ||
                   (bundle.core.isChangingSource.value &&
                       bundle.playback.position.value == Duration.zero);
-              final visible =
-                  !panelOpen &&
+              final visible = !panelOpen &&
                   !loaderActive &&
                   (bundle.ui.isShowingOverlay.value ||
                       bundle.core.isChangingSource.value ||
@@ -559,40 +533,28 @@ class _MainPlayerStack extends StatelessWidget {
             }
             final rem = bundle.sleepTimer.remainingTime.value;
             if (rem == null) return const SizedBox.shrink();
+            final sleepStyle = style.sleepBadgeStyle;
             return Positioned(
               top: bundle.core.isFullScreen.value ? 25 : 16,
               right: bundle.core.isFullScreen.value ? 25 : 16,
               child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 200),
-                opacity: panelOpen || bundle.ui.isShowingOverlay.value
-                    ? 0.0
-                    : 1.0,
+                opacity:
+                    panelOpen || bundle.ui.isShowingOverlay.value ? 0.0 : 1.0,
                 child: IgnorePointer(
                   ignoring: panelOpen,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
+                    padding: sleepStyle.padding,
+                    decoration: sleepStyle.decoration,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.bedtime,
-                          color: Colors.white70,
-                          size: 14,
-                        ),
+                        sleepStyle.icon,
                         const SizedBox(width: 6),
                         Text(
-                          '${rem.inMinutes}:${(rem.inSeconds % 60).toString().padLeft(2, '0')}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
+                          '${rem.inMinutes}:'
+                          '${(rem.inSeconds % 60).toString().padLeft(2, '0')}',
+                          style: sleepStyle.textStyle,
                         ),
                       ],
                     ),
@@ -608,15 +570,13 @@ class _MainPlayerStack extends StatelessWidget {
               final isDragging = bundle.playback.isDragging.value;
               return AnimatedOpacity(
                 duration: style.transitions,
-                opacity:
-                    (bundle.ui.isShowingOverlay.value &&
+                opacity: (bundle.ui.isShowingOverlay.value &&
                         !panelOpen &&
                         !isDragging)
                     ? 1.0
                     : 0.0,
                 child: IgnorePointer(
-                  ignoring:
-                      !bundle.ui.isShowingOverlay.value ||
+                  ignoring: !bundle.ui.isShowingOverlay.value ||
                       panelOpen ||
                       isDragging,
                   child: Align(
@@ -636,7 +596,7 @@ class _MainPlayerStack extends StatelessWidget {
               );
             }),
 
-          // 7.1 SeekThumbnail + tooltip
+          // 7.1. Seek thumbnail + chapter tooltip
           SeekDragTooltipWithChapter(
             bundle: bundle,
             style: style,
@@ -662,7 +622,6 @@ class _MainPlayerStack extends StatelessWidget {
                       enableEpisode: widget.enableEpisode,
                       enablePip: widget.enablePip,
                       chapters: chapters,
-                      enableAudio: widget.enableAudio,
                     ),
                   ),
                 ),
@@ -707,7 +666,7 @@ class _MainPlayerStack extends StatelessWidget {
                     top: 0,
                     left: 0,
                     right: 0,
-                    child: _StatusBar(bundle: bundle),
+                    child: _StatusBar(bundle: bundle, style: style),
                   )
                 : const SizedBox.shrink(),
           ),
@@ -740,8 +699,6 @@ class _MainPlayerStack extends StatelessWidget {
           if (widget.enableEpisode && style.episodeWidget != null)
             SenzuEpisodePanel(bundle: bundle, style: style),
           if (widget.enableSleep) SenzuSleepPanel(bundle: bundle, style: style),
-
-          // ── Cast panel ─────────────────────────────────────────────────────
           if (castController != null)
             SenzuCastPanel(
               bundle: bundle,
@@ -752,14 +709,24 @@ class _MainPlayerStack extends StatelessWidget {
           // 13. Volume/brightness toast
           Obx(
             () => IgnorePointer(
-              child: _VBToast(dragVol: dragVol.value, dragBri: dragBri.value),
+              child: _VBToast(
+                dragVol: dragVol.value,
+                dragBri: dragBri.value,
+                toastStyle: style.vbToastStyle,
+              ),
             ),
           ),
 
           // 14. 2× speed toast
           if (longPress)
-            const IgnorePointer(
-              child: Align(alignment: Alignment(0, -0.7), child: _SpeedToast()),
+            IgnorePointer(
+              child: Align(
+                alignment: Alignment(0, style.speedToastStyle.topAlignment),
+                child: _SpeedToast(
+                  toastStyle: style.speedToastStyle,
+                  lang: style.senzuLanguage,
+                ),
+              ),
             ),
 
           // 15. Buffer loader
@@ -772,8 +739,7 @@ class _MainPlayerStack extends StatelessWidget {
 
           // 16. Thumbnail
           Obx(
-            () =>
-                bundle.ui.isShowingThumbnail.value &&
+            () => bundle.ui.isShowingThumbnail.value &&
                     !bundle.core.isChangingSource.value
                 ? _Thumbnail(bundle: bundle, style: style)
                 : const SizedBox.shrink(),
@@ -793,59 +759,7 @@ class _MainPlayerStack extends StatelessWidget {
             return Positioned.fill(
               child: GestureDetector(
                 onTap: () => bundle.sleepTimer.cancel(),
-                child: Container(
-                  color: Colors.black,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.bedtime,
-                          color: Colors.white38,
-                          size: 48,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          style.senzuLanguage.sleepModeActivated,
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white12,
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.touch_app,
-                                color: Colors.white60,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                style.senzuLanguage.continueWatching,
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                child: style.sleepOverlay,
               ),
             );
           }),
@@ -864,16 +778,17 @@ class _VideoFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Obx(() {
-    final state = bundle.core.rxNativeState.value;
-    final isChanging = bundle.core.isChangingSource.value;
+        final state = bundle.core.rxNativeState.value;
+        final isChanging = bundle.core.isChangingSource.value;
 
-    if (!state.isInitialized || isChanging) {
-      return const ColoredBox(color: Colors.black);
-    }
+        if (!state.isInitialized || isChanging) {
+          return const ColoredBox(color: Colors.black);
+        }
 
-    final fit = bundle.ui.currentAspect.value;
-    return SenzuVideoSurfaceWithFit(videoAspectRatio: aspectRatio, fit: fit);
-  });
+        final fit = bundle.ui.currentAspect.value;
+        return SenzuVideoSurfaceWithFit(
+            videoAspectRatio: aspectRatio, fit: fit);
+      });
 }
 
 class _SubtitleText extends StatelessWidget {
@@ -888,8 +803,7 @@ class _SubtitleText extends StatelessWidget {
       builder: (_, sub, __) {
         if (sub == null || sub.text.isEmpty) return const SizedBox.shrink();
         return Obx(() {
-          final size =
-              bundle.subtitle.subtitleSize.value.toDouble() *
+          final size = bundle.subtitle.subtitleSize.value.toDouble() *
               (bundle.core.isFullScreen.value ? 1.0 : 0.7);
           return Align(
             alignment: style.alignment,
@@ -944,8 +858,7 @@ class SenzuCenterControls extends StatelessWidget {
       if (bundle.playback.isBuffering.value) return _circle(buffering);
 
       final playing = bundle.playback.isPlaying.value;
-      final ended =
-          !bundle.core.isLiveRx.value &&
+      final ended = !bundle.core.isLiveRx.value &&
           bundle.playback.position.value >= bundle.playback.duration.value &&
           bundle.playback.duration.value > Duration.zero;
 
@@ -967,9 +880,7 @@ class SenzuCenterControls extends StatelessWidget {
             )
           else
             SizedBox(width: style.circleSize * 0.55 + 8),
-
           const SizedBox(width: 16),
-
           GestureDetector(
             onTap: ended
                 ? () => bundle.core.seekTo(Duration.zero)
@@ -978,9 +889,7 @@ class SenzuCenterControls extends StatelessWidget {
               ended ? style.replay : (playing ? style.pause : style.play),
             ),
           ),
-
           const SizedBox(width: 16),
-
           if (showNext)
             _SideButton(
               icon: Icons.skip_next,
@@ -996,24 +905,25 @@ class SenzuCenterControls extends StatelessWidget {
   }
 
   Widget _circle(Widget child) => Container(
-    width: style.circleSize,
-    height: style.circleSize,
-    decoration: BoxDecoration(shape: BoxShape.circle, color: style.circleColor),
-    child: child,
-  );
+        width: style.circleSize,
+        height: style.circleSize,
+        decoration:
+            BoxDecoration(shape: BoxShape.circle, color: style.circleColor),
+        child: child,
+      );
 
   Widget _seekText(String text) => _circle(
-    Center(
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
+        Center(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 class _SideButton extends StatelessWidget {
@@ -1055,24 +965,24 @@ class _LockButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => InkWell(
-    onTap: bundle.ui.toggleLock,
-    borderRadius: BorderRadius.circular(20),
-    child: Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.black.withValues(alpha: 0.35),
-      ),
-      child: Obx(
-        () => Icon(
-          bundle.ui.isLocked.value ? Icons.lock : Icons.lock_open,
-          color: Colors.white,
-          size: 20,
+        onTap: bundle.ui.toggleLock,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.black.withValues(alpha: 0.35),
+          ),
+          child: Obx(
+            () => Icon(
+              bundle.ui.isLocked.value ? Icons.lock : Icons.lock_open,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 class _Thumbnail extends StatelessWidget {
@@ -1082,31 +992,32 @@ class _Thumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedOpacity(
-    duration: style.transitions,
-    opacity: bundle.ui.isShowingThumbnail.value ? 1.0 : 0.0,
-    child: Stack(
-      children: [
-        if (style.thumbnail != null) Positioned.fill(child: style.thumbnail!),
-        Center(
-          child: GestureDetector(
-            onTap: () async {
-              await bundle.core.play();
-              bundle.ui.showAndHideOverlay();
-            },
-            child: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.black.withValues(alpha: 0.35),
+        duration: style.transitions,
+        opacity: bundle.ui.isShowingThumbnail.value ? 1.0 : 0.0,
+        child: Stack(
+          children: [
+            if (style.thumbnail != null)
+              Positioned.fill(child: style.thumbnail!),
+            Center(
+              child: GestureDetector(
+                onTap: () async {
+                  await bundle.core.play();
+                  bundle.ui.showAndHideOverlay();
+                },
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black.withValues(alpha: 0.35),
+                  ),
+                  child: style.loading,
+                ),
               ),
-              child: style.loading,
             ),
-          ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 }
 
 class _AdViewer extends StatelessWidget {
@@ -1116,94 +1027,92 @@ class _AdViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Obx(() {
-    final ad = bundle.ad.activeAd.value;
-    if (ad == null) return const SizedBox.shrink();
+        final ad = bundle.ad.activeAd.value;
+        if (ad == null) return const SizedBox.shrink();
 
-    final watched = bundle.ad.adTimeWatched.value ?? Duration.zero;
-    final remaining = (ad.durationToSkip - watched).inSeconds.clamp(0, 999);
-    final canSkip = watched >= ad.durationToSkip;
-    final total = bundle.ad.totalAds.value;
-    final current = bundle.ad.currentAdIndex;
+        final watched = bundle.ad.adTimeWatched.value ?? Duration.zero;
+        final remaining = (ad.durationToSkip - watched).inSeconds.clamp(0, 999);
+        final canSkip = watched >= ad.durationToSkip;
+        final total = bundle.ad.totalAds.value;
+        final current = bundle.ad.currentAdIndex;
 
-    return Stack(
-      children: [
-        Positioned.fill(child: ad.child),
-        Positioned(
-          left: 0,
-          bottom: 0,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Text(
-              'Ad $current of $total',
-              style: const TextStyle(color: Colors.white, fontSize: 12),
-            ),
-          ),
-        ),
-        Positioned(
-          right: 16,
-          bottom: 16,
-          child: GestureDetector(
-            onTap: canSkip ? bundle.ad.skipAd : null,
-            child:
-                style.skipAdBuilder?.call(watched) ??
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    canSkip ? style.senzuLanguage.skipAd : '$remaining s',
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                  ),
+        return Stack(
+          children: [
+            Positioned.fill(child: ad.child),
+            Positioned(
+              left: 0,
+              bottom: 0,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Text(
+                  style.senzuLanguage.adCounter(current, total),
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
-          ),
-        ),
-        Positioned(
-          right: 16,
-          top: 16,
-          child: GestureDetector(
-            onTap: () async {
-              final uri = Uri.parse(ad.deepLink);
-              if (await canLaunchUrl(uri)) await launchUrl(uri);
-            },
-            child: Text(
-              style.senzuLanguage.learnMore,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                decoration: TextDecoration.underline,
               ),
             ),
-          ),
-        ),
-      ],
-    );
-  });
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: GestureDetector(
+                onTap: canSkip ? bundle.ad.skipAd : null,
+                child: style.skipAdBuilder?.call(watched) ??
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        canSkip ? style.senzuLanguage.skipAd : '$remaining s',
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ),
+              ),
+            ),
+            Positioned(
+              right: 16,
+              top: 16,
+              child: GestureDetector(
+                onTap: () async {
+                  final uri = Uri.parse(ad.deepLink);
+                  if (await canLaunchUrl(uri)) await launchUrl(uri);
+                },
+                child: Text(
+                  style.senzuLanguage.learnMore,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      });
 }
 
 class _StatusBar extends StatelessWidget {
-  const _StatusBar({required this.bundle});
+  const _StatusBar({required this.bundle, required this.style});
   final SenzuPlayerBundle bundle;
+  final SenzuPlayerStyle style;
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: style.statusBarStyle.padding,
       child: Row(
         children: [
           const Spacer(),
           Text(
             '${now.hour}:${now.minute.toString().padLeft(2, '0')}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
+            style: style.statusBarStyle.timeStyle,
           ),
           const SizedBox(width: 12),
           Obx(
@@ -1212,7 +1121,7 @@ class _StatusBar extends StatelessWidget {
               children: [
                 Text(
                   '${bundle.device.batteryLevel.value}%',
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                  style: style.statusBarStyle.batteryLevelStyle,
                 ),
                 const SizedBox(width: 2),
                 Icon(
@@ -1221,9 +1130,9 @@ class _StatusBar extends StatelessWidget {
                     bundle.device.batteryState.value,
                   ),
                   color: bundle.device.batteryState.value == 'charging'
-                      ? Colors.green
-                      : Colors.white,
-                  size: 14,
+                      ? style.statusBarStyle.chargingIconColor
+                      : style.statusBarStyle.notChargingIconColor,
+                  size: style.statusBarStyle.iconSize,
                 ),
               ],
             ),
@@ -1234,18 +1143,19 @@ class _StatusBar extends StatelessWidget {
   }
 
   IconData _batIcon(int l, String s) {
-    if (s == 'charging') return Icons.battery_charging_full;
-    if (l <= 14) return Icons.battery_0_bar;
-    if (l <= 34) return Icons.battery_2_bar;
-    if (l <= 54) return Icons.battery_3_bar;
-    if (l <= 79) return Icons.battery_4_bar;
-    return Icons.battery_full;
+    if (s == 'charging') return style.statusBarStyle.chargingIcon;
+    if (l <= 14) return style.statusBarStyle.chargingIcon14;
+    if (l <= 34) return style.statusBarStyle.chargingIcon34;
+    if (l <= 54) return style.statusBarStyle.chargingIcon54;
+    if (l <= 79) return style.statusBarStyle.chargingIcon79;
+    return style.statusBarStyle.chargingIcon100;
   }
 }
 
 class _VBToast extends StatelessWidget {
-  const _VBToast({this.dragVol, this.dragBri});
+  const _VBToast({this.dragVol, this.dragBri, required this.toastStyle});
   final double? dragVol, dragBri;
+  final SenzuVBToastStyle toastStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -1253,41 +1163,40 @@ class _VBToast extends StatelessWidget {
     if (v == null) return const SizedBox.shrink();
     final isVol = dragVol != null;
     return Align(
-      alignment: const Alignment(0, -0.65),
+      alignment: Alignment(0, toastStyle.topAlignment),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(20),
-        ),
+        padding: toastStyle.padding,
+        decoration: toastStyle.decoration,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               isVol
                   ? (v <= 0
-                        ? Icons.volume_off
-                        : v < 0.5
-                        ? Icons.volume_down
-                        : Icons.volume_up)
+                      ? toastStyle.volume0
+                      : v < 0.5
+                          ? toastStyle.volume50
+                          : toastStyle.volume100)
                   : (v <= 0
-                        ? Icons.brightness_low
-                        : v < 0.5
-                        ? Icons.brightness_medium
-                        : Icons.brightness_high),
-              color: Colors.white,
-              size: 20,
+                      ? toastStyle.brightness0
+                      : v < 0.5
+                          ? toastStyle.brightness50
+                          : toastStyle.brightness100),
+              color: toastStyle.iconColor,
+              size: toastStyle.iconSize,
             ),
             const SizedBox(width: 8),
             SizedBox(
-              width: 80,
-              height: 4,
+              width: toastStyle.barWidth,
+              height: toastStyle.barHeight,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(2),
                 child: LinearProgressIndicator(
                   value: v,
-                  backgroundColor: Colors.white30,
-                  valueColor: const AlwaysStoppedAnimation(Colors.white),
+                  backgroundColor: toastStyle.barBackgroundColor,
+                  valueColor: AlwaysStoppedAnimation(
+                    toastStyle.barForegroundColor,
+                  ),
                 ),
               ),
             ),
@@ -1299,19 +1208,18 @@ class _VBToast extends StatelessWidget {
 }
 
 class _SpeedToast extends StatelessWidget {
-  const _SpeedToast();
+  const _SpeedToast({required this.toastStyle, required this.lang});
+  final SenzuSpeedToastStyle toastStyle;
+  final SenzuLanguage lang;
 
   @override
   Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(top: 20),
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-    decoration: BoxDecoration(
-      color: Colors.black.withValues(alpha: 0.35),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: const Text(
-      '2× speed',
-      style: TextStyle(color: Colors.white, fontSize: 13),
-    ),
-  );
+        margin: const EdgeInsets.only(top: 20),
+        padding: toastStyle.padding,
+        decoration: BoxDecoration(
+          color: toastStyle.backgroundColor,
+          borderRadius: toastStyle.borderRadius,
+        ),
+        child: Text(lang.speedToast, style: toastStyle.textStyle),
+      );
 }

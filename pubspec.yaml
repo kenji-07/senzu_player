@@ -6,8 +6,8 @@ homepage: https://github.com/kenji-07/senzu_player
 repository: https://github.com/kenji-07/senzu_player
 
 environment:
-  sdk: ">=3.8.0 <4.0.0"
-  flutter: ">=3.41.0"
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.16.0"
 
 flutter:
   plugin:

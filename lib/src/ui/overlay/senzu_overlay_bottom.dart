@@ -15,7 +15,6 @@ class SenzuOverlayBottom extends StatelessWidget {
     this.enableFullscreen = true,
     this.enablePip = false,
     this.enableEpisode = false,
-    this.enableAudio = false,
     this.chapters = const [],
   });
 
@@ -23,7 +22,6 @@ class SenzuOverlayBottom extends StatelessWidget {
   final SenzuPlayerStyle style;
   final bool enableFullscreen;
   final bool enablePip;
-  final bool enableAudio;
   final bool enableEpisode;
   final List<SenzuChapter> chapters;
 
@@ -64,7 +62,11 @@ class SenzuOverlayBottom extends StatelessWidget {
                 child: Row(
                   children: [
                     if (isLive)
-                      _LiveBadge(bundle: bundle, hasDvr: hasDvr, style: style),
+                      _LiveBadge(
+                        bundle: bundle,
+                        hasDvr: hasDvr,
+                        style: style,
+                      ),
 
                     if (!isLive)
                       Obx(() {
@@ -81,39 +83,18 @@ class SenzuOverlayBottom extends StatelessWidget {
                       }),
 
                     const Spacer(),
-
-                    if (enableAudio)
-                      _Btn(
-                        icon: const Icon(
-                          Icons.headphones,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        onTap: () => bundle.ui.togglePanel(SenzuPanel.audio),
-                      ),
-                    if (enablePip) SenzuPipButton(bundle: bundle),
+                    if (enablePip) SenzuPipButton(bundle: bundle, style: style),
                     if (enableEpisode && style.episodeWidget != null)
                       _Btn(
-                        icon: const Icon(
-                          Icons.view_list,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        onTap: () => bundle.ui.togglePanel(SenzuPanel.episode),
+                        icon: style.overlayIconsStyle.episode,
+                        onTap: () =>
+                            bundle.ui.togglePanel(SenzuPanel.episode),
                       ),
                     if (enableFullscreen)
                       _Btn(
                         icon: isFS
-                            ? const Icon(
-                                Icons.fullscreen_exit,
-                                color: Colors.white,
-                                size: 20,
-                              )
-                            : const Icon(
-                                Icons.fullscreen,
-                                color: Colors.white,
-                                size: 20,
-                              ),
+                            ? style.overlayIconsStyle.fullscreenExit
+                            : style.overlayIconsStyle.fullscreen,
                         onTap: () => bundle.core.openOrCloseFullscreen(),
                       ),
                   ],
@@ -164,45 +145,42 @@ class _LiveBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Obx(() {
-    final atEdge = bundle.stream.isAtLiveEdge.value;
-    return GestureDetector(
-      onTap: (!hasDvr || atEdge) ? null : bundle.core.goToLiveEdge,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: atEdge ? Colors.red : Colors.grey.shade700,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (hasDvr && !atEdge) ...[
-              const Icon(Icons.circle, color: Colors.white, size: 7),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              style.senzuLanguage.live,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
+        final atEdge = bundle.stream.isAtLiveEdge.value;
+        final liveStyle = style.liveBadgeStyle;
+        return GestureDetector(
+          onTap: (!hasDvr || atEdge) ? null : bundle.core.goToLiveEdge,
+          child: Container(
+            padding: liveStyle.padding,
+            decoration: BoxDecoration(
+              color: atEdge ? liveStyle.liveColor : liveStyle.dvrOffColor,
+              borderRadius: liveStyle.borderRadius,
             ),
-          ],
-        ),
-      ),
-    );
-  });
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasDvr && !atEdge) ...[
+                  const Icon(Icons.circle, color: Colors.white, size: 7),
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  style.senzuLanguage.live,
+                  style: liveStyle.textStyle,
+                ),
+              ],
+            ),
+          ),
+        );
+      });
 }
 
 class _Btn extends StatelessWidget {
   const _Btn({required this.icon, required this.onTap});
-  final Widget icon;
+  final Icon icon;
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(20),
-    child: Padding(padding: const EdgeInsets.all(6), child: icon),
-  );
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(padding: const EdgeInsets.all(6), child: icon),
+      );
 }

@@ -9,20 +9,18 @@ class SenzuBufferLoader extends StatefulWidget {
     super.key,
     required this.bundle,
     required this.style,
-    this.backgroundColor = const Color(0xFF0A0A0A),
-
-    /// Optional: pass actual download speed from native (bytes/sec).
-    /// If null, widget estimates from buffer progress delta.
+    @Deprecated('Use style.bufferLoaderStyle.backgroundColor instead')
+    Color? backgroundColor,
+    @Deprecated('Use style.bufferLoaderStyle.brandColor instead')
+    Color? brandColor,
     this.downloadSpeedBytesPerSec,
-
-    this.brandColor = const Color(0xFF00CA13),
   });
 
   final SenzuPlayerBundle bundle;
   final SenzuPlayerStyle style;
-  final Color backgroundColor;
+
+  /// Optional external download-speed stream (bytes/sec).
   final Stream<double>? downloadSpeedBytesPerSec;
-  final Color brandColor;
 
   @override
   State<SenzuBufferLoader> createState() => _SenzuBufferLoaderState();
@@ -38,7 +36,7 @@ class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
   final List<double> _speedSamples = [];
 
   late final AnimationController _shimmerCtrl;
-  late final Animation<double> _shimmerAnim;
+  late final Animation<double> shimmerAnim;
 
   @override
   void initState() {
@@ -47,11 +45,10 @@ class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat();
-    _shimmerAnim = CurvedAnimation(
+    shimmerAnim = CurvedAnimation(
       parent: _shimmerCtrl,
       curve: Curves.easeInOut,
     );
-
     _startSpeedTimer();
   }
 
@@ -66,13 +63,9 @@ class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
       final dtMs = now.difference(_lastTime).inMilliseconds;
       if (dtMs <= 0) return;
 
-      // Δbuffered in ms
       final deltaMs = (currentBuffered - _lastBuffered).inMilliseconds;
       if (deltaMs > 0) {
-        // Approximate: assume average HLS segment bitrate ~4 Mbps (500 KB/s per sec of content)
-        // speed_bytes/sec = (deltaMs / 1000) * avgBytesPerSec / (dtMs / 1000)
-        // avgBytesPerSec heuristic: 500_000 bytes = 500 KB per content-second (SD/HD mix)
-        const avgBytesPerContentSec = 600_000.0; // ~4.8 Mbps average
+        const avgBytesPerContentSec = 600000.0;
         final contentSecsDelta = deltaMs / 1000.0;
         final realSecsDelta = dtMs / 1000.0;
         final bytesPerSec =
@@ -111,77 +104,45 @@ class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
 
       final isInitialLoad =
           isChangingSource && !isPlaying && pos == Duration.zero;
-      final notYetReady = !isInitialized && !widget.bundle.core.hasError.value;
+      final notYetReady =
+          !isInitialized && !widget.bundle.core.hasError.value;
 
       if (!isInitialLoad && !notYetReady) return const SizedBox.shrink();
 
-      final dur = widget.bundle.playback.duration.value;
-      final buf = widget.bundle.playback.maxBuffering.value;
-      final bufRatio = dur.inMilliseconds > 0
-          ? (buf.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0)
-          : 0.0;
-
       return Positioned.fill(
-        child: LoadingOverlay(
-          bufRatio: bufRatio,
+        child: _LoadingOverlay(
           speedMbps: _speedMbps,
-          shimmerAnim: _shimmerAnim,
-          backgroundColor: widget.backgroundColor,
-          brandColor: widget.brandColor,
           style: widget.style,
-          bundle: widget.bundle,
         ),
       );
     });
   }
 }
 
-
-class LoadingOverlay extends StatelessWidget {
-  const LoadingOverlay({
-    super.key,
-    required this.bufRatio,
+class _LoadingOverlay extends StatelessWidget {
+  const _LoadingOverlay({
     required this.speedMbps,
-    required this.shimmerAnim,
-    required this.backgroundColor,
-    required this.brandColor,
     required this.style,
-    required this.bundle,
   });
 
-  final double bufRatio;
   final double speedMbps;
-  final Animation<double> shimmerAnim;
-  final Color backgroundColor;
-  final Color brandColor;
   final SenzuPlayerStyle style;
-  final SenzuPlayerBundle bundle;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: backgroundColor,
+      color: style.bufferLoaderStyle.backgroundColor,
       child: Center(
-        child: _SpeedLabel(
-          speedMbps: speedMbps,
-          brandColor: brandColor,
-          style: style,
-        ),
+        child: _SpeedLabel(speedMbps: speedMbps, style: style),
       ),
     );
   }
 }
 
-
 class _SpeedLabel extends StatelessWidget {
-  const _SpeedLabel({
-    required this.speedMbps,
-    required this.brandColor,
-    required this.style,
-  });
+  const _SpeedLabel({required this.speedMbps, required this.style});
 
   final double speedMbps;
-  final Color brandColor;
   final SenzuPlayerStyle style;
 
   @override
@@ -191,21 +152,14 @@ class _SpeedLabel extends StatelessWidget {
         ? '${speedMbps.toStringAsFixed(2)} MB/s'
         : '${(speedMbps * 1024).toStringAsFixed(0)} KB/s';
 
-    return Text(
-      hasSpeed
-          ? '${style.senzuLanguage.preparing.replaceAll('...', '')}... $speedStr'
-          : style.senzuLanguage.preparing,
-      style: const TextStyle(
-        color: Colors.white70,
-        fontSize: 13,
-        fontWeight: FontWeight.w400,
-        letterSpacing: 0.2,
-      ),
-    );
+    final prefix = style.senzuLanguage.preparingPrefix;
+    final label = hasSpeed ? '$prefix... $speedStr' : style.senzuLanguage.preparing;
+
+    return Text(label, style: style.bufferLoaderStyle.textStyle);
   }
 }
 
-
+/// Shown during runtime buffering (spinner or percent).
 class RuntimeBufferingIndicator extends StatelessWidget {
   const RuntimeBufferingIndicator({
     super.key,

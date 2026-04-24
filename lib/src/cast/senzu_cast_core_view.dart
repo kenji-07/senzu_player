@@ -203,7 +203,8 @@ class _CastActiveView extends StatelessWidget {
               imageUrl: meta.posterUrl ?? '',
               fit: BoxFit.contain,
               placeholder: (_, __) => const ColoredBox(color: Colors.black),
-              errorWidget: (_, __, ___) => const ColoredBox(color: Colors.black),
+              errorWidget: (_, __, ___) =>
+                  const ColoredBox(color: Colors.black),
             ),
           ),
           Positioned.fill(
@@ -237,7 +238,6 @@ class _CastActiveView extends StatelessWidget {
               );
             }),
           ),
-
           Align(
             alignment: Alignment.topCenter,
             child: _CastTopBar(
@@ -247,7 +247,6 @@ class _CastActiveView extends StatelessWidget {
               castController: castController,
             ),
           ),
-
           Align(
             alignment: Alignment.bottomCenter,
             child: _CastBottomBar(
@@ -257,7 +256,6 @@ class _CastActiveView extends StatelessWidget {
               chapters: chapters,
             ),
           ),
-
           Center(
             child: _CastCenterControls(
               castController: castController,
@@ -279,7 +277,6 @@ class _CastActiveView extends StatelessWidget {
               hasNext: style.hasNextEpisode,
             ),
           ),
-
           Obx(() {
             final panelOpen =
                 castController.activePanel.value != SenzuCastPanel.none;
@@ -294,47 +291,40 @@ class _CastActiveView extends StatelessWidget {
               ),
             );
           }),
-
           _CastQualityPanel(style: style, castController: castController),
           _CastCaptionPanel(style: style, castController: castController),
           _CastAudioPanel(style: style, castController: castController),
-
           if (dragVolume != null)
             IgnorePointer(
               child: Align(
-                alignment: const Alignment(0, -0.65),
+                alignment: Alignment(0, style.vbToastStyle.topAlignment),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+                  padding: style.vbToastStyle.padding,
+                  decoration: style.vbToastStyle.decoration,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         dragVolume! <= 0
-                            ? Icons.volume_off
+                            ? style.vbToastStyle.volume0
                             : dragVolume! < 0.5
-                            ? Icons.volume_down
-                            : Icons.volume_up,
-                        color: Colors.white,
-                        size: 20,
+                                ? style.vbToastStyle.volume50
+                                : style.vbToastStyle.volume100,
+                        color: style.vbToastStyle.iconColor,
+                        size: style.vbToastStyle.iconSize,
                       ),
                       const SizedBox(width: 8),
                       SizedBox(
-                        width: 80,
-                        height: 4,
+                        width: style.vbToastStyle.barWidth,
+                        height: style.vbToastStyle.barHeight,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(2),
                           child: LinearProgressIndicator(
                             value: dragVolume!,
-                            backgroundColor: Colors.white30,
-                            valueColor: const AlwaysStoppedAnimation(
-                              Colors.white,
+                            backgroundColor:
+                                style.vbToastStyle.barBackgroundColor,
+                            valueColor: AlwaysStoppedAnimation(
+                              style.vbToastStyle.barForegroundColor,
                             ),
                           ),
                         ),
@@ -417,23 +407,23 @@ class _CastTopBar extends StatelessWidget {
             )
           else
             const Spacer(),
-
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               _IconBtn(
-                Icons.closed_caption,
+                style.overlayIconsStyle.caption,
                 () => castController.toggleCastPanel(SenzuCastPanel.caption),
               ),
               _IconBtn(
-                Icons.hd,
+                style.overlayIconsStyle.quality,
                 () => castController.toggleCastPanel(SenzuCastPanel.quality),
               ),
               _IconBtn(
-                Icons.audiotrack,
+                style.overlayIconsStyle.audio,
                 () => castController.toggleCastPanel(SenzuCastPanel.audio),
               ),
-              SenzuCastButton(castController: castController, bundle: bundle),
+              SenzuCastButton(
+                  castController: castController, bundle: bundle, style: style),
             ],
           ),
         ],
@@ -473,10 +463,6 @@ class _CastBottomBar extends StatelessWidget {
         final dur = Duration(milliseconds: remote.durationMs);
         final pos = Duration(milliseconds: remote.positionMs);
 
-        // FIX: Use bundle.core.isLiveRx as the single source of truth.
-        // remote.durationMs can be non-zero even for live streams (the value
-        // is copied from the native player at cast-start time), so checking
-        // only durationMs == 0 produces wrong results.
         final isLive = bundle.core.isLiveRx.value;
 
         final ratio = remote.durationMs > 0 && !isLive
@@ -495,16 +481,16 @@ class _CastBottomBar extends StatelessWidget {
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                         Icon(
                           Icons.cast_connected,
-                          color: Colors.lightBlueAccent,
+                          color: style.progressBarStyle.color,
                           size: 14,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           castController.connectedDeviceName ?? 'Cast',
-                          style: const TextStyle(
-                            color: Colors.lightBlueAccent,
+                          style:  TextStyle(
+                            color: style.progressBarStyle.color,
                             fontSize: 11,
                           ),
                         ),
@@ -525,11 +511,9 @@ class _CastBottomBar extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                     child: Padding(
                       padding: const EdgeInsets.all(6),
-                      child: Icon(
-                        isFS ? Icons.fullscreen_exit : Icons.fullscreen,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                      child: isFS
+                          ? style.overlayIconsStyle.fullscreenExit
+                          : style.overlayIconsStyle.fullscreen,
                     ),
                   ),
                 ],
@@ -579,16 +563,12 @@ class _CastLiveBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.red,
-        borderRadius: BorderRadius.circular(4),
+        color: style.liveBadgeStyle.liveColor,
+        borderRadius: style.liveBadgeStyle.borderRadius,
       ),
       child: Text(
         style.senzuLanguage.live,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
+        style: style.liveBadgeStyle.textStyle,
       ),
     );
   }
@@ -628,7 +608,7 @@ class _CastCenterControls extends StatelessWidget {
       final isPlaying = remote.isPlaying;
       final isLoadingMedia =
           remote.sessionState == SenzuCastSessionState.loading ||
-          castController.isLoading.value;
+              castController.isLoading.value;
       final isBuffering =
           remote.sessionState == SenzuCastSessionState.buffering;
       final ended =
@@ -682,24 +662,25 @@ class _CastCenterControls extends StatelessWidget {
   }
 
   Widget _circle(Widget child) => Container(
-    width: style.circleSize,
-    height: style.circleSize,
-    decoration: BoxDecoration(shape: BoxShape.circle, color: style.circleColor),
-    child: child,
-  );
+        width: style.circleSize,
+        height: style.circleSize,
+        decoration:
+            BoxDecoration(shape: BoxShape.circle, color: style.circleColor),
+        child: child,
+      );
 
   Widget _seekText(String text) => _circle(
-    Center(
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
+        Center(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 // ── Progress bar ──────────────────────────────────────────────────────────────
@@ -755,10 +736,9 @@ class _CastProgressBarState extends State<_CastProgressBar> {
             });
           },
           onHorizontalDragEnd: (_) {
-            final posMs =
-                (_dragRatio *
-                        widget.castController.remoteState.value.durationMs)
-                    .toInt();
+            final posMs = (_dragRatio *
+                    widget.castController.remoteState.value.durationMs)
+                .toInt();
             widget.castController.seekTo(Duration(milliseconds: posMs));
             setState(() => _dragging = false);
           },
@@ -790,7 +770,7 @@ class _CastProgressBarState extends State<_CastProgressBar> {
                   width: (_totalW * displayRatio).clamp(0.0, _totalW),
                   height: s.height,
                   decoration: BoxDecoration(
-                    color: Colors.lightBlueAccent,
+                    color: s.color,
                     borderRadius: s.borderRadius,
                   ),
                 ),
@@ -823,12 +803,12 @@ class _CastProgressBarState extends State<_CastProgressBar> {
                       width: sz * 2,
                       height: sz * 2,
                       decoration: BoxDecoration(
-                        color: Colors.lightBlueAccent,
+                        color: s.dotColor,
                         shape: BoxShape.circle,
                         boxShadow: _dragging
                             ? [
                                 BoxShadow(
-                                  color: Colors.lightBlueAccent.withValues(
+                                  color: s.backgroundColor.withValues(
                                     alpha: 0.4,
                                   ),
                                   blurRadius: 8,
@@ -857,30 +837,31 @@ class _CastQualityPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _CastSidePanel(
-    castController: castController,
-    style: style,
-    panel: SenzuCastPanel.quality,
-    child: Obx(() {
-      final qualities = castController.qualityOptions;
-      final activeQ = castController.activeQuality.value;
-      return _PanelList(
-        items: qualities
-            .map(
-              (q) => _PanelItem(
-                label: q.label,
-                selected: q.label == activeQ,
-                onTap: q.label == activeQ
-                    ? null
-                    : () {
-                        castController.switchQuality(q.label);
-                        log('Select Quality: ${q.label}');
-                      },
-              ),
-            )
-            .toList(),
+        castController: castController,
+        style: style,
+        panel: SenzuCastPanel.quality,
+        child: Obx(() {
+          final qualities = castController.qualityOptions;
+          final activeQ = castController.activeQuality.value;
+          return _PanelList(
+            items: qualities
+                .map(
+                  (q) => _PanelItem(
+                    style: style,
+                    label: q.label,
+                    selected: q.label == activeQ,
+                    onTap: q.label == activeQ
+                        ? null
+                        : () {
+                            castController.switchQuality(q.label);
+                            log('Select Quality: ${q.label}');
+                          },
+                  ),
+                )
+                .toList(),
+          );
+        }),
       );
-    }),
-  );
 }
 
 class _CastCaptionPanel extends StatelessWidget {
@@ -890,36 +871,39 @@ class _CastCaptionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _CastSidePanel(
-    castController: castController,
-    style: style,
-    panel: SenzuCastPanel.caption,
-    width: 220,
-    child: Obx(() {
-      final tracks = castController.subtitleTracks;
-      final activeId = castController.activeSubtitleTrackId.value;
-      return _PanelList(
-        items: [
-          _PanelItem(
-            label: style.senzuLanguage.none,
-            selected: activeId == null,
-            onTap: activeId == null ? null : castController.disableSubtitles,
-          ),
-          ...tracks.map(
-            (t) => _PanelItem(
-              label: t.name,
-              selected: activeId == t.id,
-              onTap: activeId == t.id
-                  ? null
-                  : () {
-                      castController.setSubtitle(t.id);
-                      log('Select Subtitle: ${t.id}');
-                    },
-            ),
-          ),
-        ],
+        castController: castController,
+        style: style,
+        panel: SenzuCastPanel.caption,
+        width: 220,
+        child: Obx(() {
+          final tracks = castController.subtitleTracks;
+          final activeId = castController.activeSubtitleTrackId.value;
+          return _PanelList(
+            items: [
+              _PanelItem(
+                style: style,
+                label: style.senzuLanguage.none,
+                selected: activeId == null,
+                onTap:
+                    activeId == null ? null : castController.disableSubtitles,
+              ),
+              ...tracks.map(
+                (t) => _PanelItem(
+                  style: style,
+                  label: t.name,
+                  selected: activeId == t.id,
+                  onTap: activeId == t.id
+                      ? null
+                      : () {
+                          castController.setSubtitle(t.id);
+                          log('Select Subtitle: ${t.id}');
+                        },
+                ),
+              ),
+            ],
+          );
+        }),
       );
-    }),
-  );
 }
 
 class _CastAudioPanel extends StatelessWidget {
@@ -929,28 +913,29 @@ class _CastAudioPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _CastSidePanel(
-    castController: castController,
-    style: style,
-    panel: SenzuCastPanel.audio,
-    child: Obx(() {
-      final tracks = castController.audioTracks;
-      final activeId = castController.activeAudioTrackId.value;
-      return _PanelList(
-        items: tracks
-            .map(
-              (t) => _PanelItem(
-                label: '${t.name} (${t.language})',
-                selected: activeId == t.id,
-                onTap: () {
-                  castController.setAudioTrack(t.id);
-                  log('Select Audio: ${t.id}');
-                },
-              ),
-            )
-            .toList(),
+        castController: castController,
+        style: style,
+        panel: SenzuCastPanel.audio,
+        child: Obx(() {
+          final tracks = castController.audioTracks;
+          final activeId = castController.activeAudioTrackId.value;
+          return _PanelList(
+            items: tracks
+                .map(
+                  (t) => _PanelItem(
+                    style: style,
+                    label: '${t.name} (${t.language})',
+                    selected: activeId == t.id,
+                    onTap: () {
+                      castController.setAudioTrack(t.id);
+                      log('Select Audio: ${t.id}');
+                    },
+                  ),
+                )
+                .toList(),
+          );
+        }),
       );
-    }),
-  );
 }
 
 // ── Side panel shell ──────────────────────────────────────────────────────────
@@ -988,49 +973,45 @@ class _CastSidePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Obx(() {
-    final visible = castController.activePanel.value == panel;
-    return Align(
-      alignment: Alignment.centerRight,
-      child: AnimatedSlide(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-        offset: visible ? Offset.zero : const Offset(1.0, 0),
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 200),
-          opacity: visible ? 1.0 : 0.0,
-          child: IgnorePointer(
-            ignoring: !visible,
-            child: Container(
-              width: width,
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-              decoration: const BoxDecoration(color: Colors.black),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: 12,
-                      top: 10,
-                      bottom: 10,
-                    ),
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.normal,
+        final visible = castController.activePanel.value == panel;
+        return Align(
+          alignment: Alignment.centerRight,
+          child: AnimatedSlide(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+            offset: visible ? Offset.zero : const Offset(1.0, 0),
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: visible ? 1.0 : 0.0,
+              child: IgnorePointer(
+                ignoring: !visible,
+                child: Container(
+                  width: width,
+                  padding: style.settingsPanelStyle.panelPadding,
+                  decoration: style.settingsPanelStyle.panelDecoration,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 12,
+                          top: 10,
+                          bottom: 10,
+                        ),
+                        child: Text(
+                          title,
+                          style: style.settingsPanelStyle.titleStyle,
+                        ),
                       ),
-                    ),
+                      Expanded(child: child),
+                    ],
                   ),
-                  Expanded(child: child),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    );
-  });
+        );
+      });
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -1039,44 +1020,50 @@ class _PanelList extends StatelessWidget {
   final List<_PanelItem> items;
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: items,
-    ),
-  );
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: items,
+        ),
+      );
 }
 
 class _PanelItem extends StatelessWidget {
-  const _PanelItem({required this.label, required this.selected, this.onTap});
+  const _PanelItem(
+      {required this.label,
+      required this.selected,
+      this.onTap,
+      required this.style});
   final String label;
   final bool selected;
   final VoidCallback? onTap;
+  final SenzuPlayerStyle style;
 
   @override
   Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(8),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.lightBlueAccent : Colors.white,
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: selected
+                        ? style.settingsPanelStyle.selectedTextColor
+                        : style.settingsPanelStyle.unselectedTextColor,
+                    fontSize: style.settingsPanelStyle.selectedTextSize,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
               ),
-            ),
+              if (selected) style.settingsPanelStyle.selectedIcon,
+            ],
           ),
-          if (selected)
-            const Icon(Icons.check, size: 14, color: Colors.lightBlueAccent),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }
 
 class _SideButton extends StatelessWidget {
@@ -1093,34 +1080,34 @@ class _SideButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: isDisabled ? null : onTap,
-    child: AnimatedOpacity(
-      duration: const Duration(milliseconds: 200),
-      opacity: isDisabled ? 0.35 : 1.0,
-      child: Container(
-        width: size + 16,
-        height: size + 16,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.black.withValues(alpha: isDisabled ? 0.15 : 0.35),
+        onTap: isDisabled ? null : onTap,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: isDisabled ? 0.35 : 1.0,
+          child: Container(
+            width: size + 16,
+            height: size + 16,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.black.withValues(alpha: isDisabled ? 0.15 : 0.35),
+            ),
+            child: Icon(icon, color: Colors.white, size: size),
+          ),
         ),
-        child: Icon(icon, color: Colors.white, size: size),
-      ),
-    ),
-  );
+      );
 }
 
 class _IconBtn extends StatelessWidget {
   const _IconBtn(this.icon, this.onTap);
-  final IconData icon;
+  final Icon icon;
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(20),
-    child: Padding(
-      padding: const EdgeInsets.all(8),
-      child: Icon(icon, color: Colors.white, size: 20),
-    ),
-  );
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: icon,
+        ),
+      );
 }
