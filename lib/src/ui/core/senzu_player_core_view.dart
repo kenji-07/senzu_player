@@ -590,6 +590,8 @@ class _MainPlayerStack extends StatelessWidget {
                       enableSpeed: widget.enableSpeed,
                       enableAspect: widget.enableAspect,
                       castController: widget.castController,
+                      enableAudio:  widget.enableAudio,
+                      enableSleep:  widget.enableSleep,
                     ),
                   ),
                 ),
@@ -965,7 +967,9 @@ class _LockButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => InkWell(
-        onTap: bundle.ui.toggleLock,
+        onTap: () async {
+          await bundle.ui.toggleLock(false);
+        },
         borderRadius: BorderRadius.circular(20),
         child: Container(
           width: 40,

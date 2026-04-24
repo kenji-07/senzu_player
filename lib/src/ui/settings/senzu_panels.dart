@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter/services.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
@@ -123,27 +124,24 @@ class SenzuSleepPanel extends StatelessWidget {
             activeMinutes = ((activeRemaining.inSeconds + 30) ~/ 60);
           }
 
-          bool isSelected(int minutes) =>
-              isActive && activeMinutes == minutes;
+          bool isSelected(int minutes) => isActive && activeMinutes == minutes;
 
           final items = [
             if (remainingMin > 0)
               _PanelItem(
                 style: style,
-                label:
-                    '${style.senzuLanguage.untilVideoEnds}'
+                label: '${style.senzuLanguage.untilVideoEnds}'
                     '($remainingMin ${style.senzuLanguage.minutesShort})',
                 selected: isSelected(remainingMin),
-                onTap: () => bundle.sleepTimer
-                    .start(Duration(minutes: remainingMin)),
+                onTap: () =>
+                    bundle.sleepTimer.start(Duration(minutes: remainingMin)),
               ),
             ...base.map(
               (k) => _PanelItem(
                 style: style,
                 label: '$k ${style.senzuLanguage.minutes}',
                 selected: isSelected(k),
-                onTap: () =>
-                    bundle.sleepTimer.start(Duration(minutes: k)),
+                onTap: () => bundle.sleepTimer.start(Duration(minutes: k)),
               ),
             ),
             _PanelItem(
@@ -189,8 +187,7 @@ class SenzuQualityPanel extends StatelessWidget {
                         : () {
                             final src = sources[k];
                             if (src != null) {
-                              bundle.core
-                                  .changeSource(name: k, source: src);
+                              bundle.core.changeSource(name: k, source: src);
                             }
                           },
                   ),
@@ -291,8 +288,7 @@ class SenzuCaptionPanel extends StatelessWidget {
         child: Obx(() {
           final active = bundle.subtitle.activeCaption.value;
           final srcName = bundle.core.rxActiveSource.value;
-          final subs =
-              bundle.core.rxSources.value?[srcName]?.subtitle ?? {};
+          final subs = bundle.core.rxSources.value?[srcName]?.subtitle ?? {};
 
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -346,8 +342,7 @@ class SenzuCaptionPanel extends StatelessWidget {
                           trackHeight: style.progressBarStyle.height,
                         ),
                         child: Slider(
-                          value: bundle.subtitle.subtitleSize.value
-                              .toDouble(),
+                          value: bundle.subtitle.subtitleSize.value.toDouble(),
                           min: 10,
                           max: 50,
                           divisions: 40,
@@ -624,6 +619,7 @@ class _PanelList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
+        primary: true,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -645,29 +641,55 @@ class _PanelItem extends StatelessWidget {
   final SenzuPlayerStyle style;
 
   @override
-  Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: selected
-                        ? style.settingsPanelStyle.selectedTextColor
-                        : style.settingsPanelStyle.unselectedTextColor,
-                    fontSize: style.settingsPanelStyle.selectedTextSize,
-                    fontWeight:
-                        selected ? FontWeight.bold : FontWeight.normal,
-                  ),
+  Widget build(BuildContext context) => Focus(
+        onKeyEvent: (node, event) {
+          if ((event is KeyDownEvent) &&
+              (event.logicalKey == LogicalKeyboardKey.enter ||
+                  event.logicalKey == LogicalKeyboardKey.select)) {
+            onTap?.call();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Builder(
+          builder: (ctx) {
+            final hasFocus = Focus.of(ctx).hasFocus;
+            return InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                decoration: hasFocus
+                    ? BoxDecoration(
+                        color: Colors.white12,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white24),
+                      )
+                    : null,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          color: selected
+                              ? style.settingsPanelStyle.selectedTextColor
+                              : style.settingsPanelStyle.unselectedTextColor,
+                          fontSize: style.settingsPanelStyle.selectedTextSize,
+                          fontWeight:
+                              selected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                    if (selected) style.settingsPanelStyle.selectedIcon,
+                  ],
                 ),
               ),
-              if (selected) style.settingsPanelStyle.selectedIcon,
-            ],
-          ),
+            );
+          },
         ),
       );
 }

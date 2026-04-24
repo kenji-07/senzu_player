@@ -18,6 +18,7 @@ class SenzuOverlayTop extends StatelessWidget {
     this.enableAudio = false,
     this.enableSpeed = true,
     this.enableAspect = true,
+    this.enableSleep = true,
     this.castController,
   });
 
@@ -30,6 +31,7 @@ class SenzuOverlayTop extends StatelessWidget {
   final bool enableAudio;
   final bool enableSpeed;
   final bool enableAspect;
+  final bool enableSleep;
 
   @override
   Widget build(BuildContext context) {
@@ -91,6 +93,7 @@ class SenzuOverlayTop extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Sleep timer
+                if (enableSleep)
                 _Btn(
                   style.overlayIconsStyle.sleep,
                   () => bundle.ui.togglePanel(SenzuPanel.sleep),

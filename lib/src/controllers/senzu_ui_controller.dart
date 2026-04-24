@@ -96,8 +96,7 @@ class SenzuUIController extends GetxController {
       }
     }
 
-    final changed =
-        active.length != activeSkipChapters.length ||
+    final changed = active.length != activeSkipChapters.length ||
         active.any((c) => !activeSkipChapters.contains(c));
     if (changed) activeSkipChapters.value = active;
   }
@@ -194,13 +193,17 @@ class SenzuUIController extends GetxController {
   }
 
   // ── Lock ───────────────────────────────────────────────────────────────────
-  Future<void> toggleLock() async {
-    isLocked.value = !isLocked.value;
-    await HapticFeedback.lightImpact();
-    if (isLocked.value) {
+  Future<void> toggleLock(bool isTv) async {
+    if (isTv) {
       await SenzuNativeChannel.enableWakelock();
     } else {
-      await SenzuNativeChannel.disableWakelock();
+      isLocked.value = !isLocked.value;
+      await HapticFeedback.lightImpact();
+      if (isLocked.value) {
+        await SenzuNativeChannel.enableWakelock();
+      } else {
+        await SenzuNativeChannel.disableWakelock();
+      }
     }
   }
 
