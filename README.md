@@ -24,7 +24,7 @@ A powerful, feature-rich Flutter video player plugin built on top of **AVPlayer*
 | Audio track selection | ✅ | ✅ | ✅ |
 | Subtitles (WebVTT / SRT) | ✅ | ✅ | ✅ |
 | Encrypted subtitles (AES-128-CBC) | ✅ | ✅ | ✅ |
-| Chapters & skip OP/ED | ✅ | ✅ | ✅ |
+| Chapters & skip OP/ED | ✅ | ✅ | - |
 | Annotations overlay | ✅ | ✅ | — |
 | Watermark overlay | ✅ | ✅ | ✅ |
 | Sleep timer | ✅ | ✅ | — |
@@ -45,7 +45,7 @@ A powerful, feature-rich Flutter video player plugin built on top of **AVPlayer*
 
 ```yaml
 dependencies:
-  senzu_player: ^1.1.0
+  senzu_player: ^1.1.1
 ```
 
 ### iOS
@@ -249,41 +249,6 @@ The TV UI is divided into three vertical focus zones. Focus moves between them w
 The progress bar in the bottom zone accepts ←/→ for 10-second seek with optimistic UI
 (the bar moves immediately before the native player seeks).
 
-**TV-specific bundle options**
-
-```dart
-SenzuPlayerBundle.create(
-  looping: false,
-  notification: true,   // lock screen / Now Playing controls
-  secureMode: false,    // no screenshot blocking on TV
-  watermark: SenzuWatermark(
-    userId: 'user_42',
-    position: WatermarkPosition.bottomRight,
-  ),
-)
-```
-
-**Forcing TV fullscreen on page entry**
-
-When `isTv: true`, the player sets `isFullScreen = true` automatically after initialization.
-You should also lock the orientation in your page's `initState`:
-
-```dart
-@override
-void initState() {
-  super.initState();
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
-}
-
-@override
-void dispose() {
-  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  super.dispose();
-}
-```
 
 ---
 
