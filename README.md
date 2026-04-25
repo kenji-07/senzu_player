@@ -1,41 +1,43 @@
 # senzu_player
 
-A powerful, feature-rich Flutter video player plugin built on top of **AVPlayer** (iOS) and **ExoPlayer / Media3** (Android).
+A powerful, feature-rich Flutter video player plugin built on top of **AVPlayer** (iOS) and **ExoPlayer / Media3** (Android). Supports both **mobile** and **Android TV / Apple TV** platforms.
 
 [![pub version](https://img.shields.io/pub/v/senzu_player.svg)](https://pub.dev/packages/senzu_player)
-[![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20Android-blue)](https://pub.dev/packages/senzu_player)
+[![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20Android%20%7C%20TV-blue)](https://pub.dev/packages/senzu_player)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
 ## Features
 
-| Feature | iOS | Android |
-|---|---|---|
-| HLS / DASH / MP4 | ✅ | ✅ |
-| FairPlay DRM | ✅ | — |
-| Widevine DRM | — | ✅ |
-| Picture-in-Picture | ✅ | ✅ (API 26+) |
-| Now Playing / Lock Screen | ✅ | ✅ |
-| Google Cast (Chromecast) | ✅ | ✅ |
-| HDR playback | ✅ | ✅ |
-| Low-latency live | ✅ | ✅ |
-| Adaptive Bitrate (ABR) | ✅ | ✅ |
-| Audio track selection | ✅ | ✅ |
-| Subtitles (WebVTT / SRT) | ✅ | ✅ |
-| Encrypted subtitles (AES-128-CBC) | ✅ | ✅ |
-| Chapters & skip OP/ED | ✅ | ✅ |
-| Annotations overlay | ✅ | ✅ |
-| Watermark overlay | ✅ | ✅ |
-| Sleep timer | ✅ | ✅ |
-| Token / signed URL refresh | ✅ | ✅ |
-| Cellular data warning | ✅ | ✅ |
-| Thumbnail sprite preview | ✅ | ✅ |
-| Fullscreen overlay | ✅ | ✅ |
-| Secure mode (screenshot block) | ✅ | ✅ |
-| Volume / brightness gesture | ✅ | ✅ |
-| Long-press 2× speed | ✅ | ✅ |
-| IMA / VAST ads | ✅ | ✅ |
+| Feature | iOS | Android | TV |
+|---|---|---|---|
+| HLS / DASH / MP4 | ✅ | ✅ | ✅ |
+| FairPlay DRM | ✅ | — | ✅ |
+| Widevine DRM | — | ✅ | ✅ |
+| Picture-in-Picture | ✅ | ✅ (API 26+) | — |
+| Now Playing / Lock Screen | ✅ | ✅ | ✅ |
+| Google Cast (Chromecast) | ✅ | ✅ | — |
+| HDR playback | ✅ | ✅ | ✅ |
+| Low-latency live | ✅ | ✅ | ✅ |
+| Adaptive Bitrate (ABR) | ✅ | ✅ | ✅ |
+| Audio track selection | ✅ | ✅ | ✅ |
+| Subtitles (WebVTT / SRT) | ✅ | ✅ | ✅ |
+| Encrypted subtitles (AES-128-CBC) | ✅ | ✅ | ✅ |
+| Chapters & skip OP/ED | ✅ | ✅ | ✅ |
+| Annotations overlay | ✅ | ✅ | — |
+| Watermark overlay | ✅ | ✅ | ✅ |
+| Sleep timer | ✅ | ✅ | — |
+| Token / signed URL refresh | ✅ | ✅ | ✅ |
+| Cellular data warning | ✅ | ✅ | — |
+| Thumbnail sprite preview | ✅ | ✅ | ✅ |
+| Fullscreen overlay | ✅ | ✅ | ✅ |
+| Secure mode (screenshot block) | ✅ | ✅ | ✅ |
+| Volume / brightness gesture | ✅ | ✅ | — |
+| Long-press 2× speed | ✅ | ✅ | — |
+| IMA / VAST ads | ✅ | ✅ | — |
+| D-pad / remote navigation | — | — | ✅ |
+| TV focus ring & zoom animation | — | — | ✅ |
 
 ---
 
@@ -70,8 +72,8 @@ Add the following to your `Info.plist`:
 <!-- Google Cast -->
 <key>NSBonjourServices</key>
 <array>
-	<string>_CC1AD845._googlecast._tcp</string>
-	<string>_googlecast._tcp</string>
+  <string>_CC1AD845._googlecast._tcp</string>
+  <string>_googlecast._tcp</string>
 </array>
 ```
 
@@ -114,6 +116,26 @@ dependencies {
 }
 ```
 
+### Android TV
+
+For Android TV support, add the Leanback launcher category to your `AndroidManifest.xml`:
+
+```xml
+<uses-feature android:name="android.software.leanback" android:required="false" />
+<uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+<activity
+    android:name=".MainActivity"
+    android:screenOrientation="landscape"
+    android:supportsPictureInPicture="true">
+    <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+        <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+    </intent-filter>
+</activity>
+```
+
 ---
 
 ## Basic Usage
@@ -144,7 +166,128 @@ void dispose() {
 > `SenzuPlayerBundle.create()` and call `bundle.dispose()` yourself when the widget is
 > removed from the tree.
 
-### Multiple quality sources
+---
+
+## Platform-specific Setup
+
+### Mobile (iOS & Android)
+
+Mobile mode is the default. It provides touch-based controls, gesture volume/brightness,
+long-press 2× speed, fullscreen overlay, lock screen, PiP, sleep timer, cellular warning,
+annotations, and ad support.
+
+```dart
+SenzuPlayer(
+  bundle: bundle,
+  source: sources,
+  // Mobile-specific options
+  enableFullscreen: true,   // fullscreen overlay with orientation lock
+  enableLock: true,         // screen lock button
+  enablePip: true,          // picture-in-picture button
+  enableSleep: true,        // sleep timer panel
+  defaultAspectRatio: 16 / 9,
+)
+```
+
+**Gesture controls (mobile only)**
+
+In fullscreen mode, swiping up/down on the left half of the screen controls brightness,
+and swiping up/down on the right half controls volume. Long-pressing the center area
+activates 2× speed playback.
+
+---
+
+### TV (Android TV / Apple TV)
+
+Pass `isTv: true` to switch to the TV-optimized layout. The player automatically enters
+fullscreen and locks orientation to landscape. All controls are navigable with a D-pad or
+remote control.
+
+```dart
+SenzuPlayer(
+  bundle: SenzuPlayerBundle.create(
+    looping: true,
+    notification: true,
+  ),
+  source: sources,
+  isTv: true,             // ← enables TV mode
+  autoPlay: true,
+  enableFullscreen: false, // TV mode is always fullscreen, disable the toggle button
+  enableLock: false,       // no touch lock needed on TV
+  enablePip: false,        // PiP not applicable on TV
+  enableSleep: false,      // sleep timer not needed on TV
+  enableCaption: true,
+  enableQuality: true,
+  enableSpeed: true,
+  enableAspect: true,
+  enableEpisode: true,
+  enableAudio: true,
+)
+```
+
+**TV remote / D-pad key mapping**
+
+| Key | Overlay hidden | Overlay visible |
+|---|---|---|
+| **Select / Enter** | Play / Pause | Activate focused button |
+| **←** | Seek −10 s | Move focus left |
+| **→** | Seek +10 s | Move focus right |
+| **↑** | Show overlay → bottom bar | Move focus zone up (bottom → center → top) |
+| **↓** | Show overlay → bottom bar | Move focus zone down (top → center → bottom) |
+| **Back / Escape** | Pop screen | Close panel or hide overlay |
+| **Media Play** | Play | — |
+| **Media Pause** | Pause | — |
+
+**TV focus zones**
+
+The TV UI is divided into three vertical focus zones. Focus moves between them with ↑/↓.
+
+- **Top zone** — title, aspect ratio, speed, caption, quality, audio buttons
+- **Center zone** — play/pause circle button
+- **Bottom zone** — episode button, seek progress bar
+
+The progress bar in the bottom zone accepts ←/→ for 10-second seek with optimistic UI
+(the bar moves immediately before the native player seeks).
+
+**TV-specific bundle options**
+
+```dart
+SenzuPlayerBundle.create(
+  looping: false,
+  notification: true,   // lock screen / Now Playing controls
+  secureMode: false,    // no screenshot blocking on TV
+  watermark: SenzuWatermark(
+    userId: 'user_42',
+    position: WatermarkPosition.bottomRight,
+  ),
+)
+```
+
+**Forcing TV fullscreen on page entry**
+
+When `isTv: true`, the player sets `isFullScreen = true` automatically after initialization.
+You should also lock the orientation in your page's `initState`:
+
+```dart
+@override
+void initState() {
+  super.initState();
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+}
+
+@override
+void dispose() {
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  super.dispose();
+}
+```
+
+---
+
+## Multiple Quality Sources
 
 ```dart
 SenzuPlayer(
@@ -163,7 +306,7 @@ SenzuPlayer(
 ```dart
 final sources = await VideoSource.fromM3u8PlaylistUrl(
   'https://example.com/master.m3u8',
-  autoSubtitle: true,       // automatically parse subtitle tracks from the playlist
+  autoSubtitle: true,
   initialSubtitleLang: 'en',
 );
 
@@ -264,9 +407,12 @@ chapters: [
 | `isSkippable` | `bool` | Whether to show a Skip button while playback is inside this chapter |
 | `skipToMs` | `int?` | Target position when Skip is tapped. Defaults to next chapter's `startMs` |
 
+On TV, chapter haptic feedback is replaced by a visual highlight on the progress bar dot.
+Skip buttons are shown as overlay buttons above the progress bar on both mobile and TV.
+
 ---
 
-### Ads
+### Ads (Mobile only)
 
 **Custom inline ads**
 
@@ -278,13 +424,13 @@ VideoSource.fromUrl(
       child: MyAdWidget(),
       durationToSkip: const Duration(seconds: 5),
       deepLink: 'https://advertiser.example.com',
-      durationToStart: const Duration(seconds: 0), // pre-roll
+      durationToStart: const Duration(seconds: 0),
     ),
     SenzuPlayerAd(
       child: MyMidrollAdWidget(),
       durationToSkip: const Duration(seconds: 5),
       deepLink: 'https://advertiser.example.com',
-      fractionToStart: 0.5, // mid-roll at 50%
+      fractionToStart: 0.5,
     ),
   ],
 )
@@ -292,7 +438,7 @@ VideoSource.fromUrl(
 
 > Exactly one of `durationToStart` or `fractionToStart` must be set.
 
-**Google IMA / VAST**
+**Google IMA / VAST (Mobile only)**
 
 ```dart
 SenzuPlayer(
@@ -304,15 +450,13 @@ SenzuPlayer(
 
 ---
 
-### Google Cast (Chromecast)
+### Google Cast (Chromecast) — Mobile only
 
 ```dart
-// 1. Create controller
+final castController = SenzuCastController(
+  appId: SenzuCastController.kDefaultApplicationId,
+);
 
-// Use the default Cast application ID or your custom one
-final castController = SenzuCastController(appId: SenzuCastController.kDefaultApplicationId);
-
-// 2. Pass to SenzuPlayer
 SenzuPlayer(
   bundle: bundle,
   source: sources,
@@ -363,13 +507,6 @@ await castController.switchToCast(
 ### Watermark
 
 ```dart
-SenzuPlayer(
-  bundle: bundle,
-  source: sources,
-  // Passed through SenzuPlayerBundle.create()
-)
-
-// In SenzuPlayerBundle.create():
 final bundle = SenzuPlayerBundle.create(
   watermark: SenzuWatermark(
     userId:        'user_123',
@@ -388,7 +525,7 @@ final bundle = SenzuPlayerBundle.create(
 
 ---
 
-### Annotations
+### Annotations (Mobile only)
 
 ```dart
 final bundle = SenzuPlayerBundle.create(
@@ -444,32 +581,28 @@ VideoSource.fromUrl(
 )
 ```
 
-While the user scrubs the progress bar, the corresponding frame from the sprite sheet is shown
-above the progress bar. If no sprite is configured a simple time tooltip is shown instead.
+On mobile, the sprite is shown above the progress bar while scrubbing.
+On TV, the sprite appears above the seek dot while navigating with ←/→.
 
 ---
 
-### Cellular Data Policy
+### Cellular Data Policy (Mobile only)
 
 ```dart
 final bundle = SenzuPlayerBundle.create(
   dataPolicy: SenzuDataPolicy(
-    warnOnCellular:      true,   // show warning dialog on cellular
-    dataSaverOnCellular: true,   // auto-switch to lowest quality on cellular
-    dataSaverQualityKey: '480p', // key in your sources map (null = last key)
+    warnOnCellular:      true,
+    dataSaverOnCellular: true,
+    dataSaverQualityKey: '480p',
   ),
 );
 ```
 
 ---
 
-### Controlling playback externally
+### Controlling Playback Externally
 
 ```dart
-final bundle = SenzuPlayerBundle.create();
-
-SenzuPlayer(bundle: bundle, source: sources)
-
 // Playback control
 bundle.core.play();
 bundle.core.pause();
@@ -490,6 +623,10 @@ bundle.core.changeSource(
   source: VideoSource.fromUrl('https://example.com/720p.m3u8'),
   inheritPosition: true,
 );
+
+// Skip OP / ED (works on both mobile and TV)
+bundle.ui.skipOp();
+bundle.ui.skipEd();
 ```
 
 ---
@@ -498,18 +635,17 @@ bundle.core.changeSource(
 
 Fullscreen is managed internally via a Flutter `Overlay`. When the user taps the fullscreen
 button, the player renders into a full-screen overlay and applies landscape orientation +
-immersive sticky UI mode automatically. The overlay is removed when the user exits fullscreen.
+immersive sticky UI mode automatically.
 
 ```dart
-// Toggle programmatically
 bundle.core.openOrCloseFullscreen();
-
-// Close and pop (e.g. from the back button in the top bar)
 bundle.core.closeFullscreen(context);
+bundle.core.openFullscreen();
 
-// Observe
 Obx(() => Text(bundle.core.isFullScreen.value ? 'Fullscreen' : 'Inline'));
 ```
+
+On TV, fullscreen is entered automatically — no button is needed.
 
 ---
 
@@ -521,12 +657,11 @@ SenzuPlayer(
   source: sources,
   style: SenzuPlayerStyle(
     senzuLanguage: SenzuLanguage(
-      live:                 'LIVE',
-      quality:              'Quality',
-      subtitles:            'Subtitles',
-      audio:                'Audio',
-      playbackSpeed:        'Playback speed',
-      etc ...
+      live:          'LIVE',
+      quality:       'Quality',
+      subtitles:     'Subtitles',
+      audio:         'Audio',
+      playbackSpeed: 'Playback speed',
     ),
   ),
 )
@@ -534,7 +669,7 @@ SenzuPlayer(
 
 ---
 
-### Custom UI style
+### Custom UI Style
 
 ```dart
 SenzuPlayerStyle(
@@ -576,27 +711,28 @@ SenzuPlayerStyle(
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `bundle` | `SenzuPlayerBundle` | **required** | Controller bundle created with `SenzuPlayerBundle.create()` |
+| `bundle` | `SenzuPlayerBundle` | **required** | Controller bundle |
 | `source` | `Map<String, VideoSource>` | **required** | Video sources keyed by quality label |
 | `seekTo` | `Duration` | `Duration.zero` | Initial seek position |
-| `autoPlay` | `bool` | `false` | Auto-start playback after initialization |
-| `isLive` | `bool?` | `null` | Force live stream mode (overrides native duration heuristic) |
+| `autoPlay` | `bool` | `false` | Auto-start playback |
+| `isTv` | `bool` | `false` | Enable TV / D-pad mode |
+| `isLive` | `bool?` | `null` | Force live stream mode |
 | `style` | `SenzuPlayerStyle?` | default | UI style configuration |
-| `meta` | `SenzuMetaData?` | default | Title/description/poster metadata shown in top bar and cast |
-| `chapters` | `List<SenzuChapter>` | `[]` | Chapter markers on progress bar |
+| `meta` | `SenzuMetaData?` | default | Title / description / poster |
+| `chapters` | `List<SenzuChapter>` | `[]` | Chapter markers |
 | `defaultAspectRatio` | `double` | `16/9` | Player aspect ratio |
-| `enableFullscreen` | `bool` | `true` | Show fullscreen button |
+| `enableFullscreen` | `bool` | `true` | Show fullscreen button (mobile) |
 | `enableCaption` | `bool` | `true` | Show subtitle panel button |
 | `enableQuality` | `bool` | `true` | Show quality panel button |
 | `enableAudio` | `bool` | `false` | Show audio track panel button |
 | `enableSpeed` | `bool` | `true` | Show playback speed panel button |
 | `enableAspect` | `bool` | `true` | Show aspect ratio panel button |
-| `enableLock` | `bool` | `true` | Show screen lock button |
-| `enablePip` | `bool` | `true` | Enable Picture-in-Picture button |
-| `enableSleep` | `bool` | `true` | Show sleep timer panel button |
-| `enableEpisode` | `bool` | `true` | Show episode panel button (requires `style.episodeWidget`) |
-| `imaAdTagUrl` | `String?` | `null` | Google IMA VAST ad tag URL |
-| `castController` | `SenzuCastController?` | `null` | Google Cast controller |
+| `enableLock` | `bool` | `true` | Show screen lock button (mobile) |
+| `enablePip` | `bool` | `true` | Enable PiP button (mobile) |
+| `enableSleep` | `bool` | `true` | Show sleep timer button (mobile) |
+| `enableEpisode` | `bool` | `true` | Show episode panel button |
+| `imaAdTagUrl` | `String?` | `null` | Google IMA VAST ad tag URL (mobile) |
+| `castController` | `SenzuCastController?` | `null` | Google Cast controller (mobile) |
 
 ## SenzuPlayerBundle.create() Parameters
 
@@ -606,17 +742,17 @@ SenzuPlayerStyle(
 | `adaptiveBitrate` | `bool` | `false` | Auto quality switching based on buffer health |
 | `minBufferSec` | `int` | `0` | Minimum buffer threshold for ABR downgrade |
 | `maxBufferSec` | `int` | `30` | Maximum buffer threshold for ABR upgrade |
-| `secureMode` | `bool` | `false` | Block screenshots and screen recording |
+| `secureMode` | `bool` | `false` | Block screenshots (mobile) |
 | `notification` | `bool` | `true` | Show Now Playing / lock screen controls |
 | `watermark` | `SenzuWatermark?` | `null` | Floating watermark overlay |
 | `onQualityChanged` | `void Function(String)?` | `null` | Callback when ABR switches quality |
-| `dataPolicy` | `SenzuDataPolicy` | default | Cellular data warning / data-saver behavior |
+| `dataPolicy` | `SenzuDataPolicy` | default | Cellular data warning / data-saver (mobile) |
 | `tokenConfig` | `SenzuTokenConfig?` | `null` | Signed URL / token auto-refresh |
-| `annotations` | `List<SenzuAnnotation>` | `[]` | Tappable overlay annotations |
+| `annotations` | `List<SenzuAnnotation>` | `[]` | Tappable overlay annotations (mobile) |
 
 ---
 
-## VideoSource constructors
+## VideoSource Constructors
 
 | Constructor | Description |
 |---|---|
@@ -632,10 +768,10 @@ SenzuPlayerStyle(
 
 | Platform | Minimum version |
 |---|---|
-| iOS | 15.0 |
-| Android | API 21 (Android 5.0) |
-| Flutter | 3.41.0 |
-| Dart | 3.8.0 |
+| iOS / tvOS | 15.0 |
+| Android / Android TV | API 21 (Android 5.0) |
+| Flutter | 3.16.0 |
+| Dart | 3.0.0 |
 
 ---
 

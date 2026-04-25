@@ -497,11 +497,11 @@ class _TvSubtitle extends StatelessWidget {
         return Align(
           alignment: style.alignment,
           child: Padding(
-            padding: style.padding,
+            padding: style.paddingTV,
             child: Text(
               sub.text,
               textAlign: style.textAlign,
-              style: style.textStyle.copyWith(fontSize: 22),
+              style: style.textStyleTV,
             ),
           ),
         );

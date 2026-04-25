@@ -442,14 +442,23 @@ class SenzuSubtitleStyle {
       backgroundColor: Colors.black54,
       height: 1.3,
     ),
+    this.textStyleTV = const TextStyle(
+      color: Colors.white,
+      fontSize: 20,
+      backgroundColor: Colors.black54,
+      height: 1.3,
+    ),
     this.alignment = Alignment.bottomCenter,
     this.textAlign = TextAlign.center,
     this.padding = const EdgeInsets.only(bottom: 8),
+    this.paddingTV = const EdgeInsets.only(bottom: 20),
   });
   final TextStyle textStyle;
+  final TextStyle textStyleTV;
   final AlignmentGeometry alignment;
   final TextAlign textAlign;
   final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry paddingTV;
 }
 
 // ── Center button ─────────────────────────────────────────────────────────────
