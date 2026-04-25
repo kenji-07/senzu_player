@@ -568,23 +568,21 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     final castSubtitles = subtitleMap.entries
         .where((e) => e.value.url_.isNotEmpty)
         .mapIndexed((i, e) {
-          return CastSubtitleTrack(
-            id: 1000 + i,
-            language: e.key,
-            name: e.key,
-            url: e.value.url_,
-            headers: source.httpHeaders ?? {},
-          );
-        })
-        .toList();
+      return CastSubtitleTrack(
+        id: 1000 + i,
+        language: e.key,
+        name: e.key,
+        url: e.value.url_,
+        headers: source.httpHeaders ?? {},
+      );
+    }).toList();
 
     final castAudio = audioTracks.mapIndexed((i, t) {
       return CastAudioTrack(id: 2000 + i, language: t.language, name: t.name);
     }).toList();
 
     final selectedSubtitleId = ctrl.activeSubtitleTrackId.value;
-    final selectedAudioId =
-        ctrl.activeAudioTrackId.value ??
+    final selectedAudioId = ctrl.activeAudioTrackId.value ??
         (castAudio.isNotEmpty ? castAudio.first.id : null);
 
     final media = SenzuCastMedia(
@@ -598,10 +596,10 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
       mimeType: source.protocol == VideoProtocol.dash
           ? 'application/dash+xml'
           : source.protocol == VideoProtocol.hls
-          ? 'application/x-mpegURL'
-          : source.protocol == VideoProtocol.mp4
-          ? 'video/mp4'
-          : null,
+              ? 'application/x-mpegURL'
+              : source.protocol == VideoProtocol.mp4
+                  ? 'video/mp4'
+                  : null,
       httpHeaders: source.httpHeaders ?? {},
       availableSubtitles: castSubtitles,
       availableAudioTracks: castAudio,
@@ -756,6 +754,10 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     } else {
       Navigator.of(context).pop();
     }
+  }
+
+  Future<void> openFullscreen() async {
+    isFullScreen.value = true;
   }
 
   // ── Network ────────────────────────────────────────────────────────────────

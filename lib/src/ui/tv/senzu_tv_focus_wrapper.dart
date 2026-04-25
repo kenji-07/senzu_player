@@ -14,6 +14,7 @@ class SenzuTvFocusWrapper extends StatefulWidget {
     this.focusedScale = 1.08,
     this.onFocusChange,
     this.enabled = true,
+    this.onKeyEvent,
   });
 
   final Widget child;
@@ -25,6 +26,7 @@ class SenzuTvFocusWrapper extends StatefulWidget {
   final double focusedScale;
   final ValueChanged<bool>? onFocusChange;
   final bool enabled;
+  final FocusOnKeyEventCallback? onKeyEvent;
 
   @override
   State<SenzuTvFocusWrapper> createState() => _SenzuTvFocusWrapperState();
@@ -80,15 +82,21 @@ class _SenzuTvFocusWrapperState extends State<SenzuTvFocusWrapper>
       onFocusChange: _onFocus,
       // enter / select → activate
       onKeyEvent: (_, e) {
-        if (e is KeyDownEvent &&
-            (e.logicalKey == LogicalKeyboardKey.select ||
-                e.logicalKey == LogicalKeyboardKey.enter ||
-                e.logicalKey == LogicalKeyboardKey.numpadEnter)) {
-          _activate();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
+  final custom = widget.onKeyEvent?.call(_, e);
+  if (custom == KeyEventResult.handled) {
+    return KeyEventResult.handled;
+  }
+
+  if (e is KeyDownEvent &&
+      (e.logicalKey == LogicalKeyboardKey.select ||
+          e.logicalKey == LogicalKeyboardKey.enter ||
+          e.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+    _activate();
+    return KeyEventResult.handled;
+  }
+
+  return KeyEventResult.ignored;
+},
       child: GestureDetector(
         onTap: _activate,
         child: AnimatedBuilder(

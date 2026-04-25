@@ -5,14 +5,13 @@ import 'package:get/get.dart';
 
 import 'package:senzu_player/src/ui/widgets/senzu_video_surface.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
-import 'package:senzu_player/src/ui/settings/senzu_panels.dart';
+import 'package:senzu_player/src/ui/tv/panel.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_buffer_loader.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_watermark_overlay.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
 import 'package:senzu_player/src/data/models/senzu_metadata.dart';
 import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
-import 'package:senzu_player/src/cast/senzu_cast_controller.dart';
 import 'package:senzu_player/src/ui/core/senzu_player_core_view_patches.dart';
 import 'package:senzu_player/src/data/models/subtitle_model.dart';
 
@@ -20,10 +19,6 @@ import 'senzu_tv_overlay_top.dart';
 import 'senzu_tv_overlay_bottom.dart';
 import 'senzu_tv_focus_wrapper.dart';
 
-/// Focus zone — overlay дотор 3 бүс байна:
-/// [top] → [center] → [bottom]
-/// ↑/↓ → бүс хоорондоо шилжинэ
-/// ← / → → seek (center бүс байхад)
 enum _Zone { center, top, bottom }
 
 class SenzuTvCoreView extends StatefulWidget {
@@ -37,14 +32,9 @@ class SenzuTvCoreView extends StatefulWidget {
     this.enableAudio = false,
     this.enableSpeed = true,
     this.enableAspect = true,
-    this.enableFullscreen = true,
-    this.enablePip = false,
-    this.enableLock = false,
     this.enableEpisode = true,
-    this.enableSleep = true,
     this.defaultAspectRatio = 16 / 9,
     this.chapters = const [],
-    this.castController,
   });
 
   final SenzuPlayerBundle bundle;
@@ -56,13 +46,8 @@ class SenzuTvCoreView extends StatefulWidget {
       enableAudio,
       enableSpeed,
       enableAspect,
-      enableFullscreen,
-      enablePip,
-      enableLock,
-      enableSleep,
       enableEpisode;
   final List<SenzuChapter> chapters;
-  final SenzuCastController? castController;
 
   @override
   State<SenzuTvCoreView> createState() => _SenzuTvCoreViewState();
@@ -72,54 +57,50 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
   SenzuPlayerBundle get bundle => widget.bundle;
   SenzuPlayerStyle get style => widget.style;
 
-  // ── Focus scopes — top/bottom-д тус бүр FocusScopeNode байна ────────────
-  final _topScope = FocusScopeNode(debugLabel: 'tv-top-scope');
-  final _bottomScope = FocusScopeNode(debugLabel: 'tv-bottom-scope');
-  final _centerNode = FocusNode(debugLabel: 'tv-center');
-
   _Zone _zone = _Zone.center;
 
-  // ── Seek feedback ──────────────────────────────────────────────────────────
+  // Root focus node — энэ node key event-г хүлээнэ
+  final _rootNode = FocusNode(debugLabel: 'tv-root');
+
+  // Top overlay-ийн эхний товчны focus node
+  final _topFirstNode = FocusNode(debugLabel: 'tv-top-first');
+  // Bottom overlay-ийн seek bar / эхний товчны focus node
+  final _bottomFirstNode = FocusNode(debugLabel: 'tv-bottom-first');
+  // Center play/pause товчны focus node
+  final _centerControlNode = FocusNode(debugLabel: 'tv-center-control');
+
   int _rewindCount = 0, _forwardCount = 0;
   bool _showRewind = false, _showForward = false;
   Timer? _rewindTimer, _forwardTimer;
 
   @override
+  void initState() {
+    super.initState();
+    _onDragEnd();
+  }
+
+  void _onDragEnd() async {
+    await bundle.ui.toggleLock(true);
+    await bundle.core.openFullscreen();
+  }
+
+  @override
   void dispose() {
-    _topScope.dispose();
-    _bottomScope.dispose();
-    _centerNode.dispose();
+    _rootNode.dispose();
+    _topFirstNode.dispose();
+    _bottomFirstNode.dispose();
+    _centerControlNode.dispose();
     _rewindTimer?.cancel();
     _forwardTimer?.cancel();
     super.dispose();
   }
 
-  // ── Focus zone routing ─────────────────────────────────────────────────────
-  void _goZone(_Zone z) {
-    if (!mounted) return;
-    setState(() => _zone = z);
-
-    // overlay байхгүй бол нэг удаа харуулна
-    if (!bundle.ui.isShowingOverlay.value) {
-      bundle.ui.showAndHideOverlay(true);
-    }
-
-    switch (z) {
-      case _Zone.top:
-        _topScope.requestFocus();
-      case _Zone.bottom:
-        _bottomScope.requestFocus();
-      case _Zone.center:
-        _centerNode.requestFocus();
-    }
-  }
-
-  // ── Seek feedback ──────────────────────────────────────────────────────────
   void _triggerSeek({required bool rewind}) {
     final offset = Duration(seconds: rewind ? -10 : 10);
     bundle.core.queueSeek(
-        offset, isBuffering: bundle.core.rxNativeState.value.isBuffering);
-    HapticFeedback.selectionClick();
+      offset,
+      isBuffering: bundle.core.rxNativeState.value.isBuffering,
+    );
     setState(() {
       if (rewind) {
         if (!_showRewind) _rewindCount = 0;
@@ -141,83 +122,204 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
     });
   }
 
-  // ── Root key handler ───────────────────────────────────────────────────────
-  // Overlay харагдахгүй байх үед бүх key-г энд боловсруулна.
-  // Overlay харагдах үед top/bottom scope өөрсдөө боловсруулна,
-  // боловсруулаагүй key энд буцаж ирнэ.
-  KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+  // Zone шилжих — конкрет FocusNode-д focus өгнө
+  void _goZone(_Zone z) {
+    if (!mounted) return;
+
+    setState(() => _zone = z);
+
+    // TV дээр overlay-г manual ON болгоно.
+    bundle.ui.isShowingOverlay.value = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      final node = switch (z) {
+        _Zone.top => _topFirstNode,
+        _Zone.bottom => _bottomFirstNode,
+        _Zone.center => _centerControlNode,
+      };
+
+      FocusScope.of(context).requestFocus(node);
+    });
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent e) {
     if (e is! KeyDownEvent && e is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
 
+    final key = e.logicalKey;
     final panelOpen = bundle.ui.activePanel.value != SenzuPanel.none;
     final overlayVisible = bundle.ui.isShowingOverlay.value;
 
     // Panel хаах
-    if (e.logicalKey == LogicalKeyboardKey.escape ||
-        e.logicalKey == LogicalKeyboardKey.goBack) {
+    if (key == LogicalKeyboardKey.escape ||
+        key == LogicalKeyboardKey.goBack ||
+        key == LogicalKeyboardKey.browserBack) {
       if (panelOpen) {
         bundle.ui.activePanel.value = SenzuPanel.none;
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _goZone(_Zone.bottom);
+        });
+
         return KeyEventResult.handled;
       }
+
       return KeyEventResult.ignored;
     }
 
-    if (panelOpen) return KeyEventResult.ignored;
-
-    // ── Overlay гарч ирэх / бүс солих ─────────────────────────────────────
-    if (e.logicalKey == LogicalKeyboardKey.arrowUp) {
-      if (!overlayVisible) {
-        // Overlay нээгдэж, bottom бүс идэвхтэй болно
-        _goZone(_Zone.bottom);
-      } else if (_zone == _Zone.bottom) {
-        _goZone(_Zone.center);
-      } else if (_zone == _Zone.center) {
-        _goZone(_Zone.top);
-      }
-      return KeyEventResult.handled;
+    // Panel нээлттэй үед panel өөрөө key авна.
+    if (panelOpen) {
+      return KeyEventResult.ignored;
     }
 
-    if (e.logicalKey == LogicalKeyboardKey.arrowDown) {
-      if (!overlayVisible) {
-        _goZone(_Zone.bottom);
-      } else if (_zone == _Zone.top) {
-        _goZone(_Zone.center);
-      } else if (_zone == _Zone.center) {
-        _goZone(_Zone.bottom);
-      }
-      return KeyEventResult.handled;
-    }
-
-    // ── Center бүсэд байх үед ────────────────────────────────────────────────
-    if (_zone == _Zone.center || !overlayVisible) {
-      // Play/Pause
-      if (e.logicalKey == LogicalKeyboardKey.select ||
-          e.logicalKey == LogicalKeyboardKey.enter ||
-          e.logicalKey == LogicalKeyboardKey.space ||
-          e.logicalKey == LogicalKeyboardKey.mediaPlayPause) {
+    // ─────────────────────────────────────────────
+    // Overlay hidden үед шууд seek / play / pause
+    // ─────────────────────────────────────────────
+    if (!overlayVisible) {
+      if (key == LogicalKeyboardKey.select ||
+          key == LogicalKeyboardKey.enter ||
+          key == LogicalKeyboardKey.space ||
+          key == LogicalKeyboardKey.mediaPlayPause) {
         bundle.core.playOrPause();
-        HapticFeedback.lightImpact();
         return KeyEventResult.handled;
       }
-      if (e.logicalKey == LogicalKeyboardKey.mediaPlay) {
+
+      if (key == LogicalKeyboardKey.mediaPlay) {
         bundle.core.play();
         return KeyEventResult.handled;
       }
-      if (e.logicalKey == LogicalKeyboardKey.mediaPause) {
+
+      if (key == LogicalKeyboardKey.mediaPause) {
         bundle.core.pause();
         return KeyEventResult.handled;
       }
 
-      // Seek ← →
-      if (e.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      if (key == LogicalKeyboardKey.arrowLeft) {
         _triggerSeek(rewind: true);
         return KeyEventResult.handled;
       }
-      if (e.logicalKey == LogicalKeyboardKey.arrowRight) {
+
+      if (key == LogicalKeyboardKey.arrowRight) {
         _triggerSeek(rewind: false);
         return KeyEventResult.handled;
       }
+
+      if (key == LogicalKeyboardKey.arrowUp ||
+          key == LogicalKeyboardKey.arrowDown) {
+        _goZone(_Zone.bottom);
+        return KeyEventResult.handled;
+      }
+
+      return KeyEventResult.ignored;
+    }
+
+    // ─────────────────────────────────────────────
+    // Overlay visible үед zone navigation
+    // ─────────────────────────────────────────────
+
+    if (key == LogicalKeyboardKey.arrowUp) {
+      switch (_zone) {
+        case _Zone.bottom:
+          _goZone(_Zone.center);
+          return KeyEventResult.handled;
+        case _Zone.center:
+          _goZone(_Zone.top);
+          return KeyEventResult.handled;
+        case _Zone.top:
+          return KeyEventResult.ignored;
+      }
+    }
+
+    if (key == LogicalKeyboardKey.arrowDown) {
+      switch (_zone) {
+        case _Zone.top:
+          _goZone(_Zone.center);
+          return KeyEventResult.handled;
+        case _Zone.center:
+          _goZone(_Zone.bottom);
+          return KeyEventResult.handled;
+        case _Zone.bottom:
+          return KeyEventResult.ignored;
+      }
+    }
+
+    // Top overlay дээр left/right traversal
+    if (_zone == _Zone.top) {
+      if (e is KeyDownEvent) {
+        if (key == LogicalKeyboardKey.arrowRight) {
+          FocusManager.instance.primaryFocus?.nextFocus();
+          return KeyEventResult.handled;
+        }
+
+        if (key == LogicalKeyboardKey.arrowLeft) {
+          FocusManager.instance.primaryFocus?.previousFocus();
+          return KeyEventResult.handled;
+        }
+
+        if (key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.enter ||
+            key == LogicalKeyboardKey.space) {
+          return KeyEventResult.ignored;
+        }
+      }
+
+      return KeyEventResult.ignored;
+    }
+
+    // Bottom overlay дээр left/right traversal
+    if (_zone == _Zone.bottom) {
+      if (e is KeyDownEvent) {
+        if (key == LogicalKeyboardKey.arrowRight) {
+          FocusManager.instance.primaryFocus?.nextFocus();
+          return KeyEventResult.handled;
+        }
+
+        if (key == LogicalKeyboardKey.arrowLeft) {
+          FocusManager.instance.primaryFocus?.previousFocus();
+          return KeyEventResult.handled;
+        }
+
+        if (key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.enter ||
+            key == LogicalKeyboardKey.space) {
+          return KeyEventResult.ignored;
+        }
+      }
+
+      return KeyEventResult.ignored;
+    }
+
+    // Center zone — play / pause / seek
+    if (key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.space ||
+        key == LogicalKeyboardKey.mediaPlayPause) {
+      bundle.core.playOrPause();
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.mediaPlay) {
+      bundle.core.play();
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.mediaPause) {
+      bundle.core.pause();
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      _triggerSeek(rewind: true);
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.arrowRight) {
+      _triggerSeek(rewind: false);
+      return KeyEventResult.handled;
     }
 
     return KeyEventResult.ignored;
@@ -226,12 +328,13 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
   @override
   Widget build(BuildContext context) {
     return Focus(
-      focusNode: _centerNode,
+      focusNode: _rootNode,
       autofocus: true,
       onKeyEvent: _onKey,
       child: Obx(() {
         final panelOpen = bundle.ui.activePanel.value != SenzuPanel.none;
         final overlayVisible = bundle.ui.isShowingOverlay.value;
+        final showOverlay = overlayVisible && !panelOpen;
 
         return Stack(
           children: [
@@ -250,34 +353,62 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
             IgnorePointer(
               child: AnimatedOpacity(
                 duration: style.transitions,
-                opacity: overlayVisible ? 0.55 : 0.0,
+                opacity: showOverlay ? 0.55 : 0.0,
                 child: Container(color: Colors.black),
               ),
             ),
 
-            // 4. Center play/pause (overlay байх үед)
-            if (overlayVisible && !panelOpen)
-              Center(
-                child: _TvCenterControls(
-                  bundle: bundle,
-                  style: style,
-                  showRewind: _showRewind,
-                  showForward: _showForward,
-                  rewindCount: _rewindCount,
-                  forwardCount: _forwardCount,
-                  focusNode: _centerNode, // центр node-оос focus дамжуулна
-                  onTap: bundle.core.playOrPause,
-                ),
-              ),
+            // 4. Center controls
+            Obx(() {
+              final loaderActive = bundle.ui.isShowingThumbnail.value ||
+                  (bundle.core.isChangingSource.value &&
+                      bundle.playback.position.value == Duration.zero);
+              final visible = !panelOpen &&
+                  !loaderActive &&
+                  (bundle.ui.isShowingOverlay.value ||
+                      bundle.core.isChangingSource.value ||
+                      _showRewind ||
+                      _showForward);
+              final dur = bundle.playback.duration.value;
+              final buf = bundle.playback.maxBuffering.value;
+              final pos = bundle.playback.position.value;
+              final bufRatio = dur.inMilliseconds > 0
+                  ? ((buf - pos).inMilliseconds / dur.inMilliseconds).clamp(
+                      0.0,
+                      1.0,
+                    )
+                  : 0.0;
+              final bufPercent = (bufRatio * 100).toInt();
+              final isDragging = bundle.playback.isDragging.value;
 
-            // 4b. Seek feedback (overlay харагдахгүй байх үед ч гарна)
-            if (_showRewind || _showForward)
-              Center(
-                child: _SeekFeedback(
-                  rewind: _showRewind,
-                  count: _showRewind ? _rewindCount : _forwardCount,
+              return IgnorePointer(
+                ignoring: !visible || isDragging,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: visible && !isDragging ? 1.0 : 0.0,
+                  child: Center(
+                    child: _TvCenterControls(
+                      bundle: bundle,
+                      style: style,
+                      loading: style.loading,
+                      buffering: Center(
+                        child: RuntimeBufferingIndicator(
+                          bufPercent: bufPercent,
+                          style: style,
+                        ),
+                      ),
+                      showRewind: _showRewind,
+                      showForward: _showForward,
+                      rewindCount: _rewindCount,
+                      forwardCount: _forwardCount,
+                      onPrev: style.onPrevEpisode,
+                      onNext: style.onNextEpisode,
+                      focusNode: _centerControlNode,
+                    ),
+                  ),
                 ),
-              ),
+              );
+            }),
 
             // 5. Skip OP/ED
             SkipChapterButtons(
@@ -286,24 +417,28 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
               panelOpen: panelOpen,
             ),
 
-            // 6. TOP overlay — FocusScopeNode _topScope
-            AnimatedPositioned(
-              duration: style.transitions,
-              top: overlayVisible && !panelOpen ? 0 : -120,
-              left: 0,
-              right: 0,
-              child: FocusScope(
-                node: _topScope,
-                child: SenzuTvOverlayTop(
-                  bundle: bundle,
-                  style: style,
-                  meta: widget.meta,
-                  enableCaption: widget.enableCaption,
-                  enableQuality: widget.enableQuality,
-                  enableSpeed: widget.enableSpeed,
-                  enableAspect: widget.enableAspect,
-                  enableSleep: widget.enableSleep,
-                  castController: widget.castController,
+            // 6. TOP overlay
+            Align(
+              alignment: Alignment.topCenter,
+              child: ExcludeFocus(
+                excluding: !showOverlay,
+                child: AnimatedOpacity(
+                  duration: style.transitions,
+                  opacity: showOverlay ? 1.0 : 0.0,
+                  child: IgnorePointer(
+                    ignoring: !showOverlay,
+                    child: SenzuTvOverlayTop(
+                      bundle: bundle,
+                      style: style,
+                      meta: widget.meta,
+                      enableCaption: widget.enableCaption,
+                      enableQuality: widget.enableQuality,
+                      enableSpeed: widget.enableSpeed,
+                      enableAspect: widget.enableAspect,
+                      // Эхний товчны node дамжуулна
+                      firstFocusNode: _topFirstNode,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -315,20 +450,25 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
               chapters: widget.chapters,
             ),
 
-            // 8. BOTTOM overlay — FocusScopeNode _bottomScope
-            AnimatedPositioned(
-              duration: style.transitions,
-              bottom: overlayVisible && !panelOpen ? 0 : -120,
-              left: 0,
-              right: 0,
-              child: FocusScope(
-                node: _bottomScope,
-                child: SenzuTvOverlayBottom(
-                  bundle: bundle,
-                  style: style,
-                  enableFullscreen: widget.enableFullscreen,
-                  enableEpisode: widget.enableEpisode,
-                  chapters: widget.chapters,
+            // 8. BOTTOM overlay
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: ExcludeFocus(
+                excluding: !showOverlay,
+                child: AnimatedOpacity(
+                  duration: style.transitions,
+                  opacity: showOverlay ? 1.0 : 0.0,
+                  child: IgnorePointer(
+                    ignoring: !showOverlay,
+                    child: SenzuTvOverlayBottom(
+                      bundle: bundle,
+                      style: style,
+                      enableEpisode: widget.enableEpisode,
+                      chapters: widget.chapters,
+                      // Эхний товчны node дамжуулна
+                      firstFocusNode: _bottomFirstNode,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -336,22 +476,10 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
             // 9. Watermark
             if (bundle.core.watermark != null)
               Positioned.fill(
-                child:
-                    SenzuWatermarkOverlay(watermark: bundle.core.watermark!),
+                child: SenzuWatermarkOverlay(watermark: bundle.core.watermark!),
               ),
 
-            // 10. Panel backdrop
-            if (panelOpen)
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () =>
-                      bundle.ui.activePanel.value = SenzuPanel.none,
-                  child: const ColoredBox(color: Colors.transparent),
-                ),
-              ),
-
-            // ── Panels ────────────────────────────────────────────────────
+            // ── Panels ───────────────────────────────────────────────────────
             if (widget.enableQuality)
               SenzuQualityPanel(bundle: bundle, style: style),
             if (widget.enableSpeed)
@@ -364,24 +492,9 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
               SenzuAudioPanel(bundle: bundle, style: style),
             if (widget.enableEpisode && style.episodeWidget != null)
               SenzuEpisodePanel(bundle: bundle, style: style),
-            if (widget.enableSleep)
-              SenzuSleepPanel(bundle: bundle, style: style),
 
-            // 11. Buffer loader
-            // SenzuBufferLoader(bundle: bundle, style: style),
-
-            // 12. Zone indicator (debug — production-д устгана)
-            if (overlayVisible)
-              Positioned(
-                top: 60,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(
-                  child: Center(
-                    child: _ZoneIndicator(zone: _zone),
-                  ),
-                ),
-              ),
+            // 10. Buffer loader
+            SenzuBufferLoader(bundle: bundle, style: style),
           ],
         );
       }),
@@ -389,11 +502,10 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
   }
 }
 
-// ── Sub-widgets ────────────────────────────────────────────────────────────────
+// ── Sub-widgets ───────────────────────────────────────────────────────────────
 
 class _TvVideoFrame extends StatelessWidget {
-  const _TvVideoFrame(
-      {required this.bundle, required this.aspectRatio});
+  const _TvVideoFrame({required this.bundle, required this.aspectRatio});
   final SenzuPlayerBundle bundle;
   final double aspectRatio;
 
@@ -438,58 +550,73 @@ class _TvSubtitle extends StatelessWidget {
   }
 }
 
-/// Center play/pause товч — zone=center байх үед энд focus байна.
+// Center play/pause — focusNode дамжуулж focus визуал харуулна
 class _TvCenterControls extends StatelessWidget {
   const _TvCenterControls({
     required this.bundle,
     required this.style,
+    required this.loading,
+    required this.buffering,
     required this.showRewind,
     required this.showForward,
     required this.rewindCount,
     required this.forwardCount,
     required this.focusNode,
-    required this.onTap,
+    this.onPrev,
+    this.onNext,
+    this.hasPrev,
+    this.hasNext,
   });
+
   final SenzuPlayerBundle bundle;
+  final Widget loading, buffering;
   final SenzuPlayerStyle style;
   final bool showRewind, showForward;
   final int rewindCount, forwardCount;
   final FocusNode focusNode;
-  final VoidCallback onTap;
+  final VoidCallback? onPrev;
+  final VoidCallback? onNext;
+  final bool? hasPrev;
+  final bool? hasNext;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (bundle.core.isChangingSource.value) {
-        return _circle(style.centerButtonStyle, style.loading);
-      }
-      if (bundle.playback.isBuffering.value) {
-        return _circle(style.centerButtonStyle, style.buffering);
-      }
+      if (showRewind) return _circle(_text('-${rewindCount * 10}s'));
+      if (showForward) return _circle(_text('+${forwardCount * 10}s'));
+      if (bundle.core.isChangingSource.value) return _circle(loading);
+      if (bundle.playback.isBuffering.value) return _circle(buffering);
 
       final playing = bundle.playback.isPlaying.value;
       final ended = !bundle.core.isLiveRx.value &&
           bundle.playback.position.value >= bundle.playback.duration.value &&
           bundle.playback.duration.value > Duration.zero;
 
+      final showPrev = hasPrev != null || onPrev != null;
+      final showNext = hasNext != null || onNext != null;
+      final prevEnabled = hasPrev ?? (onPrev != null);
+      final nextEnabled = hasNext ?? (onNext != null);
+
       return SenzuTvFocusWrapper(
+        // Гадаас дамжуулсан node → _Zone.center-д байх үед focus ring харагдана
         focusNode: focusNode,
         autofocus: false,
-        onTap: onTap,
+        onTap: ended
+            ? () => bundle.core.seekTo(Duration.zero)
+            : bundle.core.playOrPause,
         focusedDecoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(color: Colors.white, width: 3),
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withOpacity(0.08),
           boxShadow: [
             BoxShadow(
-              color: Colors.white.withOpacity(0.25),
+              color: Colors.white.withOpacity(0.35),
               blurRadius: 24,
               spreadRadius: 4,
             ),
           ],
         ),
         child: _circle(
-          style.centerButtonStyle,
           ended
               ? style.centerButtonStyle.replay
               : playing
@@ -500,67 +627,24 @@ class _TvCenterControls extends StatelessWidget {
     });
   }
 
-  Widget _circle(SenzuCenterButtonStyle s, Widget child) => Container(
-        width: s.circleSize,
-        height: s.circleSize,
-        decoration:
-            BoxDecoration(shape: BoxShape.circle, color: s.circleColor),
+  Widget _circle(Widget child) => Container(
+        width: style.centerButtonStyle.circleSize,
+        height: style.centerButtonStyle.circleSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: style.centerButtonStyle.circleColor,
+        ),
         child: child,
       );
-}
 
-/// Seek ±10s feedback overlay
-class _SeekFeedback extends StatelessWidget {
-  const _SeekFeedback({required this.rewind, required this.count});
-  final bool rewind;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
-        borderRadius: BorderRadius.circular(40),
-      ),
-      child: Text(
-        rewind ? '−${count * 10}s' : '+${count * 10}s',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
+  Widget _text(String t) => Center(
+        child: Text(
+          t,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-      ),
-    );
-  }
-}
-
-/// Debug zone indicator — production-д энэ widget-ийг устга
-class _ZoneIndicator extends StatelessWidget {
-  const _ZoneIndicator({required this.zone});
-  final _Zone zone;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = switch (zone) {
-      _Zone.top => '▲ TOP',
-      _Zone.center => '● CENTER',
-      _Zone.bottom => '▼ BOTTOM',
-    };
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black54,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: Text(
-        label,
-        style:
-            const TextStyle(color: Colors.white54, fontSize: 10),
-      ),
-    );
-  }
+      );
 }

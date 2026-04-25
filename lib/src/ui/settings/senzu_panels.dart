@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:flutter/services.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
@@ -639,57 +638,31 @@ class _PanelItem extends StatelessWidget {
   final bool selected;
   final VoidCallback? onTap;
   final SenzuPlayerStyle style;
-
   @override
-  Widget build(BuildContext context) => Focus(
-        onKeyEvent: (node, event) {
-          if ((event is KeyDownEvent) &&
-              (event.logicalKey == LogicalKeyboardKey.enter ||
-                  event.logicalKey == LogicalKeyboardKey.select)) {
-            onTap?.call();
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: Builder(
-          builder: (ctx) {
-            final hasFocus = Focus.of(ctx).hasFocus;
-            return InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                decoration: hasFocus
-                    ? BoxDecoration(
-                        color: Colors.white12,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white24),
-                      )
-                    : null,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          color: selected
-                              ? style.settingsPanelStyle.selectedTextColor
-                              : style.settingsPanelStyle.unselectedTextColor,
-                          fontSize: style.settingsPanelStyle.selectedTextSize,
-                          fontWeight:
-                              selected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                      ),
-                    ),
-                    if (selected) style.settingsPanelStyle.selectedIcon,
-                  ],
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: selected
+                        ? style.settingsPanelStyle.selectedTextColor
+                        : style.settingsPanelStyle.unselectedTextColor,
+                    fontSize: style.settingsPanelStyle.selectedTextSize,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                  ),
                 ),
               ),
-            );
-          },
+              if (selected)
+                const Icon(Icons.multitrack_audio, size: 16, color: Colors.red),
+              if (selected) style.settingsPanelStyle.selectedIcon,
+            ],
+          ),
         ),
       );
 }

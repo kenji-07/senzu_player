@@ -4,15 +4,10 @@ import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
 import 'package:senzu_player/src/data/models/senzu_metadata.dart';
-import 'package:senzu_player/src/cast/widgets/senzu_cast_button.dart';
 import 'package:senzu_player/src/cast/senzu_cast_controller.dart';
 
 import 'senzu_tv_button.dart';
 
-/// Android TV top overlay.
-///
-/// FocusTraversalGroup(OrderedTraversalPolicy) ашиглаж
-/// D-pad left/right-аар товчнуудын хооронд шилжинэ.
 class SenzuTvOverlayTop extends StatelessWidget {
   const SenzuTvOverlayTop({
     super.key,
@@ -24,8 +19,9 @@ class SenzuTvOverlayTop extends StatelessWidget {
     this.enableAudio = false,
     this.enableSpeed = true,
     this.enableAspect = true,
-    this.enableSleep = true,
     this.castController,
+    // Core view-аас дамжуулах эхний товчны focus node
+    this.firstFocusNode,
   });
 
   final SenzuPlayerBundle bundle;
@@ -37,14 +33,12 @@ class SenzuTvOverlayTop extends StatelessWidget {
   final bool enableAudio;
   final bool enableSpeed;
   final bool enableAspect;
-  final bool enableSleep;
+  // Core view-аас дамжуулсан node — эхний товч энийг ашиглана
+  final FocusNode? firstFocusNode;
 
   @override
   Widget build(BuildContext context) {
-    return FocusTraversalGroup(
-      // OrderedTraversalPolicy → FocusOrder-оор зэрэглэнэ
-      policy: OrderedTraversalPolicy(),
-      child: Container(
+    return Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -52,115 +46,80 @@ class SenzuTvOverlayTop extends StatelessWidget {
             colors: [Color(0xCC000000), Colors.transparent],
           ),
         ),
-        padding:
-            const EdgeInsets.only(top: 8, left: 16, right: 8, bottom: 16),
-        child: Row(
-          children: [
-            // ── Back button ────────────────────────────────────────────────
-            FocusTraversalOrder(
-              order: const NumericFocusOrder(0),
-              child: SenzuTvButton(
-                icon: Icon(meta.icon ?? Icons.arrow_back),
-                iconColor: meta.iconColor ?? Colors.white,
-                iconSize: (meta.iconSize ?? 24),
-                onTap: () => bundle.core.closeFullscreen(context),
+        padding: const EdgeInsets.only(top: 8, left: 16, right: 8, bottom: 16),
+        child: FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
+          child: Row(
+            children: [
+              FocusTraversalOrder(
+                order: const NumericFocusOrder(1),
+                child: SenzuTvButton(
+                  icon: Icon(meta.icon ?? Icons.arrow_back),
+                  iconColor: meta.iconColor ?? Colors.white,
+                  iconSize: meta.iconSize ?? 24,
+                  focusNode: firstFocusNode,
+                  onTap: () => Navigator.of(context).pop(),
+                ),
               ),
-            ),
+              const Spacer(),
+              Obx(() {
+                final isLive = bundle.core.isLiveRx.value;
 
-            const Spacer(),
-
-            // ── Right-side action buttons ──────────────────────────────────
-            Obx(() {
-              final isLive = bundle.core.isLiveRx.value;
-              int order = 1;
-
-              Widget btn(
-                Widget button,
-                int o,
-              ) =>
-                  FocusTraversalOrder(
-                    order: NumericFocusOrder(o.toDouble()),
-                    child: button,
-                  );
-
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (enableSleep)
-                    btn(
-                      SenzuTvButton(
-                        icon: style.overlayIconsStyle.sleep,
-                        tooltip: style.senzuLanguage.sleepTimer,
-                        onTap: () =>
-                            bundle.ui.togglePanel(SenzuPanel.sleep),
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (enableAspect)
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(2),
+                        child: SenzuTvButton(
+                          icon: style.overlayIconsStyle.aspect,
+                          tooltip: style.senzuLanguage.aspectRatio,
+                          onTap: () => bundle.ui.togglePanel(SenzuPanel.aspect),
+                        ),
                       ),
-                      order++,
-                    ),
-                  if (enableAspect)
-                    btn(
-                      SenzuTvButton(
-                        icon: style.overlayIconsStyle.aspect,
-                        tooltip: style.senzuLanguage.aspectRatio,
-                        onTap: () =>
-                            bundle.ui.togglePanel(SenzuPanel.aspect),
+                    if (enableSpeed && !isLive)
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(3),
+                        child: SenzuTvButton(
+                          icon: style.overlayIconsStyle.speed,
+                          tooltip: style.senzuLanguage.playbackSpeed,
+                          onTap: () => bundle.ui.togglePanel(SenzuPanel.speed),
+                        ),
                       ),
-                      order++,
-                    ),
-                  if (enableSpeed && !isLive)
-                    btn(
-                      SenzuTvButton(
-                        icon: style.overlayIconsStyle.speed,
-                        tooltip: style.senzuLanguage.playbackSpeed,
-                        onTap: () =>
-                            bundle.ui.togglePanel(SenzuPanel.speed),
+                    if (enableCaption)
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(4),
+                        child: SenzuTvButton(
+                          icon: style.overlayIconsStyle.caption,
+                          tooltip: style.senzuLanguage.subtitles,
+                          onTap: () =>
+                              bundle.ui.togglePanel(SenzuPanel.caption),
+                        ),
                       ),
-                      order++,
-                    ),
-                  if (enableCaption)
-                    btn(
-                      SenzuTvButton(
-                        icon: style.overlayIconsStyle.caption,
-                        tooltip: style.senzuLanguage.subtitles,
-                        onTap: () =>
-                            bundle.ui.togglePanel(SenzuPanel.caption),
+                    if (enableQuality)
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(5),
+                        child: SenzuTvButton(
+                          icon: style.overlayIconsStyle.quality,
+                          tooltip: style.senzuLanguage.quality,
+                          onTap: () =>
+                              bundle.ui.togglePanel(SenzuPanel.quality),
+                        ),
                       ),
-                      order++,
-                    ),
-                  if (enableQuality)
-                    btn(
-                      SenzuTvButton(
-                        icon: style.overlayIconsStyle.quality,
-                        tooltip: style.senzuLanguage.quality,
-                        onTap: () =>
-                            bundle.ui.togglePanel(SenzuPanel.quality),
+                    if (enableAudio)
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(6),
+                        child: SenzuTvButton(
+                          icon: style.overlayIconsStyle.audio,
+                          tooltip: style.senzuLanguage.audio,
+                          onTap: () => bundle.ui.togglePanel(SenzuPanel.audio),
+                        ),
                       ),
-                      order++,
-                    ),
-                  if (enableAudio)
-                    btn(
-                      SenzuTvButton(
-                        icon: style.overlayIconsStyle.audio,
-                        tooltip: style.senzuLanguage.audio,
-                        onTap: () =>
-                            bundle.ui.togglePanel(SenzuPanel.audio),
-                      ),
-                      order++,
-                    ),
-                  if (castController != null)
-                    FocusTraversalOrder(
-                      order: NumericFocusOrder(order.toDouble()),
-                      child: SenzuCastButton(
-                        castController: castController!,
-                        bundle: bundle,
-                        style: style,
-                      ),
-                    ),
-                ],
-              );
-            }),
-          ],
-        ),
-      ),
-    );
+                  ],
+                );
+              }),
+            ],
+          ),
+        ));
   }
 }

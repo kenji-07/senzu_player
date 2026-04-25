@@ -3,8 +3,12 @@ import 'package:flutter/services.dart';
 import 'player_page.dart';
 import 'tv_player.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
   runApp(const ExampleApp());
 }
 

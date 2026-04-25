@@ -10,30 +10,34 @@ import 'package:senzu_player/src/controllers/senzu_ui_controller.dart';
 import 'senzu_tv_button.dart';
 import 'senzu_tv_focus_wrapper.dart';
 
-/// Android TV bottom overlay.
-///
-/// Layout (D-pad traversal order):
-///   [SeekBar(←→)]  [Episode]  [Fullscreen]
-///
-/// ↑/↓ дарахад SenzuTvCoreView-ийн key handler
-/// overlay-г харуулж, top/bottom-д focus шилжүүлнэ.
-class SenzuTvOverlayBottom extends StatelessWidget {
+class SenzuTvOverlayBottom extends StatefulWidget {
   const SenzuTvOverlayBottom({
     super.key,
     required this.bundle,
     required this.style,
-    this.enableFullscreen = true,
-    this.enablePip = false,
     this.enableEpisode = false,
     this.chapters = const [],
+    this.firstFocusNode,
   });
 
   final SenzuPlayerBundle bundle;
   final SenzuPlayerStyle style;
-  final bool enableFullscreen;
-  final bool enablePip;
   final bool enableEpisode;
   final List<SenzuChapter> chapters;
+  final FocusNode? firstFocusNode;
+
+  @override
+  State<SenzuTvOverlayBottom> createState() => _SenzuTvOverlayBottomState();
+}
+
+class _SenzuTvOverlayBottomState extends State<SenzuTvOverlayBottom> {
+  final FocusNode _seekNode = FocusNode(debugLabel: 'tv-bottom-seek');
+
+  @override
+  void dispose() {
+    _seekNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,61 +52,63 @@ class SenzuTvOverlayBottom extends StatelessWidget {
           ),
         ),
         child: Obx(() {
-          final isFS = bundle.core.isFullScreen.value;
-          final isLive = bundle.core.isLiveRx.value;
+          final isFS = widget.bundle.core.isFullScreen.value;
+          final isLive = widget.bundle.core.isLiveRx.value;
           final hasDvr =
-              isLive && bundle.stream.liveEdge.value > Duration.zero;
+              isLive && widget.bundle.stream.liveEdge.value > Duration.zero;
           final hPad = isFS ? 48.0 : 24.0;
 
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ── Time + right buttons ─────────────────────────────────────
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: hPad),
                 child: Row(
                   children: [
-                    // Time / Live badge
                     if (isLive)
                       _TvLiveBadge(
-                          bundle: bundle, hasDvr: hasDvr, style: style)
+                        bundle: widget.bundle,
+                        hasDvr: hasDvr,
+                        style: widget.style,
+                      )
                     else
                       Obx(() {
-                        final pos = bundle.playback.position.value;
-                        final dur = bundle.playback.duration.value;
+                        final pos = widget.bundle.playback.position.value;
+                        final dur = widget.bundle.playback.duration.value;
                         return Text(
                           '${_fmt(pos)} / ${_fmt(dur)}',
-                          style: style.textStyle.copyWith(fontSize: 14),
+                          style: widget.style.textStyle.copyWith(fontSize: 14),
                         );
                       }),
 
                     const Spacer(),
 
-                    if (enableEpisode && style.episodeWidget != null)
+                    if (widget.enableEpisode &&
+                        widget.style.episodeWidget != null)
                       FocusTraversalOrder(
                         order: const NumericFocusOrder(10),
                         child: SenzuTvButton(
-                          icon: style.overlayIconsStyle.episode,
-                          tooltip: style.senzuLanguage.episodes,
-                          onTap: () =>
-                              bundle.ui.togglePanel(SenzuPanel.episode),
-                        ),
-                      ),
-                    if (enableFullscreen)
-                      FocusTraversalOrder(
-                        order: const NumericFocusOrder(11),
-                        child: SenzuTvButton(
-                          icon: isFS
-                              ? style.overlayIconsStyle.fullscreenExit
-                              : style.overlayIconsStyle.fullscreen,
-                          onTap: () => bundle.core.openOrCloseFullscreen(),
+                          focusNode: widget.firstFocusNode,
+                          icon: widget.style.overlayIconsStyle.episode,
+                          tooltip: widget.style.senzuLanguage.episodes,
+                          onKeyEvent: (_, e) {
+    if (e is KeyDownEvent &&
+        (e.logicalKey == LogicalKeyboardKey.arrowDown ||
+            e.logicalKey == LogicalKeyboardKey.arrowRight)) {
+      _seekNode.requestFocus();
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  },
+                          onTap: () => widget.bundle.ui
+                              .togglePanel(SenzuPanel.episode),
                         ),
                       ),
                   ],
                 ),
               ),
 
-              // ── Seek bar ─────────────────────────────────────────────────
               if (!isLive || hasDvr)
                 Padding(
                   padding: EdgeInsets.only(
@@ -111,11 +117,16 @@ class SenzuTvOverlayBottom extends StatelessWidget {
                     bottom: isFS ? 24 : 12,
                   ),
                   child: FocusTraversalOrder(
-                    order: const NumericFocusOrder(1),
+                    order: const NumericFocusOrder(11),
                     child: _TvSeekBar(
-                      bundle: bundle,
-                      style: style,
-                      chapters: chapters,
+                      focusNode: _seekNode,
+                      bundle: widget.bundle,
+                      style: widget.style,
+                      chapters: widget.chapters,
+                      arrowSeekEnabled: true,
+                      onMoveBack: () {
+    widget.firstFocusNode?.requestFocus();
+  },
                     ),
                   ),
                 )
@@ -135,17 +146,22 @@ class SenzuTvOverlayBottom extends StatelessWidget {
     return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 }
-
 // ── D-pad seek progress bar ───────────────────────────────────────────────────
 class _TvSeekBar extends StatefulWidget {
   const _TvSeekBar({
     required this.bundle,
     required this.style,
     required this.chapters,
+    required this.focusNode,
+    this.arrowSeekEnabled = false,
+    this.onMoveBack,
   });
   final SenzuPlayerBundle bundle;
   final SenzuPlayerStyle style;
   final List<SenzuChapter> chapters;
+  final FocusNode? focusNode;
+  final bool arrowSeekEnabled;
+  final VoidCallback? onMoveBack;
 
   @override
   State<_TvSeekBar> createState() => _TvSeekBarState();
@@ -155,24 +171,37 @@ class _TvSeekBarState extends State<_TvSeekBar> {
   bool _focused = false;
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+    if (!widget.arrowSeekEnabled) {
+      return KeyEventResult.ignored;
+    }
+
     if (e is KeyDownEvent || e is KeyRepeatEvent) {
       if (e.logicalKey == LogicalKeyboardKey.arrowLeft) {
         widget.bundle.core.seekBySeconds(-10);
         HapticFeedback.selectionClick();
         return KeyEventResult.handled;
       }
+
       if (e.logicalKey == LogicalKeyboardKey.arrowRight) {
         widget.bundle.core.seekBySeconds(10);
         HapticFeedback.selectionClick();
         return KeyEventResult.handled;
       }
     }
+    if (e is KeyDownEvent &&
+    (e.logicalKey == LogicalKeyboardKey.arrowUp ||
+        e.logicalKey == LogicalKeyboardKey.arrowLeft)) {
+  widget.onMoveBack?.call();
+  return KeyEventResult.handled;
+}
+
     return KeyEventResult.ignored;
   }
 
   @override
   Widget build(BuildContext context) {
     return Focus(
+      focusNode: widget.focusNode,
       onFocusChange: (v) => setState(() => _focused = v),
       onKeyEvent: _onKey,
       child: AnimatedContainer(
@@ -185,37 +214,11 @@ class _TvSeekBarState extends State<_TvSeekBar> {
                 color: Colors.white.withOpacity(0.06),
               )
             : const BoxDecoration(),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_focused)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.arrow_left,
-                        color: Colors.white54, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      '← −10s   +10s →',
-                      style: const TextStyle(
-                          color: Colors.white54, fontSize: 10),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.arrow_right,
-                        color: Colors.white54, size: 14),
-                  ],
-                ),
-              ),
-            SenzuProgressBar(
-              style: widget.style.progressBarStyle,
-              bundle: widget.bundle,
-              thumbnailSprite:
-                  widget.bundle.core.activeSource?.thumbnailSprite,
-              chapters: widget.chapters,
-            ),
-          ],
+        child: SenzuProgressBar(
+          style: widget.style.progressBarStyle,
+          bundle: widget.bundle,
+          thumbnailSprite: widget.bundle.core.activeSource?.thumbnailSprite,
+          chapters: widget.chapters,
         ),
       ),
     );
@@ -225,9 +228,7 @@ class _TvSeekBarState extends State<_TvSeekBar> {
 // ── Live badge ─────────────────────────────────────────────────────────────────
 class _TvLiveBadge extends StatelessWidget {
   const _TvLiveBadge(
-      {required this.bundle,
-      required this.hasDvr,
-      required this.style});
+      {required this.bundle, required this.hasDvr, required this.style});
   final SenzuPlayerBundle bundle;
   final bool hasDvr;
   final SenzuPlayerStyle style;
@@ -245,8 +246,7 @@ class _TvLiveBadge extends StatelessWidget {
               color: atEdge ? liveStyle.liveColor : liveStyle.dvrOffColor,
               borderRadius: liveStyle.borderRadius,
             ),
-            child: Text(style.senzuLanguage.live,
-                style: liveStyle.textStyle),
+            child: Text(style.senzuLanguage.live, style: liveStyle.textStyle),
           ),
         );
       });

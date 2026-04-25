@@ -14,6 +14,7 @@ class SenzuTvButton extends StatelessWidget {
     this.tooltip,
     this.enabled = true,
     this.focusColor,
+    this.onKeyEvent,
   });
 
   final Icon icon;
@@ -26,6 +27,7 @@ class SenzuTvButton extends StatelessWidget {
   final String? tooltip;
   final bool enabled;
   final Color? focusColor;
+  final FocusOnKeyEventCallback? onKeyEvent;
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +35,7 @@ class SenzuTvButton extends StatelessWidget {
     final btn = SenzuTvFocusWrapper(
       focusNode: focusNode,
       autofocus: autofocus,
+      onKeyEvent: onKeyEvent,
       onTap: enabled ? onTap : null,
       enabled: enabled,
       focusedDecoration: BoxDecoration(

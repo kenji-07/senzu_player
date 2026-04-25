@@ -135,7 +135,6 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
                 style: _style,
                 meta: _meta,
                 chapters: widget.chapters,
-                castController: widget.castController,
               )
             : SenzuPlayerCoreView(
                 bundle: _bundle,
@@ -247,7 +246,6 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
                         style: _style,
                         meta: _meta,
                         chapters: widget.chapters,
-                        castController: widget.castController,
                       )
                     : SenzuPlayerCoreView(
                         bundle: _bundle,
