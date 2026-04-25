@@ -457,11 +457,11 @@ class SenzuCenterButtonStyle {
   SenzuCenterButtonStyle({
     this.circleSize = 60.0,
     this.circleColor = const Color(0x4D000000),
-    Widget? play,
-    Widget? pause,
-    Widget? replay,
-    Widget? rewind,
-    Widget? forward,
+    Icon? play,
+    Icon? pause,
+    Icon? replay,
+    Icon? rewind,
+    Icon? forward,
   })  : play =
             play ?? const Icon(Icons.play_arrow, color: Colors.white, size: 32),
         pause = pause ?? const Icon(Icons.pause, color: Colors.white, size: 32),
@@ -474,7 +474,7 @@ class SenzuCenterButtonStyle {
 
   final double circleSize;
   final Color circleColor;
-  final Widget play, pause, replay, rewind, forward;
+  final Icon play, pause, replay, rewind, forward;
 }
 
 // ── Main player style ─────────────────────────────────────────────────────────

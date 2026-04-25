@@ -59,14 +59,9 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
 
   _Zone _zone = _Zone.center;
 
-  // Root focus node — энэ node key event-г хүлээнэ
   final _rootNode = FocusNode(debugLabel: 'tv-root');
-
-  // Top overlay-ийн эхний товчны focus node
   final _topFirstNode = FocusNode(debugLabel: 'tv-top-first');
-  // Bottom overlay-ийн seek bar / эхний товчны focus node
   final _bottomFirstNode = FocusNode(debugLabel: 'tv-bottom-first');
-  // Center play/pause товчны focus node
   final _centerControlNode = FocusNode(debugLabel: 'tv-center-control');
 
   int _rewindCount = 0, _forwardCount = 0;
@@ -76,12 +71,11 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
   @override
   void initState() {
     super.initState();
-    _onDragEnd();
-  }
-
-  void _onDragEnd() async {
-    await bundle.ui.toggleLock(true);
-    await bundle.core.openFullscreen();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      bundle.ui.toggleLock(true);
+      _rootNode.requestFocus();
+    });
   }
 
   @override
@@ -122,13 +116,11 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
     });
   }
 
-  // Zone шилжих — конкрет FocusNode-д focus өгнө
   void _goZone(_Zone z) {
     if (!mounted) return;
 
     setState(() => _zone = z);
 
-    // TV дээр overlay-г manual ON болгоно.
     bundle.ui.isShowingOverlay.value = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -150,13 +142,15 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
     }
 
     final key = e.logicalKey;
+
     final panelOpen = bundle.ui.activePanel.value != SenzuPanel.none;
     final overlayVisible = bundle.ui.isShowingOverlay.value;
 
-    // Panel хаах
-    if (key == LogicalKeyboardKey.escape ||
+    final isBackKey = key == LogicalKeyboardKey.escape ||
         key == LogicalKeyboardKey.goBack ||
-        key == LogicalKeyboardKey.browserBack) {
+        key == LogicalKeyboardKey.browserBack;
+
+    if (isBackKey) {
       if (panelOpen) {
         bundle.ui.activePanel.value = SenzuPanel.none;
 
@@ -168,17 +162,25 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
         return KeyEventResult.handled;
       }
 
-      return KeyEventResult.ignored;
+      if (overlayVisible) {
+        bundle.ui.isShowingOverlay.value = false;
+        _rootNode.requestFocus();
+        return KeyEventResult.handled;
+      }
+
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      } else {
+        Navigator.of(context).pop();
+      }
+
+      return KeyEventResult.handled;
     }
 
-    // Panel нээлттэй үед panel өөрөө key авна.
     if (panelOpen) {
       return KeyEventResult.ignored;
     }
 
-    // ─────────────────────────────────────────────
-    // Overlay hidden үед шууд seek / play / pause
-    // ─────────────────────────────────────────────
     if (!overlayVisible) {
       if (key == LogicalKeyboardKey.select ||
           key == LogicalKeyboardKey.enter ||
@@ -217,10 +219,6 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
       return KeyEventResult.ignored;
     }
 
-    // ─────────────────────────────────────────────
-    // Overlay visible үед zone navigation
-    // ─────────────────────────────────────────────
-
     if (key == LogicalKeyboardKey.arrowUp) {
       switch (_zone) {
         case _Zone.bottom:
@@ -247,7 +245,6 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
       }
     }
 
-    // Top overlay дээр left/right traversal
     if (_zone == _Zone.top) {
       if (e is KeyDownEvent) {
         if (key == LogicalKeyboardKey.arrowRight) {
@@ -259,18 +256,10 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
           FocusManager.instance.primaryFocus?.previousFocus();
           return KeyEventResult.handled;
         }
-
-        if (key == LogicalKeyboardKey.select ||
-            key == LogicalKeyboardKey.enter ||
-            key == LogicalKeyboardKey.space) {
-          return KeyEventResult.ignored;
-        }
       }
-
       return KeyEventResult.ignored;
     }
 
-    // Bottom overlay дээр left/right traversal
     if (_zone == _Zone.bottom) {
       if (e is KeyDownEvent) {
         if (key == LogicalKeyboardKey.arrowRight) {
@@ -282,18 +271,10 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
           FocusManager.instance.primaryFocus?.previousFocus();
           return KeyEventResult.handled;
         }
-
-        if (key == LogicalKeyboardKey.select ||
-            key == LogicalKeyboardKey.enter ||
-            key == LogicalKeyboardKey.space) {
-          return KeyEventResult.ignored;
-        }
       }
-
       return KeyEventResult.ignored;
     }
 
-    // Center zone — play / pause / seek
     if (key == LogicalKeyboardKey.select ||
         key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.space ||
@@ -309,16 +290,6 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
 
     if (key == LogicalKeyboardKey.mediaPause) {
       bundle.core.pause();
-      return KeyEventResult.handled;
-    }
-
-    if (key == LogicalKeyboardKey.arrowLeft) {
-      _triggerSeek(rewind: true);
-      return KeyEventResult.handled;
-    }
-
-    if (key == LogicalKeyboardKey.arrowRight) {
-      _triggerSeek(rewind: false);
       return KeyEventResult.handled;
     }
 
@@ -401,23 +372,13 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
                       showForward: _showForward,
                       rewindCount: _rewindCount,
                       forwardCount: _forwardCount,
-                      onPrev: style.onPrevEpisode,
-                      onNext: style.onNextEpisode,
                       focusNode: _centerControlNode,
                     ),
                   ),
                 ),
               );
             }),
-
-            // 5. Skip OP/ED
-            SkipChapterButtons(
-              bundle: bundle,
-              style: style,
-              panelOpen: panelOpen,
-            ),
-
-            // 6. TOP overlay
+            // 5. TOP overlay
             Align(
               alignment: Alignment.topCenter,
               child: ExcludeFocus(
@@ -435,7 +396,6 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
                       enableQuality: widget.enableQuality,
                       enableSpeed: widget.enableSpeed,
                       enableAspect: widget.enableAspect,
-                      // Эхний товчны node дамжуулна
                       firstFocusNode: _topFirstNode,
                     ),
                   ),
@@ -443,14 +403,14 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
               ),
             ),
 
-            // 7. Seek drag tooltip
+            // 6. Seek drag tooltip
             SeekDragTooltipWithChapter(
               bundle: bundle,
               style: style,
               chapters: widget.chapters,
             ),
 
-            // 8. BOTTOM overlay
+            // 7. BOTTOM overlay
             Align(
               alignment: Alignment.bottomCenter,
               child: ExcludeFocus(
@@ -473,7 +433,7 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
               ),
             ),
 
-            // 9. Watermark
+            // 8. Watermark
             if (bundle.core.watermark != null)
               Positioned.fill(
                 child: SenzuWatermarkOverlay(watermark: bundle.core.watermark!),
@@ -493,7 +453,7 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
             if (widget.enableEpisode && style.episodeWidget != null)
               SenzuEpisodePanel(bundle: bundle, style: style),
 
-            // 10. Buffer loader
+            // 9. Buffer loader
             SenzuBufferLoader(bundle: bundle, style: style),
           ],
         );
@@ -550,7 +510,6 @@ class _TvSubtitle extends StatelessWidget {
   }
 }
 
-// Center play/pause — focusNode дамжуулж focus визуал харуулна
 class _TvCenterControls extends StatelessWidget {
   const _TvCenterControls({
     required this.bundle,
@@ -562,10 +521,6 @@ class _TvCenterControls extends StatelessWidget {
     required this.rewindCount,
     required this.forwardCount,
     required this.focusNode,
-    this.onPrev,
-    this.onNext,
-    this.hasPrev,
-    this.hasNext,
   });
 
   final SenzuPlayerBundle bundle;
@@ -574,10 +529,6 @@ class _TvCenterControls extends StatelessWidget {
   final bool showRewind, showForward;
   final int rewindCount, forwardCount;
   final FocusNode focusNode;
-  final VoidCallback? onPrev;
-  final VoidCallback? onNext;
-  final bool? hasPrev;
-  final bool? hasNext;
 
   @override
   Widget build(BuildContext context) {
@@ -592,13 +543,7 @@ class _TvCenterControls extends StatelessWidget {
           bundle.playback.position.value >= bundle.playback.duration.value &&
           bundle.playback.duration.value > Duration.zero;
 
-      final showPrev = hasPrev != null || onPrev != null;
-      final showNext = hasNext != null || onNext != null;
-      final prevEnabled = hasPrev ?? (onPrev != null);
-      final nextEnabled = hasNext ?? (onNext != null);
-
       return SenzuTvFocusWrapper(
-        // Гадаас дамжуулсан node → _Zone.center-д байх үед focus ring харагдана
         focusNode: focusNode,
         autofocus: false,
         onTap: ended
@@ -607,10 +552,10 @@ class _TvCenterControls extends StatelessWidget {
         focusedDecoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(color: Colors.white, width: 3),
-          color: Colors.white.withOpacity(0.08),
+          color: Colors.white.withValues(alpha: 0.08),
           boxShadow: [
             BoxShadow(
-              color: Colors.white.withOpacity(0.35),
+              color: Colors.white.withValues(alpha: 0.35),
               blurRadius: 24,
               spreadRadius: 4,
             ),

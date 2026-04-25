@@ -11,13 +11,16 @@ class TVPage extends StatefulWidget {
 
 class _TVPageState extends State<TVPage> {
   SenzuPlayerBundle? _externalBundle;
-  int currentIndex = 1;
-  int total = 10;
   String lastTap = '';
 
   @override
   void initState() {
     super.initState();
+
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
 
     _externalBundle = SenzuPlayerBundle.create(
       // ABR
@@ -38,42 +41,6 @@ class _TVPageState extends State<TVPage> {
         fontSize: 13,
         color: Colors.white,
       ),
-
-      // Annotations
-      annotations: [
-        SenzuAnnotation(
-          id: 'promo_1',
-          text: '🎁 Special offer — Tap to claim!',
-          appearAt: const Duration(seconds: 5),
-          disappearAt: const Duration(seconds: 15),
-          alignment: Alignment.topRight,
-          onTap: () => setState(() => lastTap = 'Promo tapped at 0:05'),
-        ),
-        SenzuAnnotation(
-          id: 'chapter_2',
-          text: '📖 Chapter 2 starts',
-          appearAt: const Duration(seconds: 20),
-          disappearAt: const Duration(seconds: 28),
-          alignment: Alignment.topLeft,
-          onTap: () => setState(() => lastTap = 'Chapter 2 annotation tapped'),
-        ),
-        SenzuAnnotation(
-          id: 'subscribe',
-          text: '🔔 Subscribe now',
-          appearAt: const Duration(seconds: 40),
-          disappearAt: const Duration(seconds: 55),
-          alignment: Alignment.bottomRight,
-          onTap: () => setState(() => lastTap = 'Subscribe tapped'),
-        ),
-        SenzuAnnotation(
-          id: 'poll',
-          text: '📊 Vote: Did you like this?',
-          appearAt: const Duration(minutes: 1),
-          disappearAt: const Duration(minutes: 1, seconds: 15),
-          alignment: Alignment.center,
-          onTap: () => setState(() => lastTap = 'Poll tapped'),
-        ),
-      ],
     );
   }
 
@@ -83,6 +50,10 @@ class _TVPageState extends State<TVPage> {
       SystemUiMode.manual,
       overlays: SystemUiOverlay.values,
     );
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     _externalBundle?.dispose();
     super.dispose();
   }
@@ -148,36 +119,6 @@ class _TVPageState extends State<TVPage> {
                 enablePip: false,
                 enableSleep: false,
 
-                // Chapters
-                chapters: const [
-                  SenzuChapter(
-                      startMs: 0, title: 'Cold Open', showOnProgressBar: true),
-                  SenzuChapter(
-                      startMs: 5000,
-                      title: 'OP',
-                      showOnProgressBar: true,
-                      isSkippable: true,
-                      skipToMs: 30000),
-                  SenzuChapter(
-                      startMs: 30000, title: '', showOnProgressBar: false),
-                  SenzuChapter(
-                      startMs: 35000, title: 'Act I', showOnProgressBar: true),
-                  SenzuChapter(
-                      startMs: 70000, title: 'Act II', showOnProgressBar: true),
-                  SenzuChapter(
-                      startMs: 90000,
-                      title: 'ED',
-                      showOnProgressBar: true,
-                      isSkippable: true,
-                      skipToMs: 120000),
-                  SenzuChapter(
-                      startMs: 120000, title: '', showOnProgressBar: false),
-                  SenzuChapter(
-                      startMs: 125000,
-                      title: 'Post-credits',
-                      showOnProgressBar: true),
-                ],
-
                 // Header meta
                 meta: const SenzuMetaData(
                   title: 'Player page',
@@ -191,10 +132,6 @@ class _TVPageState extends State<TVPage> {
 
                 // Style
                 style: SenzuPlayerStyle(
-                  onPrevEpisode: () => _showSnack('← Prev episode'),
-                  onNextEpisode: () => _showSnack('Next episode →'),
-                  hasPrevEpisode: currentIndex > 0,
-                  hasNextEpisode: currentIndex < total - 1,
                   senzuLanguage: const SenzuLanguage(
                     cast: 'Cast',
                     quality: 'Quality',

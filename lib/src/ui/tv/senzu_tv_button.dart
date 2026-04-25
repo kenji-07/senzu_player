@@ -39,18 +39,14 @@ class SenzuTvButton extends StatelessWidget {
       onTap: enabled ? onTap : null,
       enabled: enabled,
       focusedDecoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: c, width: 2.5),
-        color: c.withOpacity(0.15),
-        boxShadow: [
-          BoxShadow(color: c.withOpacity(0.35), blurRadius: 12, spreadRadius: 1),
-        ],
+        borderRadius: BorderRadius.circular(60),
+        color: c.withValues(alpha: 0.15),
       ),
       child: Padding(
         padding: padding,
         child: Icon(
           icon.icon,
-          color: enabled ? iconColor : iconColor.withOpacity(0.35),
+          color: enabled ? iconColor : iconColor.withValues(alpha: 0.35),
           size: iconSize,
         ),
       ),
@@ -96,7 +92,7 @@ class SenzuTvLabelButton extends StatelessWidget {
       enabled: enabled,
       focusedDecoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Colors.white.withOpacity(0.12),
+        color: Colors.white.withValues(alpha: 0.12),
         border: Border.all(color: Colors.white54, width: 1.5),
       ),
       child: Padding(

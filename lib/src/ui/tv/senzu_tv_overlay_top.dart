@@ -20,7 +20,6 @@ class SenzuTvOverlayTop extends StatelessWidget {
     this.enableSpeed = true,
     this.enableAspect = true,
     this.castController,
-    // Core view-аас дамжуулах эхний товчны focus node
     this.firstFocusNode,
   });
 
@@ -33,7 +32,6 @@ class SenzuTvOverlayTop extends StatelessWidget {
   final bool enableAudio;
   final bool enableSpeed;
   final bool enableAspect;
-  // Core view-аас дамжуулсан node — эхний товч энийг ашиглана
   final FocusNode? firstFocusNode;
 
   @override
@@ -46,22 +44,39 @@ class SenzuTvOverlayTop extends StatelessWidget {
             colors: [Color(0xCC000000), Colors.transparent],
           ),
         ),
-        padding: const EdgeInsets.only(top: 8, left: 16, right: 8, bottom: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 8),
         child: FocusTraversalGroup(
           policy: OrderedTraversalPolicy(),
           child: Row(
             children: [
-              FocusTraversalOrder(
-                order: const NumericFocusOrder(1),
-                child: SenzuTvButton(
-                  icon: Icon(meta.icon ?? Icons.arrow_back),
-                  iconColor: meta.iconColor ?? Colors.white,
-                  iconSize: meta.iconSize ?? 24,
-                  focusNode: firstFocusNode,
-                  onTap: () => Navigator.of(context).pop(),
-                ),
-              ),
-              const Spacer(),
+              if (meta.show ?? true)
+                Expanded(
+                  child: SizedBox(
+                    height: 50,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (meta.title != null)
+                          Text(
+                            meta.title!,
+                            style: meta.titleStyle,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        if (meta.description != null)
+                          Text(
+                            meta.description!,
+                            style: meta.descriptionStyle,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                const Spacer(),
               Obx(() {
                 final isLive = bundle.core.isLiveRx.value;
 
@@ -70,16 +85,17 @@ class SenzuTvOverlayTop extends StatelessWidget {
                   children: [
                     if (enableAspect)
                       FocusTraversalOrder(
-                        order: const NumericFocusOrder(2),
+                        order: const NumericFocusOrder(1),
                         child: SenzuTvButton(
                           icon: style.overlayIconsStyle.aspect,
                           tooltip: style.senzuLanguage.aspectRatio,
+                          focusNode: firstFocusNode,
                           onTap: () => bundle.ui.togglePanel(SenzuPanel.aspect),
                         ),
                       ),
                     if (enableSpeed && !isLive)
                       FocusTraversalOrder(
-                        order: const NumericFocusOrder(3),
+                        order: const NumericFocusOrder(2),
                         child: SenzuTvButton(
                           icon: style.overlayIconsStyle.speed,
                           tooltip: style.senzuLanguage.playbackSpeed,
@@ -88,7 +104,7 @@ class SenzuTvOverlayTop extends StatelessWidget {
                       ),
                     if (enableCaption)
                       FocusTraversalOrder(
-                        order: const NumericFocusOrder(4),
+                        order: const NumericFocusOrder(3),
                         child: SenzuTvButton(
                           icon: style.overlayIconsStyle.caption,
                           tooltip: style.senzuLanguage.subtitles,
@@ -98,7 +114,7 @@ class SenzuTvOverlayTop extends StatelessWidget {
                       ),
                     if (enableQuality)
                       FocusTraversalOrder(
-                        order: const NumericFocusOrder(5),
+                        order: const NumericFocusOrder(4),
                         child: SenzuTvButton(
                           icon: style.overlayIconsStyle.quality,
                           tooltip: style.senzuLanguage.quality,
@@ -108,7 +124,7 @@ class SenzuTvOverlayTop extends StatelessWidget {
                       ),
                     if (enableAudio)
                       FocusTraversalOrder(
-                        order: const NumericFocusOrder(6),
+                        order: const NumericFocusOrder(5),
                         child: SenzuTvButton(
                           icon: style.overlayIconsStyle.audio,
                           tooltip: style.senzuLanguage.audio,

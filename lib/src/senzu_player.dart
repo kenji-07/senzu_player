@@ -157,6 +157,12 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
       ),
     );
     Overlay.of(context).insert(_overlayEntry!);
+    if (widget.isTv) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _overlayEntry == null) return;
+        FocusManager.instance.rootScope.unfocus();
+      });
+    }
   }
 
   void _removeFullscreenOverlay() {
@@ -204,6 +210,10 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
       );
 
       _bundle.ui.setChapters(widget.chapters);
+
+      if (widget.isTv) {
+        _bundle.core.isFullScreen.value = true;
+      }
 
       if (widget.enablePip) await SenzuNativeChannel.enablePip();
 

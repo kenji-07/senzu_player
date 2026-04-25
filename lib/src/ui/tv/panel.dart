@@ -675,15 +675,12 @@ class _PanelItemState extends State<_PanelItem> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
             color: _focused
-                ? Colors.white.withOpacity(0.16)
+                ? Colors.white.withValues(alpha: 0.16)
                 : widget.selected
-                    ? Colors.white.withOpacity(0.08)
+                    ? Colors.white.withValues(alpha: 0.08)
                     : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: _focused ? Colors.white : Colors.transparent,
-              width: 1.5,
-            ),
+            
           ),
           child: Row(
             children: [

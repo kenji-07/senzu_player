@@ -6,11 +6,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
  
-## [1.1.0] - 2025-04-23
+## [1.1.0] - 2025-04-25
  
 ### Added
  
 #### Google Cast (Chromecast) support
+#### Android TV support
 
 ---
 

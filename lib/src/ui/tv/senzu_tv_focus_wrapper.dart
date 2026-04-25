@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// TV D-pad navigation-д зориулсан Focus wrapper.
 class SenzuTvFocusWrapper extends StatefulWidget {
   const SenzuTvFocusWrapper({
     super.key,
@@ -80,23 +79,22 @@ class _SenzuTvFocusWrapperState extends State<SenzuTvFocusWrapper>
       focusNode: _node,
       autofocus: widget.autofocus,
       onFocusChange: _onFocus,
-      // enter / select → activate
-      onKeyEvent: (_, e) {
-  final custom = widget.onKeyEvent?.call(_, e);
-  if (custom == KeyEventResult.handled) {
-    return KeyEventResult.handled;
-  }
+      onKeyEvent: (node, e) {
+        final custom = widget.onKeyEvent?.call(node, e);
+        if (custom == KeyEventResult.handled) {
+          return KeyEventResult.handled;
+        }
 
-  if (e is KeyDownEvent &&
-      (e.logicalKey == LogicalKeyboardKey.select ||
-          e.logicalKey == LogicalKeyboardKey.enter ||
-          e.logicalKey == LogicalKeyboardKey.numpadEnter)) {
-    _activate();
-    return KeyEventResult.handled;
-  }
+        if (e is KeyDownEvent &&
+            (e.logicalKey == LogicalKeyboardKey.select ||
+                e.logicalKey == LogicalKeyboardKey.enter ||
+                e.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+          _activate();
+          return KeyEventResult.handled;
+        }
 
-  return KeyEventResult.ignored;
-},
+        return KeyEventResult.ignored;
+      },
       child: GestureDetector(
         onTap: _activate,
         child: AnimatedBuilder(
@@ -108,16 +106,8 @@ class _SenzuTvFocusWrapperState extends State<SenzuTvFocusWrapper>
             decoration: _focused
                 ? (widget.focusedDecoration ??
                     BoxDecoration(
-                      border: Border.all(color: Colors.white, width: 2.5),
-                      borderRadius: BorderRadius.circular(8),
-                      color: Colors.white.withOpacity(0.12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.white.withOpacity(0.3),
-                          blurRadius: 14,
-                          spreadRadius: 2,
-                        ),
-                      ],
+                      borderRadius: BorderRadius.circular(60),
+                      color: Colors.white.withValues(alpha: 0.12),
                     ))
                 : (widget.unfocusedDecoration ?? const BoxDecoration()),
             child: widget.child,

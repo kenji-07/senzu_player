@@ -22,6 +22,10 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void initState() {
     super.initState();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
 
     _externalBundle = SenzuPlayerBundle.create(
       // ABR
@@ -135,8 +139,6 @@ class _PlayerPageState extends State<PlayerPage> {
       'url': newUrl,
       'Authorization': 'Bearer refreshed_token_$_refreshCount',
     };
-
-    
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
