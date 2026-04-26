@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'senzu_player'
-  s.version          = '1.1.1'
+  s.version          = '1.1.2'
   s.summary          = 'Senzu Video Player — native iOS plugin'
   s.description      = <<-DESC
     Native AVPlayer-based video player plugin for Flutter with:

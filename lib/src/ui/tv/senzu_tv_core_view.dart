@@ -72,7 +72,9 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       bundle.ui.toggleLock(true);
       _rootNode.requestFocus();
     });
@@ -117,14 +119,18 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
   }
 
   void _goZone(_Zone z) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     setState(() => _zone = z);
 
     bundle.ui.isShowingOverlay.value = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       final node = switch (z) {
         _Zone.top => _topFirstNode,
@@ -155,7 +161,9 @@ class _SenzuTvCoreViewState extends State<SenzuTvCoreView> {
         bundle.ui.activePanel.value = SenzuPanel.none;
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
+          if (!mounted) {
+            return;
+          }
           _goZone(_Zone.bottom);
         });
 

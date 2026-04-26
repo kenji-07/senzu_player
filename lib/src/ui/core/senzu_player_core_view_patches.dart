@@ -20,9 +20,9 @@ class SkipChapterButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final isFs       = bundle.core.isFullScreen.value;
+      final isFs = bundle.core.isFullScreen.value;
       final isDragging = bundle.playback.isDragging.value;
-      final chapters   = bundle.ui.activeSkipChapters;
+      final chapters = bundle.ui.activeSkipChapters;
 
       if (chapters.isEmpty) return const SizedBox.shrink();
 
@@ -67,7 +67,6 @@ class SkipChapterButtons extends StatelessWidget {
   }
 }
 
-
 class _SkipButton extends StatelessWidget {
   const _SkipButton({
     required this.label,
@@ -102,7 +101,6 @@ class _SkipButton extends StatelessWidget {
       );
 }
 
-
 class SeekDragTooltipWithChapter extends StatelessWidget {
   const SeekDragTooltipWithChapter({
     super.key,
@@ -121,8 +119,8 @@ class SeekDragTooltipWithChapter extends StatelessWidget {
       final isDragging = bundle.playback.isDragging.value;
       if (!isDragging) return const SizedBox.shrink();
 
-      final dur        = bundle.playback.duration.value;
-      final posR       = bundle.playback.dragRatio.value;
+      final dur = bundle.playback.duration.value;
+      final posR = bundle.playback.dragRatio.value;
       final displayPos = dur * posR;
 
       return Positioned.fill(
@@ -171,7 +169,9 @@ class SenzuChapterTooltip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chapter = _findChapter(position);
-    if (chapter == null || chapter.label == null) return const SizedBox.shrink();
+    if (chapter == null || chapter.label == null) {
+      return const SizedBox.shrink();
+    }
 
     return Align(
       alignment: const Alignment(0, -0.85),

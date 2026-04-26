@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import 'package:senzu_player/senzu_player.dart';
 
 class PlayerPage extends StatefulWidget {
-  const PlayerPage({Key? key}) : super(key: key);
+  const PlayerPage({super.key});
 
   @override
   State<PlayerPage> createState() => _PlayerPageState();
@@ -596,15 +596,14 @@ class _Slider extends StatelessWidget {
 }
 
 class _Btn extends StatelessWidget {
-  const _Btn(this.label, this.onTap, {this.color});
+  const _Btn(this.label, this.onTap);
   final String label;
   final VoidCallback onTap;
-  final Color? color;
 
   @override
   Widget build(BuildContext context) => ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: color ?? Colors.white12,
+          backgroundColor: Colors.white12,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           textStyle: const TextStyle(fontSize: 11),

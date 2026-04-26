@@ -302,11 +302,15 @@ class SenzuOverlayIconsStyle {
     this.quality = const Icon(Icons.hd, size: 20, color: Colors.white),
     this.audio = const Icon(Icons.audiotrack, size: 20, color: Colors.white),
     this.episode = const Icon(Icons.view_list, size: 20, color: Colors.white),
-    this.fullscreenExit = const Icon(Icons.fullscreen_exit, size: 20, color: Colors.white),
-    this.fullscreen = const Icon(Icons.fullscreen, size: 20, color: Colors.white),
-    this.castConnected = const Icon(Icons.cast_connected, size: 20, color: Colors.green),
+    this.fullscreenExit =
+        const Icon(Icons.fullscreen_exit, size: 20, color: Colors.white),
+    this.fullscreen =
+        const Icon(Icons.fullscreen, size: 20, color: Colors.white),
+    this.castConnected =
+        const Icon(Icons.cast_connected, size: 20, color: Colors.green),
     this.cast = const Icon(Icons.cast, size: 20, color: Colors.white),
-    this.castNoDevicesAvailable = const Icon(Icons.cast, size: 20, color: Colors.white38),
+    this.castNoDevicesAvailable =
+        const Icon(Icons.cast, size: 20, color: Colors.white38),
   });
 
   final Icon sleep;

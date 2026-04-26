@@ -56,7 +56,7 @@ class SenzuPlayerBundle {
       onQualityChanged: onQualityChanged,
       dataPolicy: dataPolicy,
       tokenConfig: tokenConfig,
-      notification: notification, 
+      notification: notification,
     );
 
     final playback = SenzuPlaybackController(core: core);

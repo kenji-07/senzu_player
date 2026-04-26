@@ -54,8 +54,8 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
     final dur = bundle.playback.duration.value;
     if (dur.inMilliseconds == 0) return;
 
-    final currentMs = (dur.inMilliseconds * bundle.playback.dragRatio.value)
-        .round();
+    final currentMs =
+        (dur.inMilliseconds * bundle.playback.dragRatio.value).round();
     final currentSec = currentMs ~/ 1000;
 
     if (currentSec != _lastHapticSecond) {
@@ -158,15 +158,15 @@ class _SenzuProgressBarState extends State<SenzuProgressBar> {
             final posR = bundle.playback.isDragging.value
                 ? bundle.playback.dragRatio.value
                 : (dur.inMilliseconds > 0
-                      ? (bundle.playback.position.value.inMilliseconds /
-                                dur.inMilliseconds)
-                            .clamp(0.0, 1.0)
-                      : 0.0);
+                    ? (bundle.playback.position.value.inMilliseconds /
+                            dur.inMilliseconds)
+                        .clamp(0.0, 1.0)
+                    : 0.0);
 
             final bufR = dur.inMilliseconds > 0
                 ? (bundle.playback.maxBuffering.value.inMilliseconds /
-                          dur.inMilliseconds)
-                      .clamp(0.0, 1.0)
+                        dur.inMilliseconds)
+                    .clamp(0.0, 1.0)
                 : 0.0;
 
             return SizedBox(
@@ -306,7 +306,7 @@ class SenzuChapterPainter extends CustomPainter {
 
 class _ChapterPainterCache {
   _ChapterPainterCache(List<SenzuChapter> chapters, Duration duration)
-    : fractions = _compute(chapters, duration);
+      : fractions = _compute(chapters, duration);
 
   final List<double> fractions;
 
@@ -349,11 +349,12 @@ class _Bar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedContainer(
-    duration: const Duration(milliseconds: 80),
-    width: (w * ratio).clamp(0.0, w),
-    height: style.height,
-    decoration: BoxDecoration(color: color, borderRadius: style.borderRadius),
-  );
+        duration: const Duration(milliseconds: 80),
+        width: (w * ratio).clamp(0.0, w),
+        height: style.height,
+        decoration:
+            BoxDecoration(color: color, borderRadius: style.borderRadius),
+      );
 }
 
 class _Dot extends StatelessWidget {

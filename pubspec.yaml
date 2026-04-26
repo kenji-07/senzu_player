@@ -1,7 +1,7 @@
 name: senzu_player
 description: >-
   Feature-rich Flutter video player with GetX state management, Native player.
-version: 1.1.1
+version: 1.1.2
 homepage: https://github.com/kenji-07/senzu_player
 repository: https://github.com/kenji-07/senzu_player
 

@@ -55,8 +55,7 @@ class SenzuCastRemoteState {
         volume: (m['volume'] as num?)?.toDouble() ?? 1.0,
         isMuted: (m['isMuted'] as bool?) ?? false,
         errorMessage: m['errorMessage'] as String?,
-        activeTrackIds:
-            (m['activeTrackIds'] as List?)
+        activeTrackIds: (m['activeTrackIds'] as List?)
                 ?.map((e) => (e as num).toInt())
                 .toList() ??
             [],

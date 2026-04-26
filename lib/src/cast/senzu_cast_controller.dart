@@ -183,9 +183,8 @@ class SenzuCastController extends GetxController {
   }
 
   void toggleCastPanel(SenzuCastPanel panel) {
-    activePanel.value = activePanel.value == panel
-        ? SenzuCastPanel.none
-        : panel;
+    activePanel.value =
+        activePanel.value == panel ? SenzuCastPanel.none : panel;
   }
 
   // ── Device Discovery & Connection ─────────────────────────────────────────

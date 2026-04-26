@@ -59,7 +59,9 @@ class _SenzuTvFocusWrapperState extends State<SenzuTvFocusWrapper>
   }
 
   void _onFocus(bool v) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     setState(() => _focused = v);
     widget.onFocusChange?.call(v);
     v ? _ctrl.forward() : _ctrl.reverse();

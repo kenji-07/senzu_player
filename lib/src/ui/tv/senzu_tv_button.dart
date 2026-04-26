@@ -109,8 +109,7 @@ class SenzuTvLabelButton extends StatelessWidget {
                   style: TextStyle(
                     color: selected ? selectedColor : unselectedColor,
                     fontSize: fontSize,
-                    fontWeight:
-                        selected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                   )),
             ),
             if (selected) Icon(Icons.check, color: selectedColor, size: 14),

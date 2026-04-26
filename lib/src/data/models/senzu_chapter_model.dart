@@ -1,4 +1,3 @@
-
 class SenzuChapter {
   const SenzuChapter({
     required this.startMs,
@@ -87,9 +86,7 @@ class SenzuChapter {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is SenzuChapter &&
-          other.startMs == startMs &&
-          other.title == title;
+      other is SenzuChapter && other.startMs == startMs && other.title == title;
 
   @override
   int get hashCode => Object.hash(startMs, title);

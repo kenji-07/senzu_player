@@ -1,15 +1,14 @@
-
 /// Field names are intentionally identical to those read by
 /// [SenzuPlaybackController._onFrame] so that controller needs zero changes.
 class SenzuNativeVideoState {
   const SenzuNativeVideoState({
-    this.position       = Duration.zero,
-    this.duration       = Duration.zero,
-    this.isPlaying      = false,
-    this.isBuffering    = false,
-    this.buffered       = const [],
+    this.position = Duration.zero,
+    this.duration = Duration.zero,
+    this.isPlaying = false,
+    this.isBuffering = false,
+    this.buffered = const [],
     this.errorDescription,
-    this.isInitialized  = false,
+    this.isInitialized = false,
   });
 
   /// Current playback position.
@@ -37,9 +36,7 @@ class SenzuNativeVideoState {
 
   /// Returns true if the position has reached (or exceeded) the duration.
   bool get isCompleted =>
-      isInitialized &&
-      duration > Duration.zero &&
-      position >= duration;
+      isInitialized && duration > Duration.zero && position >= duration;
 
   /// Returns a value in [0, 1] representing playback progress.
   double get progress {
@@ -59,7 +56,7 @@ class SenzuNativeVideoState {
       for (final item in rawBuffered) {
         if (item is Map) {
           final start = _toLong(item['start']) ?? 0;
-          final end   = _toLong(item['end'])   ?? 0;
+          final end = _toLong(item['end']) ?? 0;
           bufferedRanges.add(DurationRange(
             Duration(milliseconds: start),
             Duration(milliseconds: end),
@@ -69,13 +66,13 @@ class SenzuNativeVideoState {
     }
 
     return SenzuNativeVideoState(
-      position       : Duration(milliseconds: posMs),
-      duration       : Duration(milliseconds: durMs),
-      isPlaying      : (map['isPlaying']   as bool?) ?? false,
-      isBuffering    : (map['isBuffering'] as bool?) ?? false,
-      buffered       : bufferedRanges,
+      position: Duration(milliseconds: posMs),
+      duration: Duration(milliseconds: durMs),
+      isPlaying: (map['isPlaying'] as bool?) ?? false,
+      isBuffering: (map['isBuffering'] as bool?) ?? false,
+      buffered: bufferedRanges,
       errorDescription: map['error'] as String?,
-      isInitialized  : true,
+      isInitialized: true,
     );
   }
 
@@ -91,13 +88,13 @@ class SenzuNativeVideoState {
     bool? isInitialized,
   }) {
     return SenzuNativeVideoState(
-      position        : position        ?? this.position,
-      duration        : duration        ?? this.duration,
-      isPlaying       : isPlaying       ?? this.isPlaying,
-      isBuffering     : isBuffering     ?? this.isBuffering,
-      buffered        : buffered        ?? this.buffered,
+      position: position ?? this.position,
+      duration: duration ?? this.duration,
+      isPlaying: isPlaying ?? this.isPlaying,
+      isBuffering: isBuffering ?? this.isBuffering,
+      buffered: buffered ?? this.buffered,
       errorDescription: errorDescription ?? this.errorDescription,
-      isInitialized   : isInitialized   ?? this.isInitialized,
+      isInitialized: isInitialized ?? this.isInitialized,
     );
   }
 
@@ -139,5 +136,6 @@ class DurationRange {
   }
 
   @override
-  String toString() => 'DurationRange(${start.inMilliseconds}ms → ${end.inMilliseconds}ms)';
+  String toString() =>
+      'DurationRange(${start.inMilliseconds}ms → ${end.inMilliseconds}ms)';
 }

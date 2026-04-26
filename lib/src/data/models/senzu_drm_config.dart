@@ -1,4 +1,3 @@
-
 class SenzuDrmConfig {
   const SenzuDrmConfig.fairPlay({
     required this.licenseUrl,
@@ -18,9 +17,9 @@ class SenzuDrmConfig {
   final Map<String, String> headers;
 
   Map<String, dynamic> toMap() => {
-        'type':           type,
-        'licenseUrl':     licenseUrl,
+        'type': type,
+        'licenseUrl': licenseUrl,
         'certificateUrl': certificateUrl,
-        'headers':        headers,
+        'headers': headers,
       };
 }

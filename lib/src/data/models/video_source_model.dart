@@ -55,20 +55,21 @@ class VideoSource {
     String? forceCodec,
     VideoProtocol protocol = VideoProtocol.hls,
     final SenzuDrmConfig? drm,
-  }) => VideoSource(
-    dataSource: url,
-    httpHeaders: httpHeaders,
-    ads: ads,
-    subtitle: subtitle,
-    initialSubtitle: initialSubtitle,
-    range: range,
-    thumbnailSprite: thumbnailSprite,
-    isLowLatency: isLowLatency,
-    targetLatencyMs: targetLatencyMs,
-    forceCodec: forceCodec,
-    protocol: protocol,
-    drm: drm,
-  );
+  }) =>
+      VideoSource(
+        dataSource: url,
+        httpHeaders: httpHeaders,
+        ads: ads,
+        subtitle: subtitle,
+        initialSubtitle: initialSubtitle,
+        range: range,
+        thumbnailSprite: thumbnailSprite,
+        isLowLatency: isLowLatency,
+        targetLatencyMs: targetLatencyMs,
+        forceCodec: forceCodec,
+        protocol: protocol,
+        drm: drm,
+      );
 
   // ── fromDashUrl ───────────────────────────────────────────────────────────
   static VideoSource fromDashUrl(
@@ -79,16 +80,17 @@ class VideoSource {
     String initialSubtitle = '',
     Tween<Duration>? range,
     final SenzuDrmConfig? drm,
-  }) => VideoSource(
-    dataSource: url,
-    protocol: VideoProtocol.dash,
-    httpHeaders: httpHeaders,
-    ads: ads,
-    subtitle: subtitle,
-    initialSubtitle: initialSubtitle,
-    range: range,
-    drm: drm,
-  );
+  }) =>
+      VideoSource(
+        dataSource: url,
+        protocol: VideoProtocol.dash,
+        httpHeaders: httpHeaders,
+        ads: ads,
+        subtitle: subtitle,
+        initialSubtitle: initialSubtitle,
+        range: range,
+        drm: drm,
+      );
 
   // ── fromFile ───────────────────────────────────────────────────────────────
   static VideoSource fromFile(
@@ -98,15 +100,16 @@ class VideoSource {
     String initialSubtitle = '',
     Tween<Duration>? range,
     SenzuThumbnailSprite? thumbnailSprite,
-  }) => VideoSource(
-    dataSource: filePath,
-    protocol: VideoProtocol.mp4,
-    ads: ads,
-    subtitle: subtitle,
-    initialSubtitle: initialSubtitle,
-    range: range,
-    thumbnailSprite: thumbnailSprite,
-  );
+  }) =>
+      VideoSource(
+        dataSource: filePath,
+        protocol: VideoProtocol.mp4,
+        ads: ads,
+        subtitle: subtitle,
+        initialSubtitle: initialSubtitle,
+        range: range,
+        thumbnailSprite: thumbnailSprite,
+      );
 
   // ── fromAsset ──────────────────────────────────────────────────────────────
   // Asset playback native layer-д дэмжихгүй тул file path болгон хөрвүүлнэ.
@@ -122,15 +125,16 @@ class VideoSource {
     String initialSubtitle = '',
     Tween<Duration>? range,
     SenzuThumbnailSprite? thumbnailSprite,
-  }) => VideoSource(
-    dataSource: assetPath,
-    protocol: VideoProtocol.mp4,
-    ads: ads,
-    subtitle: subtitle,
-    initialSubtitle: initialSubtitle,
-    range: range,
-    thumbnailSprite: thumbnailSprite,
-  );
+  }) =>
+      VideoSource(
+        dataSource: assetPath,
+        protocol: VideoProtocol.mp4,
+        ads: ads,
+        subtitle: subtitle,
+        initialSubtitle: initialSubtitle,
+        range: range,
+        thumbnailSprite: thumbnailSprite,
+      );
 
   // ── fromNetworkVideoSources ───────────────────────────────────────────────
   static Map<String, VideoSource> fromNetworkVideoSources(
@@ -142,21 +146,22 @@ class VideoSource {
     Map<String, String>? httpHeaders,
     SenzuThumbnailSprite? thumbnailSprite,
     final SenzuDrmConfig? drm,
-  }) => sources.map(
-    (k, url) => MapEntry(
-      k,
-      VideoSource(
-        dataSource: url,
-        initialSubtitle: initialSubtitle,
-        subtitle: subtitle,
-        ads: ads,
-        range: range,
-        httpHeaders: httpHeaders,
-        thumbnailSprite: thumbnailSprite,
-        drm: drm,
-      ),
-    ),
-  );
+  }) =>
+      sources.map(
+        (k, url) => MapEntry(
+          k,
+          VideoSource(
+            dataSource: url,
+            initialSubtitle: initialSubtitle,
+            subtitle: subtitle,
+            ads: ads,
+            range: range,
+            httpHeaders: httpHeaders,
+            thumbnailSprite: thumbnailSprite,
+            drm: drm,
+          ),
+        ),
+      );
 
   // ── fromM3u8PlaylistUrl ───────────────────────────────────────────────────
   static Future<Map<String, VideoSource>> fromM3u8PlaylistUrl(
@@ -193,15 +198,15 @@ class VideoSource {
     }
 
     VideoSource bb(String url) => VideoSource(
-      dataSource: url,
-      initialSubtitle: resolvedInitial,
-      subtitle: resolvedSubs,
-      ads: ads,
-      range: range,
-      httpHeaders: httpHeaders,
-      thumbnailSprite: thumbnailSprite,
-      drm: drm,
-    );
+          dataSource: url,
+          initialSubtitle: resolvedInitial,
+          subtitle: resolvedSubs,
+          ads: ads,
+          range: range,
+          httpHeaders: httpHeaders,
+          thumbnailSprite: thumbnailSprite,
+          drm: drm,
+        );
 
     final sorted = sourceUrls.entries.toList()
       ..sort((a, b) {
@@ -401,8 +406,7 @@ class VideoSource {
     );
   }
 
-  static String _fts(Duration d) =>
-      '${d.inHours.toString().padLeft(2, '0')}:'
+  static String _fts(Duration d) => '${d.inHours.toString().padLeft(2, '0')}:'
       '${d.inMinutes.remainder(60).toString().padLeft(2, '0')}:'
       '${d.inSeconds.remainder(60).toString().padLeft(2, '0')}.'
       '${d.inMilliseconds.remainder(1000).toString().padLeft(3, '0')}';

@@ -33,20 +33,20 @@ class SenzuNativeVideoController {
     required String url,
     Map<String, String> headers = const {},
     Map<String, dynamic> drm = const {},
-    String title  = '',
+    String title = '',
     String artist = '',
     String? artwork,
-    bool isLive   = false,
+    bool isLive = false,
   }) async {
     assert(!_disposed, 'initialize() called after dispose()');
 
     final args = <String, dynamic>{
-      'url':     url,
+      'url': url,
       'headers': headers,
-      'title':   title,
-      'artist':  artist,
+      'title': title,
+      'artist': artist,
       'artwork': artwork ?? '',
-      'isLive':  isLive,
+      'isLive': isLive,
     };
     if (drm.isNotEmpty) {
       args['drm'] = drm;
@@ -58,7 +58,7 @@ class SenzuNativeVideoController {
     );
     final durationMs = result?['durationMs'] as int? ?? 0;
     _value = SenzuNativeVideoState(
-      duration:      Duration(milliseconds: durationMs),
+      duration: Duration(milliseconds: durationMs),
       isInitialized: true,
     );
     _emit(_value);

@@ -86,7 +86,6 @@ class SenzuOverlayTop extends StatelessWidget {
             )
           else
             const Spacer(),
-
           Obx(() {
             final isLive = bundle.core.isLiveRx.value;
             return Row(
@@ -94,10 +93,10 @@ class SenzuOverlayTop extends StatelessWidget {
               children: [
                 // Sleep timer
                 if (enableSleep)
-                _Btn(
-                  style.overlayIconsStyle.sleep,
-                  () => bundle.ui.togglePanel(SenzuPanel.sleep),
-                ),
+                  _Btn(
+                    style.overlayIconsStyle.sleep,
+                    () => bundle.ui.togglePanel(SenzuPanel.sleep),
+                  ),
 
                 // Aspect ratio
                 if (enableAspect)
@@ -137,10 +136,9 @@ class SenzuOverlayTop extends StatelessWidget {
                 // Cast
                 if (castController != null)
                   SenzuCastButton(
-                    castController: castController!,
-                    bundle: bundle,
-                    style: style
-                  ),
+                      castController: castController!,
+                      bundle: bundle,
+                      style: style),
               ],
             );
           }),
@@ -156,12 +154,11 @@ class _Btn extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(20),
-    child: Padding(
-      padding: const EdgeInsets.all(8),
-      child: icon,
-    ),
-  );
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: icon,
+        ),
+      );
 }
-

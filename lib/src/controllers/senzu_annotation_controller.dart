@@ -43,7 +43,7 @@ class SenzuAnnotationController extends GetxController {
   void _startScanTimer() {
     _scanTimer?.cancel();
     _scanTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
-      if (!playback.isPlaying.value) return; 
+      if (!playback.isPlaying.value) return;
       _scan(playback.position.value);
     });
   }
@@ -60,7 +60,7 @@ class SenzuAnnotationController extends GetxController {
     final active = <SenzuAnnotation>[];
     for (int i = startIdx; i < _sorted.length; i++) {
       final e = _sorted[i];
-      if (e.appearMs > posMs) break; 
+      if (e.appearMs > posMs) break;
       if (e.disappearMs > posMs) {
         active.add(e.annotation);
       }

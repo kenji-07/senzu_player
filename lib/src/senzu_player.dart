@@ -217,13 +217,17 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
 
       if (widget.enablePip) await SenzuNativeChannel.enablePip();
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _initialized = true;
         _initError = null;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _initialized = false;
         _initError = e.toString();

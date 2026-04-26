@@ -52,7 +52,6 @@ class SenzuOverlayBottom extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (style.bottomExtra != null) style.bottomExtra!,
-
             Obx(() {
               final isDragging = bundle.playback.isDragging.value;
               if (isDragging) return const SizedBox.shrink();
@@ -67,7 +66,6 @@ class SenzuOverlayBottom extends StatelessWidget {
                         hasDvr: hasDvr,
                         style: style,
                       ),
-
                     if (!isLive)
                       Obx(() {
                         final pos = bundle.playback.position.value;
@@ -81,14 +79,12 @@ class SenzuOverlayBottom extends StatelessWidget {
                           style: style.textStyle,
                         );
                       }),
-
                     const Spacer(),
                     if (enablePip) SenzuPipButton(bundle: bundle, style: style),
                     if (enableEpisode && style.episodeWidget != null)
                       _Btn(
                         icon: style.overlayIconsStyle.episode,
-                        onTap: () =>
-                            bundle.ui.togglePanel(SenzuPanel.episode),
+                        onTap: () => bundle.ui.togglePanel(SenzuPanel.episode),
                       ),
                     if (enableFullscreen)
                       _Btn(
@@ -101,7 +97,6 @@ class SenzuOverlayBottom extends StatelessWidget {
                 ),
               );
             }),
-
             if (!isLive || hasDvr)
               Padding(
                 padding: EdgeInsets.only(

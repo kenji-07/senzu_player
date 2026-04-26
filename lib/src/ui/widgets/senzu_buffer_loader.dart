@@ -57,7 +57,9 @@ class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
     _lastTime = DateTime.now();
 
     _speedTimer = Timer.periodic(const Duration(milliseconds: 800), (_) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       final now = DateTime.now();
       final currentBuffered = widget.bundle.playback.maxBuffering.value;
       final dtMs = now.difference(_lastTime).inMilliseconds;
@@ -104,8 +106,7 @@ class _SenzuBufferLoaderState extends State<SenzuBufferLoader>
 
       final isInitialLoad =
           isChangingSource && !isPlaying && pos == Duration.zero;
-      final notYetReady =
-          !isInitialized && !widget.bundle.core.hasError.value;
+      final notYetReady = !isInitialized && !widget.bundle.core.hasError.value;
 
       if (!isInitialLoad && !notYetReady) return const SizedBox.shrink();
 
@@ -153,7 +154,8 @@ class _SpeedLabel extends StatelessWidget {
         : '${(speedMbps * 1024).toStringAsFixed(0)} KB/s';
 
     final prefix = style.senzuLanguage.preparingPrefix;
-    final label = hasSpeed ? '$prefix... $speedStr' : style.senzuLanguage.preparing;
+    final label =
+        hasSpeed ? '$prefix... $speedStr' : style.senzuLanguage.preparing;
 
     return Text(label, style: style.bufferLoaderStyle.textStyle);
   }

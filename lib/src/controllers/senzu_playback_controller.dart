@@ -8,13 +8,13 @@ class SenzuPlaybackController extends GetxController {
   final SenzuCoreController core;
 
   // ── Rx observables ─────────────────────────────────────────────────────────
-  final position          = Duration.zero.obs;
-  final duration          = Duration.zero.obs;
-  final maxBuffering      = Duration.zero.obs;
-  final isPlaying         = false.obs;
-  final isBuffering       = false.obs;
-  final isDragging        = false.obs;
-  final dragRatio         = 0.0.obs;
+  final position = Duration.zero.obs;
+  final duration = Duration.zero.obs;
+  final maxBuffering = Duration.zero.obs;
+  final isPlaying = false.obs;
+  final isBuffering = false.obs;
+  final isDragging = false.obs;
+  final dragRatio = 0.0.obs;
   final bufferHealthRatio = 1.0.obs;
 
   @override
@@ -30,14 +30,14 @@ class SenzuPlaybackController extends GetxController {
   // ── State handler ──────────────────────────────────────────────────────────
   void _onState(SenzuNativeVideoState state) {
     // Position (range-adjusted, relative to beginRange)
-    final begin  = core.beginRange;
-    final rel    = state.position - begin;
+    final begin = core.beginRange;
+    final rel = state.position - begin;
     final newPos = rel < Duration.zero ? Duration.zero : rel;
     if (position.value != newPos) position.value = newPos;
 
     // Duration (range-adjusted)
-    final end        = core.endRange;
-    final rawDur     = end - begin;
+    final end = core.endRange;
+    final rawDur = end - begin;
     final clampedDur = rawDur < Duration.zero ? Duration.zero : rawDur;
     if (duration.value != clampedDur) duration.value = clampedDur;
 
@@ -64,5 +64,4 @@ class SenzuPlaybackController extends GetxController {
 
   // ── Drag ──────────────────────────────────────────────────────────────────
   void setDragging(bool v) => isDragging.value = v;
-
 }

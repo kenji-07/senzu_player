@@ -22,7 +22,7 @@ class SenzuThumbnailSprite {
   /// Sprite sheet-ийн нийт хэмжээ мэдэгдэж байвал нэг thumbnail-ийн хэмжээг
   /// буцаана. Мэдэгдэхгүй бол null.
   ///
-  double? get thumbWidth  => _thumbWidth;
+  double? get thumbWidth => _thumbWidth;
   double? get thumbHeight => _thumbHeight;
 
   /// Тухайн position-д харгалзах sprite sheet дэх index
@@ -39,17 +39,17 @@ class SenzuThumbnailSprite {
   /// Sprite sheet дотор тухайн thumbnail-ийн байршил.
   /// [sheetWidth], [sheetHeight] — бодит зургийн хэмжээ (pixels).
   Rect rectAt(Duration position, {double? sheetWidth, double? sheetHeight}) {
-    final tw = sheetWidth  != null ? sheetWidth  / columns : (_thumbWidth  ?? 160);
-    final th = sheetHeight != null ? sheetHeight / rows    : (_thumbHeight ?? 90);
-    final g  = gridAt(position);
+    final tw = sheetWidth != null ? sheetWidth / columns : (_thumbWidth ?? 160);
+    final th = sheetHeight != null ? sheetHeight / rows : (_thumbHeight ?? 90);
+    final g = gridAt(position);
     return Rect.fromLTWH(g.col * tw, g.row * th, tw, th);
   }
 
   /// FractionalOffset — CachedNetworkImage alignment-д ашиглана
   FractionalOffset fractionalOffsetAt(Duration position) {
-    final g   = gridAt(position);
-    final fx  = columns > 1 ? g.col / (columns - 1) : 0.0;
-    final fy  = rows    > 1 ? g.row / (rows    - 1) : 0.0;
+    final g = gridAt(position);
+    final fx = columns > 1 ? g.col / (columns - 1) : 0.0;
+    final fy = rows > 1 ? g.row / (rows - 1) : 0.0;
     return FractionalOffset(fx.clamp(0.0, 1.0), fy.clamp(0.0, 1.0));
   }
 }

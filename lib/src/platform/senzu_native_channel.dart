@@ -7,21 +7,24 @@ class SenzuNativeChannel {
   SenzuNativeChannel._();
 
   static const _method = MethodChannel('senzu_player/native');
-  static const _event  = EventChannel('senzu_player/events');
+  static const _event = EventChannel('senzu_player/events');
 
   static StreamSubscription<dynamic>? _sub;
 
-  static final _playbackCtrl = StreamController<SenzuNativeVideoState>.broadcast();
-  static final _volumeCtrl   = StreamController<double>.broadcast();
-  static final _batteryCtrl  = StreamController<Map<String, dynamic>>.broadcast();
-  static final _remoteCtrl   = StreamController<Map<String, dynamic>>.broadcast();
-  static final _pipCtrl      = StreamController<Map<String, dynamic>>.broadcast();
+  static final _playbackCtrl =
+      StreamController<SenzuNativeVideoState>.broadcast();
+  static final _volumeCtrl = StreamController<double>.broadcast();
+  static final _batteryCtrl =
+      StreamController<Map<String, dynamic>>.broadcast();
+  static final _remoteCtrl = StreamController<Map<String, dynamic>>.broadcast();
+  static final _pipCtrl = StreamController<Map<String, dynamic>>.broadcast();
 
-  static Stream<SenzuNativeVideoState> get playbackStream => _playbackCtrl.stream;
-  static Stream<double>                get volumeStream   => _volumeCtrl.stream;
-  static Stream<Map<String, dynamic>>  get batteryStream  => _batteryCtrl.stream;
-  static Stream<Map<String, dynamic>>  get remoteStream   => _remoteCtrl.stream;
-  static Stream<Map<String, dynamic>>  get pipStream      => _pipCtrl.stream;
+  static Stream<SenzuNativeVideoState> get playbackStream =>
+      _playbackCtrl.stream;
+  static Stream<double> get volumeStream => _volumeCtrl.stream;
+  static Stream<Map<String, dynamic>> get batteryStream => _batteryCtrl.stream;
+  static Stream<Map<String, dynamic>> get remoteStream => _remoteCtrl.stream;
+  static Stream<Map<String, dynamic>> get pipStream => _pipCtrl.stream;
 
   static void startListening() {
     _sub ??= _event.receiveBroadcastStream().listen((e) {
@@ -54,7 +57,9 @@ class SenzuNativeChannel {
 
   // ── Codec ─────────────────────────────────────────────────────────────────
   static Future<bool> checkCodecSupport(String codec) async =>
-      (await _method.invokeMethod<bool>('checkCodecSupport', {'codec': codec})) ?? false;
+      (await _method
+          .invokeMethod<bool>('checkCodecSupport', {'codec': codec})) ??
+      false;
 
   // ── Low Latency ───────────────────────────────────────────────────────────
   static Future<void> setLowLatencyMode({required int targetMs}) =>
@@ -84,12 +89,16 @@ class SenzuNativeChannel {
       _method.invokeMethod('enableHdrIfSupported');
 
   // ── Secure ────────────────────────────────────────────────────────────────
-  static Future<void> enableSecureMode()  => _method.invokeMethod('enableSecureMode');
-  static Future<void> disableSecureMode() => _method.invokeMethod('disableSecureMode');
+  static Future<void> enableSecureMode() =>
+      _method.invokeMethod('enableSecureMode');
+  static Future<void> disableSecureMode() =>
+      _method.invokeMethod('disableSecureMode');
 
   // ── Wakelock ──────────────────────────────────────────────────────────────
-  static Future<void> enableWakelock()  => _method.invokeMethod('enableWakelock');
-  static Future<void> disableWakelock() => _method.invokeMethod('disableWakelock');
+  static Future<void> enableWakelock() =>
+      _method.invokeMethod('enableWakelock');
+  static Future<void> disableWakelock() =>
+      _method.invokeMethod('disableWakelock');
 
   // ── Volume ────────────────────────────────────────────────────────────────
   static Future<double> getVolume() async =>
@@ -111,16 +120,16 @@ class SenzuNativeChannel {
 
   // ── Now Playing / Notification ────────────────────────────────────────────
   static Future<void> setNowPlayingMetadata({
-    String title  = '',
+    String title = '',
     String artist = '',
     String? artwork,
-    bool isLive   = false,
+    bool isLive = false,
   }) =>
       _method.invokeMethod('setNowPlayingMetadata', {
-        'title':   title,
-        'artist':  artist,
+        'title': title,
+        'artist': artist,
         'artwork': artwork ?? '',
-        'isLive':  isLive,
+        'isLive': isLive,
       });
 
   static Future<void> setNowPlayingEnabled(bool enabled) =>
@@ -130,8 +139,8 @@ class SenzuNativeChannel {
   static Future<bool> isPipSupported() async =>
       (await _method.invokeMethod<bool>('isPipSupported')) ?? false;
 
-  static Future<void> enablePip()  => _method.invokeMethod('enablePip');
+  static Future<void> enablePip() => _method.invokeMethod('enablePip');
   static Future<void> disablePip() => _method.invokeMethod('disablePip');
-  static Future<void> enterPip()   => _method.invokeMethod('enterPip');
-  static Future<void> exitPip()    => _method.invokeMethod('exitPip');
+  static Future<void> enterPip() => _method.invokeMethod('enterPip');
+  static Future<void> exitPip() => _method.invokeMethod('exitPip');
 }

@@ -35,10 +35,10 @@ class SenzuPlayerSubtitle {
     this.url_, {
     this.type = SubtitleType.webvtt,
     Map<String, String>? headers,
-  }) : initType = SubtitleInitializeType.network,
-       keyHex = null,
-       ivHex = null,
-       content = '' {
+  })  : initType = SubtitleInitializeType.network,
+        keyHex = null,
+        ivHex = null,
+        content = '' {
     if (headers != null) _headers.addAll(headers);
   }
 
@@ -47,9 +47,9 @@ class SenzuPlayerSubtitle {
     this.url_, {
     this.type = SubtitleType.webvtt,
     Map<String, String>? headers,
-  }) : initType = SubtitleInitializeType.string,
-       keyHex = null,
-       ivHex = null {
+  })  : initType = SubtitleInitializeType.string,
+        keyHex = null,
+        ivHex = null {
     if (headers != null) _headers.addAll(headers);
   }
 
@@ -59,8 +59,8 @@ class SenzuPlayerSubtitle {
     required this.ivHex,
     this.type = SubtitleType.webvtt,
     Map<String, String>? headers,
-  }) : initType = SubtitleInitializeType.decrypt,
-       content = '' {
+  })  : initType = SubtitleInitializeType.decrypt,
+        content = '' {
     if (headers != null) _headers.addAll(headers);
   }
 
@@ -154,10 +154,8 @@ class SenzuPlayerSubtitle {
     } catch (_) {
       decoded = text;
     }
-    final lines = decoded
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n')
-        .split('\n');
+    final lines =
+        decoded.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n');
     final key = _hb(kHex), iv = _hb(iHex);
     if (key.length != 16 || iv.length != 16) {
       throw ArgumentError('key/iv must be 16 bytes');
@@ -172,20 +170,18 @@ class SenzuPlayerSubtitle {
         RegExp(r'^[0-9a-fA-F]+$').hasMatch(s);
     bool isCueId(String s) => s.length == 32 && isHex(s);
 
-    return lines
-        .map((line) {
-          final t = line.trim();
-          if (t.isEmpty || t == 'WEBVTT' || tsRx.hasMatch(t) || isCueId(t)) {
-            return line;
-          }
-          if (isHex(t)) {
-            try {
-              return _aes(t, key, iv);
-            } catch (_) {}
-          }
-          return line;
-        })
-        .join('\n');
+    return lines.map((line) {
+      final t = line.trim();
+      if (t.isEmpty || t == 'WEBVTT' || tsRx.hasMatch(t) || isCueId(t)) {
+        return line;
+      }
+      if (isHex(t)) {
+        try {
+          return _aes(t, key, iv);
+        } catch (_) {}
+      }
+      return line;
+    }).join('\n');
   }
 
   String _aes(String hex, Uint8List key, Uint8List iv) {

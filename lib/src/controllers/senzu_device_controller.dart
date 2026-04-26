@@ -3,16 +3,16 @@ import 'package:get/get.dart';
 import 'package:senzu_player/src/platform/senzu_native_channel.dart';
 
 class SenzuDeviceController extends GetxController {
-  final volume       = 1.0.obs;
-  final brightness   = 0.5.obs;
+  final volume = 1.0.obs;
+  final brightness = 0.5.obs;
   final batteryLevel = 0.obs;
   final batteryState = 'unknown'.obs;
-  final isMuted      = false.obs;
- 
+  final isMuted = false.obs;
+
   double _volBeforeMute = 1.0;
-  StreamSubscription<double>?               _volSub;
+  StreamSubscription<double>? _volSub;
   StreamSubscription<Map<String, dynamic>>? _batSub;
- 
+
   @override
   void onInit() {
     super.onInit();
@@ -26,20 +26,20 @@ class SenzuDeviceController extends GetxController {
     });
     _initDevice();
   }
- 
+
   Future<void> _initDevice() async {
-    volume.value       = await SenzuNativeChannel.getVolume();
-    brightness.value   = await SenzuNativeChannel.getBrightness();
+    volume.value = await SenzuNativeChannel.getVolume();
+    brightness.value = await SenzuNativeChannel.getBrightness();
     batteryLevel.value = await SenzuNativeChannel.getBatteryLevel();
     batteryState.value = await SenzuNativeChannel.getBatteryState();
   }
- 
+
   Future<void> setVolume(double v) async {
     volume.value = v.clamp(0.0, 1.0);
     await SenzuNativeChannel.setVolume(volume.value);
     if (isMuted.value && v > 0) isMuted.value = false;
   }
- 
+
   Future<void> toggleMute() async {
     if (isMuted.value) {
       isMuted.value = false;
@@ -50,12 +50,12 @@ class SenzuDeviceController extends GetxController {
       await setVolume(0);
     }
   }
- 
+
   Future<void> setBrightness(double b) async {
     brightness.value = b.clamp(0.0, 1.0);
     await SenzuNativeChannel.setBrightness(brightness.value);
   }
- 
+
   @override
   void onClose() {
     _volSub?.cancel();

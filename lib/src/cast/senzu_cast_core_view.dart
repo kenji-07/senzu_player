@@ -117,7 +117,9 @@ class _SenzuCastCoreViewState extends State<SenzuCastCoreView> {
 
     _dragVolTimer?.cancel();
     _dragVolTimer = Timer(const Duration(milliseconds: 900), () {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _dragVol = null);
     });
 
@@ -127,7 +129,9 @@ class _SenzuCastCoreViewState extends State<SenzuCastCoreView> {
   void _onDragEnd(DragEndDetails _) {
     _dragVolTimer?.cancel();
     _dragVolTimer = Timer(const Duration(milliseconds: 700), () {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _dragVol = null);
     });
   }
@@ -481,7 +485,7 @@ class _CastBottomBar extends StatelessWidget {
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                         Icon(
+                        Icon(
                           Icons.cast_connected,
                           color: style.progressBarStyle.color,
                           size: 14,
@@ -489,7 +493,7 @@ class _CastBottomBar extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           castController.connectedDeviceName ?? 'Cast',
-                          style:  TextStyle(
+                          style: TextStyle(
                             color: style.progressBarStyle.color,
                             fontSize: 11,
                           ),

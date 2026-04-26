@@ -67,7 +67,9 @@ class _SenzuSidePanelState extends State<SenzuSidePanel> {
       (active) {
         if (active == widget.panel) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
+            if (!mounted) {
+              return;
+            }
             _panelNode.requestFocus();
           });
         }
@@ -680,7 +682,6 @@ class _PanelItemState extends State<_PanelItem> {
                     ? Colors.white.withValues(alpha: 0.08)
                     : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
-            
           ),
           child: Row(
             children: [

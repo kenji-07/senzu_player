@@ -25,7 +25,9 @@ class _SenzuPipButtonState extends State<SenzuPipButton> {
     super.initState();
     _checkSupport();
     _pipSub = SenzuNativeChannel.pipStream.listen((event) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _active = event['isActive'] as bool? ?? false);
     });
   }

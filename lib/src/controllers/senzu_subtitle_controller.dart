@@ -15,7 +15,7 @@ class SenzuSubtitleController extends GetxController {
   final SenzuPlaybackController playback;
 
   // ── Rx ────────────────────────────────────────────────────────────────────
-  final subtitleSize  = 23.obs;
+  final subtitleSize = 23.obs;
   final activeCaption = RxnString();
 
   // ── ValueNotifier — widget rebuilds on subtitle change ──────────────────
@@ -96,7 +96,7 @@ class SenzuSubtitleController extends GetxController {
       ..sort((a, b) => a.start.compareTo(b.start));
 
     _cache[name] = sorted;
-    _activeSubs  = sorted;
+    _activeSubs = sorted;
   }
 
   void setSubtitleSize(int size) => subtitleSize.value = size;
