@@ -127,7 +127,7 @@ class SenzuUIController extends GetxController {
   List<SenzuChapter> get chapters => _chapters;
 
   // ── Source change ──────────────────────────────────────────────────────────
-  void _onSourceChanged(_) {
+  void _onSourceChanged(Object? value) {
     _thumbnailDismissed = false;
     isShowingThumbnail.value = true;
     _lastSkipPos = Duration.zero;
