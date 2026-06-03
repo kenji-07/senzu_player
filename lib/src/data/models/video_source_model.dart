@@ -145,6 +145,7 @@ class VideoSource {
     Tween<Duration>? range,
     Map<String, String>? httpHeaders,
     SenzuThumbnailSprite? thumbnailSprite,
+    VideoProtocol protocol = VideoProtocol.hls,
     final SenzuDrmConfig? drm,
   }) =>
       sources.map(
@@ -159,6 +160,7 @@ class VideoSource {
             httpHeaders: httpHeaders,
             thumbnailSprite: thumbnailSprite,
             drm: drm,
+            protocol: protocol,
           ),
         ),
       );

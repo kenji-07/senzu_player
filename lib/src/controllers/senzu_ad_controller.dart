@@ -41,6 +41,7 @@ class SenzuAdController extends GetxController {
   final _queuedAds = <SenzuPlayerAd>[];
   StreamSubscription<SenzuNativeVideoState>? _adStreamSub;
   Duration _lastAdCheckPos = Duration.zero;
+  Worker? _sourceWorker;
 
   int get currentAdIndex => adsSeen.length;
 
@@ -57,7 +58,7 @@ class SenzuAdController extends GetxController {
       _attachAdStreamListener();
     };
 
-    core.onSourceChanged = (name) {
+    _sourceWorker = ever(core.rxActiveSource, (name) {
       if (_disposed) return;
       _lastCheckedPos = Duration.zero;
       _lastAdCheckPos = Duration.zero;
@@ -67,7 +68,7 @@ class SenzuAdController extends GetxController {
       _detachAdStreamListener();
       if (isAdActive.value) _forceEndAd();
       shouldShowContentVideo.value = true;
-    };
+    });
   }
 
   void _attachAdStreamListener() {
@@ -318,6 +319,7 @@ class SenzuAdController extends GetxController {
       _adsLoader?.contentComplete();
     } catch (_) {}
     _adsLoader = null;
+    _sourceWorker?.dispose();
     super.onClose();
   }
 }

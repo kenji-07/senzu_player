@@ -7,6 +7,7 @@ class SenzuTokenManager {
   final SenzuTokenConfig config;
 
   Timer? _refreshTimer;
+  bool _disposed = false;
 
   /// URL-д expiry query param байвал автоматаар timer тохируулна
   void scheduleRefresh({
@@ -24,12 +25,12 @@ class SenzuTokenManager {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final delay = expiry - now - config.refreshBeforeExpirySec;
     if (delay <= 0) {
-      _doRefresh(sourceName, currentHeaders, onRefreshed);
+      if (!_disposed) _doRefresh(sourceName, currentHeaders, onRefreshed);
       return;
     }
 
     _refreshTimer = Timer(Duration(seconds: delay), () {
-      _doRefresh(sourceName, currentHeaders, onRefreshed);
+      if (!_disposed) _doRefresh(sourceName, currentHeaders, onRefreshed);
     });
   }
 
@@ -40,6 +41,9 @@ class SenzuTokenManager {
   ) async {
     try {
       final result = await config.onRefresh(sourceName, headers);
+      // Async хүлээсэн хугацаанд dispose() дуудагдсан байж болно —
+      // тийм тохиолдолд callback дуудахгүй.
+      if (_disposed) return;
       final newUrl = result['url'] ?? '';
       final newHeaders = Map<String, String>.from(result)..remove('url');
       if (newUrl.isNotEmpty) onRefreshed(newUrl, newHeaders);
@@ -61,5 +65,10 @@ class SenzuTokenManager {
     }
   }
 
-  void cancel() => _refreshTimer?.cancel();
+  /// Timer-г зогсоож, disposed тэмдэглэнэ.
+  /// Энэ дараа async refresh дуусаад callback дуудахгүй болно.
+  void cancel() {
+    _disposed = true;
+    _refreshTimer?.cancel();
+  }
 }

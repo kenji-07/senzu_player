@@ -90,6 +90,7 @@ class SenzuCastService {
   static const _nativeMethod = MethodChannel('senzu_player/native');
 
   static StreamSubscription<dynamic>? _eventSub;
+  static int _listenerCount = 0;
 
   static final _castStateCtrl = StreamController<SenzuCastState>.broadcast();
   static final _remoteStateCtrl =
@@ -136,6 +137,7 @@ class SenzuCastService {
   }
 
   static void startListening() {
+    _listenerCount++;
     _eventSub ??= _castEvent.receiveBroadcastStream().listen((event) {
       final m = Map<dynamic, dynamic>.from(event as Map);
       switch (m['type'] as String?) {
@@ -155,8 +157,12 @@ class SenzuCastService {
   }
 
   static void stopListening() {
-    _eventSub?.cancel();
-    _eventSub = null;
+    _listenerCount--;
+    if (_listenerCount <= 0) {
+      _listenerCount = 0;
+      _eventSub?.cancel();
+      _eventSub = null;
+    }
   }
 
   static SenzuCastState _parseCastState(String? s) {

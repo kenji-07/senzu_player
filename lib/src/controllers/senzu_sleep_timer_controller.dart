@@ -1,13 +1,11 @@
 import 'dart:async';
-import 'package:flutter/animation.dart';
 import 'package:get/get.dart';
 
 import 'package:senzu_player/src/controllers/senzu_core_controller.dart';
 import 'package:senzu_player/src/controllers/senzu_device_controller.dart';
 import 'package:senzu_player/src/platform/senzu_native_channel.dart';
 
-class SenzuSleepTimerController extends GetxController
-    with GetSingleTickerProviderStateMixin {
+class SenzuSleepTimerController extends GetxController {
   SenzuSleepTimerController({required this.core, required this.device});
   final SenzuCoreController core;
   final SenzuDeviceController device;
@@ -17,8 +15,7 @@ class SenzuSleepTimerController extends GetxController
   final isSleeping = false.obs;
 
   Timer? _timer;
-  AnimationController? _fadeCtrl;
-  Animation<double>? _fadeAnim;
+  Timer? _fadeTimer;
 
   double _savedVolume = 1.0;
   double _savedBrightness = 1.0;
@@ -47,40 +44,42 @@ class SenzuSleepTimerController extends GetxController
     await core.pause();
     await SenzuNativeChannel.disableWakelock();
 
-    _fadeCtrl?.dispose();
-    _fadeCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    );
+    _fadeTimer?.cancel();
+    int elapsedMs = 0;
+    const durationMs = 3000;
+    const intervalMs = 50;
 
-    _fadeAnim = CurvedAnimation(parent: _fadeCtrl!, curve: Curves.easeIn);
+    _fadeTimer = Timer.periodic(const Duration(milliseconds: intervalMs), (timer) async {
+      elapsedMs += intervalMs;
+      if (elapsedMs >= durationMs) {
+        timer.cancel();
+        _fadeTimer = null;
+        device.volume.value = 0.0;
+        device.brightness.value = 0.0;
+        await SenzuNativeChannel.setVolume(0.0);
+        await SenzuNativeChannel.setBrightness(0.0);
+        isSleeping.value = true;
+        return;
+      }
 
-    _fadeCtrl!.addListener(() {
-      final t = _fadeAnim!.value;
-      final vol = (_savedVolume * (1 - t)).clamp(0.0, 1.0);
-      final bri = (_savedBrightness * (1 - t)).clamp(0.0, 1.0);
+      final t = elapsedMs / durationMs;
+      final tCurved = t * t; // ease-in curve approximation
+      final vol = (_savedVolume * (1 - tCurved)).clamp(0.0, 1.0);
+      final bri = (_savedBrightness * (1 - tCurved)).clamp(0.0, 1.0);
+
       device.volume.value = vol;
       device.brightness.value = bri;
-      SenzuNativeChannel.setVolume(vol);
-      SenzuNativeChannel.setBrightness(bri);
-    });
-
-    _fadeCtrl!.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        isSleeping.value = true;
-      }
+      await SenzuNativeChannel.setVolume(vol);
+      await SenzuNativeChannel.setBrightness(bri);
     });
 
     // force pause
     await core.pause();
-
-    await _fadeCtrl!.forward();
   }
 
   Future<void> cancel() async {
-    _fadeCtrl?.stop();
-    _fadeCtrl?.dispose();
-    _fadeCtrl = null;
+    _fadeTimer?.cancel();
+    _fadeTimer = null;
 
     isSleeping.value = false;
 
@@ -98,7 +97,7 @@ class SenzuSleepTimerController extends GetxController
   @override
   void onClose() {
     _timer?.cancel();
-    _fadeCtrl?.dispose();
+    _fadeTimer?.cancel();
     super.onClose();
   }
 }

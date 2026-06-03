@@ -10,6 +10,7 @@ class SenzuNativeChannel {
   static const _event = EventChannel('senzu_player/events');
 
   static StreamSubscription<dynamic>? _sub;
+  static int _listenerCount = 0;
 
   static final _playbackCtrl =
       StreamController<SenzuNativeVideoState>.broadcast();
@@ -27,6 +28,7 @@ class SenzuNativeChannel {
   static Stream<Map<String, dynamic>> get pipStream => _pipCtrl.stream;
 
   static void startListening() {
+    _listenerCount++;
     _sub ??= _event.receiveBroadcastStream().listen((e) {
       final m = Map<String, dynamic>.from(e as Map);
       switch (m['type'] as String?) {
@@ -51,8 +53,12 @@ class SenzuNativeChannel {
   }
 
   static void stopListening() {
-    _sub?.cancel();
-    _sub = null;
+    _listenerCount--;
+    if (_listenerCount <= 0) {
+      _listenerCount = 0;
+      _sub?.cancel();
+      _sub = null;
+    }
   }
 
   // ── Codec ─────────────────────────────────────────────────────────────────
@@ -143,4 +149,8 @@ class SenzuNativeChannel {
   static Future<void> disablePip() => _method.invokeMethod('disablePip');
   static Future<void> enterPip() => _method.invokeMethod('enterPip');
   static Future<void> exitPip() => _method.invokeMethod('exitPip');
+
+  // ── URL Launcher ──────────────────────────────────────────────────────────
+  static Future<bool> launchUrl(String url) async =>
+      (await _method.invokeMethod<bool>('launchUrl', {'url': url})) ?? false;
 }

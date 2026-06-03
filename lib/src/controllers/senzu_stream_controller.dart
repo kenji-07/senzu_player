@@ -34,14 +34,16 @@ class SenzuStreamController extends GetxController {
   DateTime? _lastQualitySwitch;
 
   Timer? _abTimer;
+  Worker? _sourceWorker;
+  Worker? _nativeStateWorker;
 
   @override
   void onInit() {
     super.onInit();
     // rxNativeState өөрчлөгдөхөд live edge шинэчилнэ
-    ever(core.rxNativeState, _onState);
+    _nativeStateWorker = ever(core.rxNativeState, _onState);
     // Source солигдоход ABR monitor дахин эхэлнэ
-    core.onSourceChanged = (_) => _startAbMonitor();
+    _sourceWorker = ever(core.rxActiveSource, (_) => _startAbMonitor());
     _startAbMonitor();
   }
 
@@ -112,7 +114,10 @@ class SenzuStreamController extends GetxController {
   }
 
   bool _switchQuality(int dir) {
-    final srcs = core.rxSources.value!;
+    // rxSources.value нь source солигдох үед null байж болно —
+    // тийм тохиолдолд аюулгүйгээр false буцаана.
+    final srcs = core.rxSources.value;
+    if (srcs == null || srcs.isEmpty) return false;
     final keys = srcs.keys.toList();
     final idx = keys.indexOf(core.rxActiveSource.value ?? '');
     final next = idx - dir;
@@ -126,7 +131,8 @@ class SenzuStreamController extends GetxController {
   @override
   void onClose() {
     _abTimer?.cancel();
-    core.onSourceChanged = null;
+    _sourceWorker?.dispose();
+    _nativeStateWorker?.dispose();
     super.onClose();
   }
 }

@@ -106,6 +106,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
 
   StreamSubscription<double>? _volSub;
   StreamSubscription<Map<String, dynamic>>? _batSub;
+  Worker? _fullscreenWorker;
 
   // ── External callbacks ─────────────────────────────────────────────────────
   bool Function()? isAdActiveCallback;
@@ -148,7 +149,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     SenzuNativeChannel.startListening();
     _volSub = SenzuNativeChannel.volumeStream.listen((_) {});
     _batSub = SenzuNativeChannel.batteryStream.listen((_) {});
-    ever(isFullScreen, _onFullscreenChanged);
+    _fullscreenWorker = ever(isFullScreen, _onFullscreenChanged);
   }
 
   void _onFullscreenChanged(bool fs) {
@@ -185,6 +186,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     _releaseNative();
     if (secureMode) SenzuNativeChannel.disableSecureMode();
     _tokenManager?.cancel();
+    _fullscreenWorker?.dispose();
     super.onClose();
   }
 
@@ -626,8 +628,14 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
         isCastActive.value = true;
         SenzuNativeChannel.setNowPlayingEnabled(false);
         final savedPosition = rxNativeState.value.position;
-        _releaseNative();
-        castCurrentSource(overridePosition: savedPosition);
+        // _releaseNative()-г await хийж дуусаад л castCurrentSource()-г
+        // дуудна. Тэгэхгүй бол native player суллагдаагүй байхад cast
+        // эхлэх race condition үүсдэг байсан.
+        () async {
+          await _releaseNative();
+          if (_disposed) return;
+          await castCurrentSource(overridePosition: savedPosition);
+        }();
 
       case SenzuCastState.notConnected:
         final wasActive = isCastActive.value;

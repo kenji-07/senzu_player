@@ -33,6 +33,8 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
 
     private lateinit var methodChannel: MethodChannel
     private lateinit var eventChannel: EventChannel
+    private lateinit var downloadMethodChannel: MethodChannel
+    private lateinit var downloadEventChannel: EventChannel
 
     private var appContext: Context? = null
     private var activity: Activity? = null
@@ -70,11 +72,81 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
             "senzu_player/surface",
             SenzuSurfaceViewFactory(binding.binaryMessenger)
         )
+
+        downloadMethodChannel = MethodChannel(binding.binaryMessenger, "senzu_player/downloader")
+        downloadMethodChannel.setMethodCallHandler { call, result ->
+            val args = call.arguments as? Map<*, *>
+            val ctx = activity ?: appContext ?: run {
+                result.error("NO_CONTEXT", "Context is null", null)
+                return@setMethodCallHandler
+            }
+            when (call.method) {
+                "startDownload" -> {
+                    val id = args?.get("id") as String
+                    val url = args?.get("url") as String
+                    val headers = (args?.get("headers") as? Map<*, *>)?.map { it.key.toString() to it.value.toString() } ?: emptyMap()
+                    val drmConfig = (args?.get("drmConfig") as? Map<*, *>)?.map { it.key.toString() to it.value } ?: emptyMap()
+                    val title = args?.get("title") as? String ?: ""
+                    SenzuDownloadManager.startDownload(ctx, id, url, headers, drmConfig, title)
+                    result.success(null)
+                }
+                "pauseDownload" -> {
+                    val id = args?.get("id") as String
+                    SenzuDownloadManager.pauseDownload(ctx, id)
+                    result.success(null)
+                }
+                "resumeDownload" -> {
+                    val id = args?.get("id") as String
+                    SenzuDownloadManager.resumeDownload(ctx, id)
+                    result.success(null)
+                }
+                "cancelDownload" -> {
+                    val id = args?.get("id") as String
+                    SenzuDownloadManager.cancelDownload(ctx, id)
+                    result.success(null)
+                }
+                "deleteDownload" -> {
+                    val id = args?.get("id") as String
+                    SenzuDownloadManager.deleteDownload(ctx, id)
+                    result.success(null)
+                }
+                "notifyLicenseExpired" -> {
+                    val id = args?.get("id") as String
+                    val title = args?.get("title") as? String ?: ""
+                    SenzuDownloadManager.notifyLicenseExpired(ctx, id, title)
+                    result.success(null)
+                }
+                "requestNotificationPermission" -> {
+                    SenzuDownloadManager.requestNotificationPermission(activity)
+                    result.success(null)
+                }
+                "setNotificationLocales" -> {
+                    val downloadCompleteTitle = args?.get("downloadCompleteTitle") as? String ?: ""
+                    val downloadCompleteBody = args?.get("downloadCompleteBody") as? String ?: ""
+                    val downloadFailedTitle = args?.get("downloadFailedTitle") as? String ?: ""
+                    val downloadFailedBody = args?.get("downloadFailedBody") as? String ?: ""
+                    val licenseExpiredTitle = args?.get("licenseExpiredTitle") as? String ?: ""
+                    val licenseExpiredBody = args?.get("licenseExpiredBody") as? String ?: ""
+                    SenzuDownloadManager.setNotificationLocales(
+                        downloadCompleteTitle, downloadCompleteBody,
+                        downloadFailedTitle, downloadFailedBody,
+                        licenseExpiredTitle, licenseExpiredBody
+                    )
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        downloadEventChannel = EventChannel(binding.binaryMessenger, "senzu_player/downloader_events")
+        downloadEventChannel.setStreamHandler(SenzuDownloadManager)
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel.setMethodCallHandler(null)
         eventChannel.setStreamHandler(null)
+        downloadMethodChannel.setMethodCallHandler(null)
+        downloadEventChannel.setStreamHandler(null)
         exoManager?.dispose()
         exoManager = null
         castPlugin?.dispose()
@@ -252,6 +324,15 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
 
             "checkDrmSupport" -> result.success(SenzuDrmManager.isWidevineSupported())
 
+            // ── URL Launcher ───────────────────────────────────────────────
+            "launchUrl" -> {
+                val url = args?.get("url") as? String ?: ""
+                val launched = if (ctx != null && url.isNotEmpty()) {
+                    SenzuUrlLauncher.launchUrl(ctx, url)
+                } else false
+                result.success(launched)
+            }
+
             else -> result.notImplemented()
         }
     }
@@ -300,7 +381,18 @@ class SenzuPlayerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
                 }
             }
         }
-        appContext?.registerReceiver(batteryReceiver, filter)
+        // Android 13+ (API 33) нь RECEIVER_NOT_EXPORTED flag шаардлагатай.
+        // Тэгэхгүй бол SecurityException гарна.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            appContext?.registerReceiver(
+                batteryReceiver,
+                filter,
+                Context.RECEIVER_NOT_EXPORTED
+            )
+        } else {
+            appContext?.registerReceiver(batteryReceiver, filter)
+        }
+
     }
 
     override fun onCancel(arguments: Any?) {

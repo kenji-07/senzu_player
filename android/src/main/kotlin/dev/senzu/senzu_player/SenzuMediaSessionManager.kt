@@ -16,6 +16,7 @@ import androidx.media.app.NotificationCompat.MediaStyle
 import io.flutter.plugin.common.EventChannel
 import java.net.URL
 import java.util.concurrent.Executors
+import java.util.concurrent.ExecutorService
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SenzuMediaSessionManager
@@ -66,7 +67,7 @@ class SenzuMediaSessionManager(
 
     private var cachedArtwork: Bitmap? = null
     private var cachedArtworkUrl: String? = null
-    private val artworkExecutor = Executors.newSingleThreadExecutor()
+    private var artworkExecutor: ExecutorService? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // ── Constants ──────────────────────────────────────────────────────────
@@ -307,7 +308,9 @@ class SenzuMediaSessionManager(
         val url = artworkUrl ?: return
         if (url == cachedArtworkUrl && cachedArtwork != null) { onComplete(); return }
 
-        artworkExecutor.execute {
+        val executor = artworkExecutor ?: Executors.newSingleThreadExecutor().also { artworkExecutor = it }
+
+        executor.execute {
             try {
                 val bitmap = BitmapFactory.decodeStream(URL(url).openStream())
                 mainHandler.post {
@@ -347,5 +350,7 @@ class SenzuMediaSessionManager(
         mediaSession?.release()
         mediaSession = null
         isPlaying = false
+        artworkExecutor?.shutdown()
+        artworkExecutor = null
     }
 }

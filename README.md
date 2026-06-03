@@ -13,6 +13,7 @@ A powerful, feature-rich Flutter video player plugin built on top of **AVPlayer*
 | Feature | iOS | Android | TV |
 |---|---|---|---|
 | HLS / DASH / MP4 | ✅ | ✅ | ✅ |
+| Offline background downloading | ✅ | ✅ | — |
 | FairPlay DRM | ✅ | — | ✅ |
 | Widevine DRM | — | ✅ | ✅ |
 | Picture-in-Picture | ✅ | ✅ (API 26+) | — |
@@ -24,7 +25,7 @@ A powerful, feature-rich Flutter video player plugin built on top of **AVPlayer*
 | Audio track selection | ✅ | ✅ | ✅ |
 | Subtitles (WebVTT / SRT) | ✅ | ✅ | ✅ |
 | Encrypted subtitles (AES-128-CBC) | ✅ | ✅ | ✅ |
-| Chapters & skip OP/ED | ✅ | ✅ | - |
+| Chapters & skip OP/ED | ✅ | ✅ | — |
 | Annotations overlay | ✅ | ✅ | — |
 | Watermark overlay | ✅ | ✅ | ✅ |
 | Sleep timer | ✅ | ✅ | — |
@@ -45,7 +46,7 @@ A powerful, feature-rich Flutter video player plugin built on top of **AVPlayer*
 
 ```yaml
 dependencies:
-  senzu_player: ^1.1.1
+  senzu_player: ^1.2.0
 ```
 
 ### iOS
@@ -565,6 +566,54 @@ final bundle = SenzuPlayerBundle.create(
 
 ---
 
+### Offline Media Downloader (Mobile only)
+
+`senzu_player` supports native background downloading (using Media3 on Android and AVFoundation on iOS) with real-time size tracking and system notifications.
+
+#### Start Download
+
+```dart
+import 'package:senzu_player/senzu_player.dart';
+
+// Start downloading a video (supports HLS/m3u8 and progressive MP4/Audio)
+await SenzuDownloader.instance.startDownload(
+  id: 'video_123',
+  url: 'https://example.com/master.m3u8',
+  title: 'My Downloaded Video',
+  description: 'Season 1 Episode 1',
+  posterUrl: 'https://example.com/poster.jpg',
+  subtitleUrl: 'https://example.com/subtitle.vtt',
+  language: const SenzuLanguage(), // Option to localize native notifications
+);
+```
+
+#### Track Download Size & Progress
+
+```dart
+SenzuDownloader.instance.onProgressChanged.listen((DownloadTask task) {
+  print('Download Progress: ${task.progress}%');
+  print('Downloaded Size: ${task.progressSizeText}'); // e.g., "12.5 MB / 150.0 MB"
+});
+```
+
+#### Control Downloads
+
+```dart
+// Pause download
+await SenzuDownloader.instance.pauseDownload('video_123');
+
+// Resume download
+await SenzuDownloader.instance.resumeDownload('video_123');
+
+// Cancel/Delete download files and remove from DB
+await SenzuDownloader.instance.deleteDownload('video_123');
+
+// Request notification permission (Android 13+ runtime flow, iOS prompt)
+await SenzuDownloader.instance.requestNotificationPermission();
+```
+
+---
+
 ### Controlling Playback Externally
 
 ```dart
@@ -735,7 +784,7 @@ SenzuPlayerStyle(
 |---|---|
 | iOS / tvOS | 15.0 |
 | Android / Android TV | API 21 (Android 5.0) |
-| Flutter | 3.16.0 |
+| Flutter | 3.27.0 |
 | Dart | 3.0.0 |
 
 ---

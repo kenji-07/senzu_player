@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'senzu_player'
-  s.version          = '1.1.2'
+  s.version          = '1.2.0'
   s.summary          = 'Senzu Video Player — native iOS plugin'
   s.description      = <<-DESC
     Native AVPlayer-based video player plugin for Flutter with:
@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'Kenji' => 'b684489@gmail.com' }
   s.source           = { :path => '.' }
-  s.source_files     = 'Classes/**/*.swift'
+  s.source_files     = 'senzu_player/Sources/senzu_player/**/*.swift'
 
   s.dependency 'Flutter'
   s.dependency 'ScreenProtectorKit'

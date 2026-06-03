@@ -6,6 +6,7 @@ class SenzuPlaybackController extends GetxController {
   SenzuPlaybackController({required this.core});
 
   final SenzuCoreController core;
+  Worker? _stateWorker;
 
   // ── Rx observables ─────────────────────────────────────────────────────────
   final position = Duration.zero.obs;
@@ -20,7 +21,7 @@ class SenzuPlaybackController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    ever(core.rxNativeState, _onState);
+    _stateWorker = ever(core.rxNativeState, _onState);
 
     // Apply current state if already initialized
     final current = core.rxNativeState.value;
@@ -64,4 +65,10 @@ class SenzuPlaybackController extends GetxController {
 
   // ── Drag ──────────────────────────────────────────────────────────────────
   void setDragging(bool v) => isDragging.value = v;
+
+  @override
+  void onClose() {
+    _stateWorker?.dispose();
+    super.onClose();
+  }
 }

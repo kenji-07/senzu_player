@@ -1,13 +1,14 @@
 name: senzu_player
 description: >-
   Feature-rich Flutter video player with GetX state management, Native player.
-version: 1.1.2
+version: 1.2.0
 homepage: https://github.com/kenji-07/senzu_player
+documentation: https://github.com/kenji-07/senzu_player/blob/main/README.md
 repository: https://github.com/kenji-07/senzu_player
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
-  flutter: ">=3.16.0"
+  flutter: ">=3.27.0"
 
 flutter:
   plugin:
@@ -28,11 +29,14 @@ dependencies:
   # HTTP
   http: ^1.6.0
   # IMA ads
-  interactive_media_ads: ^0.3.0+14
-  # URL launcher
-  url_launcher: ^6.3.2
+  interactive_media_ads: ^0.3.0+16
 
   cached_network_image: ^3.4.1
+
+  # Download
+  sqflite: ^2.4.3
+  path_provider: ^2.1.2
+  path: ^1.9.0
 
 dev_dependencies:
   flutter_test:

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:pointycastle/export.dart';
@@ -78,13 +79,31 @@ class SenzuPlayerSubtitle {
   Future<void> initialize() async {
     switch (initType) {
       case SubtitleInitializeType.network:
-        final r = await http.get(Uri.parse(url_), headers: _headers);
-        content = r.statusCode == 200 ? utf8.decode(r.bodyBytes) : '';
+        String rawContent = '';
+        if (url_.startsWith('http://') || url_.startsWith('https://')) {
+          final r = await http.get(Uri.parse(url_), headers: _headers);
+          rawContent = r.statusCode == 200 ? utf8.decode(r.bodyBytes) : '';
+        } else {
+          final file = File(url_.startsWith('file://') ? Uri.parse(url_).toFilePath() : url_);
+          if (await file.exists()) {
+            rawContent = await file.readAsString();
+          }
+        }
+        content = rawContent;
         _parse();
       case SubtitleInitializeType.decrypt:
-        final r = await http.get(Uri.parse(url_), headers: _headers);
-        content = r.statusCode == 200
-            ? _decryptCdn(utf8.decode(r.bodyBytes), keyHex!, ivHex!)
+        String rawContent = '';
+        if (url_.startsWith('http://') || url_.startsWith('https://')) {
+          final r = await http.get(Uri.parse(url_), headers: _headers);
+          rawContent = r.statusCode == 200 ? utf8.decode(r.bodyBytes) : '';
+        } else {
+          final file = File(url_.startsWith('file://') ? Uri.parse(url_).toFilePath() : url_);
+          if (await file.exists()) {
+            rawContent = await file.readAsString();
+          }
+        }
+        content = rawContent.isNotEmpty
+            ? _decryptCdn(rawContent, keyHex!, ivHex!)
             : '';
         _parse();
       case SubtitleInitializeType.string:

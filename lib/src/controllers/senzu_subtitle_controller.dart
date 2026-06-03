@@ -25,14 +25,16 @@ class SenzuSubtitleController extends GetxController {
   final Map<String, List<SubtitleData>> _cache = {};
   List<SubtitleData> _activeSubs = [];
   SubtitleData? _lastFound;
+  Worker? _positionWorker;
+  Worker? _sourceWorker;
 
   @override
   void onInit() {
     super.onInit();
 
-    ever(playback.position, _onPosition);
+    _positionWorker = ever(playback.position, _onPosition);
 
-    ever(core.rxActiveSource, (_) {
+    _sourceWorker = ever(core.rxActiveSource, (_) {
       _lastFound = null;
       currentSubtitle.value = null;
     });
@@ -108,6 +110,8 @@ class SenzuSubtitleController extends GetxController {
     _activeSubs = [];
     currentSubtitle.dispose();
     core.onSubtitleChangeRequested = null;
+    _positionWorker?.dispose();
+    _sourceWorker?.dispose();
     super.onClose();
   }
 }

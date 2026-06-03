@@ -80,6 +80,14 @@ class SenzuLanguage {
 
     // ── Buffering / loading overlay ───────────────
     this.preparingPrefix = 'Preparing',
+
+    // ── Notifications ─────────────────────────────
+    this.downloadCompleteTitle = 'Таталт амжилттай',
+    this.downloadCompleteBody = 'Видеог офлайн горимд үзэх боломжтой боллоо.',
+    this.downloadFailedTitle = 'Таталт амжилтгүй',
+    this.downloadFailedBody = 'Видеог татахад алдаа гарлаа.',
+    this.licenseExpiredTitle = 'Лиценз дууссан',
+    this.licenseExpiredBody = 'Офлайн лицензийн хугацаа дууссан байна.',
   });
 
   // Cellular
@@ -162,6 +170,14 @@ class SenzuLanguage {
 
   // Buffer overlay prefix
   final String preparingPrefix;
+
+  // Notifications
+  final String downloadCompleteTitle;
+  final String downloadCompleteBody;
+  final String downloadFailedTitle;
+  final String downloadFailedBody;
+  final String licenseExpiredTitle;
+  final String licenseExpiredBody;
 
   /// Formats the ad counter string, e.g. "Ad 1 of 3".
   String adCounter(int current, int total) =>

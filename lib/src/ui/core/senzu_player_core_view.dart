@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:senzu_player/src/platform/senzu_native_channel.dart';
 
 import 'package:senzu_player/src/cast/senzu_cast_core_view.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_video_surface.dart';
@@ -1083,8 +1083,7 @@ class _AdViewer extends StatelessWidget {
               top: 16,
               child: GestureDetector(
                 onTap: () async {
-                  final uri = Uri.parse(ad.deepLink);
-                  if (await canLaunchUrl(uri)) await launchUrl(uri);
+                  await SenzuNativeChannel.launchUrl(ad.deepLink);
                 },
                 child: Text(
                   style.senzuLanguage.learnMore,

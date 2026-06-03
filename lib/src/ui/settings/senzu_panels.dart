@@ -658,8 +658,6 @@ class _PanelItem extends StatelessWidget {
                   ),
                 ),
               ),
-              if (selected)
-                const Icon(Icons.multitrack_audio, size: 16, color: Colors.red),
               if (selected) style.settingsPanelStyle.selectedIcon,
             ],
           ),

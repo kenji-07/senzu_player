@@ -106,14 +106,17 @@ class SenzuPlayerBundle {
 
   void dispose() {
     log('SENZU PLAYER BUNDLE DESPOSE');
+    // Core-с хамаарах controllerуудыг эхлээд хаана,
+    // дараа нь core-г хаана. Ингэснээр тэдгээр нь
+    // аль хэдийн устгагдсан core руу хандахгүй.
+    sleepTimer.onClose();
+    annotation.onClose();
     device.onClose();
     ui.onClose();
     stream.onClose();
     ad.onClose();
     subtitle.onClose();
     playback.onClose();
-    core.onClose();
-    sleepTimer.onClose();
-    annotation.onClose();
+    core.onClose(); // хамгийн сүүлд
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'player_page.dart';
 import 'tv_player.dart';
+import 'download_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,6 +73,13 @@ class ExampleHome extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => const BPlayer()),
               ),
             ),
+            const Divider(height: 1, color: Colors.white10),
+            _TvListTile(
+              title: 'Downloads & Offline Player',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DownloadPage()),
+              ),
+            ),
           ],
         ),
       ),
@@ -136,19 +144,22 @@ class _TvListTileState extends State<_TvListTile> {
             ),
           ),
         ),
-        child: ListTile(
-          title: Text(
-            widget.title,
-            style: TextStyle(
-              color: _focused ? Colors.white : Colors.white70,
-              fontWeight: _focused ? FontWeight.bold : FontWeight.normal,
+        child: Material(
+          color: Colors.transparent,
+          child: ListTile(
+            title: Text(
+              widget.title,
+              style: TextStyle(
+                color: _focused ? Colors.white : Colors.white70,
+                fontWeight: _focused ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
+            trailing: Icon(
+              Icons.chevron_right,
+              color: _focused ? const Color(0xFFFF4444) : Colors.white38,
+            ),
+            onTap: widget.onTap,
           ),
-          trailing: Icon(
-            Icons.chevron_right,
-            color: _focused ? const Color(0xFFFF4444) : Colors.white38,
-          ),
-          onTap: widget.onTap,
         ),
       ),
     );

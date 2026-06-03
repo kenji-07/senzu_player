@@ -45,6 +45,9 @@ class SenzuUIController extends GetxController {
 
   List<SenzuChapter> _chapters = const [];
   List<SenzuChapter> _skippableChapters = const [];
+  Worker? _playWorker;
+  Worker? _dragWorker;
+  Worker? _sourceWorker;
 
   // ─────────────────────────────────────────────────────────────────────────
   void setChapters(List<SenzuChapter> chapters) {
@@ -64,9 +67,9 @@ class SenzuUIController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    ever(playback.isPlaying, _onPlayingChanged);
-    ever(playback.isDragging, _onDragging);
-    ever(core.rxActiveSource, _onSourceChanged);
+    _playWorker = ever(playback.isPlaying, _onPlayingChanged);
+    _dragWorker = ever(playback.isDragging, _onDragging);
+    _sourceWorker = ever(core.rxActiveSource, _onSourceChanged);
     setNotificationEnabled(core.notification);
   }
 
@@ -223,6 +226,9 @@ class SenzuUIController extends GetxController {
     _overlayTimer = null;
     _skipWorkerTimer?.cancel();
     _skipWorkerTimer = null;
+    _playWorker?.dispose();
+    _dragWorker?.dispose();
+    _sourceWorker?.dispose();
     super.onClose();
   }
 }

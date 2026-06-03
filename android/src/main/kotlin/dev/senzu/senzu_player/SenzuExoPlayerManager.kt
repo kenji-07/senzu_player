@@ -2,6 +2,10 @@ package dev.senzu.senzu_player
 
 import android.app.Activity
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.C
@@ -61,11 +65,91 @@ class SenzuExoPlayerManager(
     private var mediaSessionManager: SenzuMediaSessionManager? = null
     var pipManager: SenzuPipManager? = null
 
-    // ── Position polling ───────────────────────────────────────────────────
+    // ── Position polling ────────────────────────────────────────────────────────
 
     /** Interval between position-update events emitted to Flutter (ms). */
     private val positionPollMs = 200L
     private var positionRunnable: Runnable? = null
+
+    // ── Audio Focus ─────────────────────────────────────────────────────────
+
+    private val audioManager: AudioManager by lazy {
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+    /** API 26+ AudioFocusRequest (null бол: хуучин API деэр хугацаанд) */
+    private var audioFocusRequest: AudioFocusRequest? = null
+    /** Анхаарал Focus алдахаас өмнөӥ тайлахад дахин pause хийсэн эсэх. */
+    private var hadFocusBeforeLoss = false
+
+    private val focusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        mainHandler.post {
+            when (focusChange) {
+                AudioManager.AUDIOFOCUS_GAIN -> {
+                    // Focus эргэж ирэв ирлээ — өмнөӥ тоглуулж байсан бол ресюме хийнэ
+                    if (hadFocusBeforeLoss) {
+                        player?.play()
+                        syncMediaSession()
+                    }
+                    hadFocusBeforeLoss = false
+                }
+                AudioManager.AUDIOFOCUS_LOSS -> {
+                    // Өөр app алахан — тоглохооссоо зогсоно, focus цаальна
+                    hadFocusBeforeLoss = false
+                    player?.pause()
+                    syncMediaSession()
+                    abandonAudioFocus()
+                }
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                    // Түр  өөрөлт алдалт (жшишӑӑ дуудалга ирэвал, гар гэх э) — pause
+                    hadFocusBeforeLoss = player?.isPlaying == true
+                    player?.pause()
+                    syncMediaSession()
+                }
+            }
+        }
+    }
+
+    /**
+     * Audio Focus авна.
+     * Амжилттай байвал API-д тохиромжлолтой хөхөөндий шийдэлгээ баримтална.
+     * @return true — focus амжилтай авсан.
+     */
+    @Suppress("DEPRECATION")
+    private fun requestAudioFocus(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+                .build()
+            val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(attrs)
+                .setAcceptsDelayedFocusGain(true)
+                .setOnAudioFocusChangeListener(focusChangeListener, mainHandler)
+                .build()
+            audioFocusRequest = req
+            audioManager.requestAudioFocus(req) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(
+                focusChangeListener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN
+            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        }
+    }
+
+    /** Audio Focus-с татгалж өгнө. */
+    @Suppress("DEPRECATION")
+    private fun abandonAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+            audioFocusRequest = null
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(focusChangeListener)
+        }
+    }
 
     // ── Activity binding ───────────────────────────────────────────────────
 
@@ -144,11 +228,21 @@ class SenzuExoPlayerManager(
             val selector = DefaultTrackSelector(context)
             trackSelector = selector
 
-            val dataSourceFactory = DefaultHttpDataSource.Factory()
+            val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                 .setDefaultRequestProperties(headers)
                 .setConnectTimeoutMs(15_000)
                 .setReadTimeoutMs(15_000)
                 .setAllowCrossProtocolRedirects(true)
+
+            val cache = SenzuDownloadManager.getDownloadCache(context)
+            val dataSourceFactory = if (cache != null) {
+                androidx.media3.datasource.cache.CacheDataSource.Factory()
+                    .setCache(cache)
+                    .setUpstreamDataSourceFactory(httpDataSourceFactory)
+                    .setCacheWriteDataSinkFactory(null)
+            } else {
+                httpDataSourceFactory
+            }
 
             val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory).apply {
                 if (drmConfig != null) {
@@ -221,11 +315,24 @@ class SenzuExoPlayerManager(
     // ── Playback controls ──────────────────────────────────────────────────
 
     private fun play(result: MethodChannel.Result) {
-        mainHandler.post { player?.play(); syncMediaSession(); result.success(null) }
+        mainHandler.post {
+            // Тоглуулахаасаа өмнө Audio Focus авна
+            requestAudioFocus()
+            player?.play()
+            syncMediaSession()
+            result.success(null)
+        }
     }
 
     private fun pause(result: MethodChannel.Result) {
-        mainHandler.post { player?.pause(); syncMediaSession(); result.success(null) }
+        mainHandler.post {
+            player?.pause()
+            syncMediaSession()
+            // Pause хийхэд Audio Focus-с татгалзана —
+            // бусад app дуу гаргах боломжтой болно.
+            abandonAudioFocus()
+            result.success(null)
+        }
     }
 
     private fun seekTo(args: Map<*, *>?, result: MethodChannel.Result) {
@@ -453,5 +560,9 @@ class SenzuExoPlayerManager(
         player?.release()
         player        = null
         trackSelector = null
+        SenzuSurfacePlatformView.currentPlayer = null
+        // Player суллагдахад Audio Focus-с татгалзана
+        abandonAudioFocus()
+        hadFocusBeforeLoss = false
     }
 }

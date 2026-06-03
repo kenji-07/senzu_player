@@ -579,7 +579,7 @@ class SenzuPlayerStyle {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      senzuLanguage!.sleepModeActivated,
+                      (senzuLanguage ?? const SenzuLanguage()).sleepModeActivated,
                       style: const TextStyle(
                         color: Colors.white54,
                         fontSize: 14,
@@ -606,7 +606,7 @@ class SenzuPlayerStyle {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            senzuLanguage.continueWatching,
+                            (senzuLanguage ?? const SenzuLanguage()).continueWatching,
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 13,
