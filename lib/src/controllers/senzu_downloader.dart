@@ -52,7 +52,11 @@ class SenzuDownloader {
         _lastTime[id] = now;
       }
 
-      if (status == 'completed' || status == 'failed' || status == 'paused' || status == 'cancelled' || status == 'deleted') {
+      if (status == 'completed' ||
+          status == 'failed' ||
+          status == 'paused' ||
+          status == 'cancelled' ||
+          status == 'deleted') {
         _lastBytes.remove(id);
         _lastTime.remove(id);
       }
@@ -303,7 +307,7 @@ class SenzuDownloader {
       String taskId, String url, Map<String, String>? headers) async {
     final dir = await getApplicationDocumentsDirectory();
     final subDir = Directory(p.join(dir.path, 'senzu_downloads', taskId));
-    if (!await subDir.exists()) {
+    if (!subDir.existsSync()) {
       await subDir.create(recursive: true);
     }
 
@@ -325,7 +329,7 @@ class SenzuDownloader {
     try {
       final dir = await getApplicationDocumentsDirectory();
       final subDir = Directory(p.join(dir.path, 'senzu_downloads', taskId));
-      if (await subDir.exists()) {
+      if (subDir.existsSync()) {
         await subDir.delete(recursive: true);
       }
     } catch (e) {

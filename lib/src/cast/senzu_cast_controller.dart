@@ -199,7 +199,7 @@ class SenzuCastController extends GetxController {
         availableDevices.value = found;
       }
     } catch (e) {
-      errorMessage.value = 'Хайлт амжилтгүй: $e';
+      errorMessage.value = 'Search failed: $e';
     } finally {
       isDiscovering.value = false;
     }
@@ -210,7 +210,7 @@ class SenzuCastController extends GetxController {
     try {
       await SenzuCastService.connectToDevice(device.deviceId);
     } catch (e) {
-      errorMessage.value = 'Холбогдоход алдаа гарлаа: $e';
+      errorMessage.value = 'There was an error connecting: $e';
     } finally {
       connectingDeviceId.value = null;
     }
@@ -221,14 +221,14 @@ class SenzuCastController extends GetxController {
     try {
       await SenzuCastService.showDevicePicker();
     } catch (e) {
-      errorMessage.value = 'Төхөөрөмж олдсонгүй: $e';
+      errorMessage.value = 'Device not found: $e';
     }
   }
 
   // ── castMedia ──────────────────────────────────────────────────────────────
   Future<bool> castMedia(SenzuCastMedia media) async {
     if (!isCasting) {
-      errorMessage.value = 'Cast холбогдоогүй байна';
+      errorMessage.value = 'Cast not connected';
       return false;
     }
 
@@ -259,7 +259,7 @@ class SenzuCastController extends GetxController {
     try {
       final ok = await SenzuCastService.loadMedia(media);
       if (!ok) {
-        errorMessage.value = 'Media load амжилтгүй боллоо';
+        errorMessage.value = 'Media load failed.';
         isLoading.value = false;
         return false;
       }
@@ -377,14 +377,14 @@ class SenzuCastController extends GetxController {
 
       if (!ok) {
         activeQuality.value = previousQuality;
-        errorMessage.value = 'Чанар солих амжилтгүй';
+        errorMessage.value = 'Failed to change quality';
         return;
       }
 
       log('SenzuCast: switchQuality → $label, pos=${pos}ms');
     } catch (e) {
       activeQuality.value = previousQuality;
-      errorMessage.value = 'Чанар солих үед алдаа гарлаа: $e';
+      errorMessage.value = 'An error occurred while changing quality: $e';
     }
   }
 }

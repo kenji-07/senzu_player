@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:senzu_player/src/platform/senzu_native_channel.dart';
+import 'dart:developer';
 
 import 'package:senzu_player/src/cast/senzu_cast_core_view.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_video_surface.dart';
@@ -14,6 +15,7 @@ import 'package:senzu_player/src/ui/settings/senzu_panels.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_cellular_warning.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_buffer_loader.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_watermark_overlay.dart';
+import 'package:senzu_player/src/ui/widgets/senzu_error_view.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/data/models/subtitle_model.dart';
 import 'package:senzu_player/src/data/language/language.dart';
@@ -202,41 +204,16 @@ class _SenzuPlayerCoreViewState extends State<SenzuPlayerCoreView> {
 
   Widget _buildError() {
     final err = bundle.core.errorState.value;
-    final errStyle = style.errorStyle;
-    return Container(
-      color: errStyle.backroundColor,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          errStyle.icon,
-          const SizedBox(height: 12),
-          Text(style.senzuLanguage.failedToLoad, style: errStyle.titleStyle),
-          if (err != null) ...[
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                err.message,
-                style: errStyle.messageStyle,
-                textAlign: TextAlign.center,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            style: errStyle.buttonStyle ??
-                ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white24,
-                  foregroundColor: Colors.white,
-                ),
-            onPressed: bundle.core.retrySource,
-            icon: errStyle.refreshIcon,
-            label: Text(style.senzuLanguage.retry),
-          ),
-        ],
-      ),
+    log(
+        'err: ${err?.message}, code: ${err?.sourceName}}',
+      );
+    return SenzuErrorView(
+      errorStyle: style.errorStyle,
+      title: style.senzuLanguage.failedToLoad,
+      retryLabel: style.senzuLanguage.retry,
+      onRetry: bundle.core.retrySource,
+      message: err?.message,
+      showBackButton: true,
     );
   }
 }
@@ -644,13 +621,14 @@ class _MainPlayerStack extends StatelessWidget {
                 child: IgnorePointer(
                   ignoring: !showOverlay || isDragging || panelOpen,
                   child: AnimatedAlign(
-                    key: ValueKey(isLocked),
                     duration: const Duration(milliseconds: 350),
                     curve: Curves.easeInOut,
                     alignment: isLocked
                         ? Alignment.bottomCenter
                         : Alignment.centerLeft,
-                    child: Padding(
+                    child: AnimatedPadding(
+                      duration: const Duration(milliseconds: 350),
+                      curve: Curves.easeInOut,
                       padding: isLocked
                           ? EdgeInsets.only(bottom: isFs ? 40 : 12)
                           : EdgeInsets.only(left: isFs ? 28 : 12),

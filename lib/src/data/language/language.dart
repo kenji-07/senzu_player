@@ -82,12 +82,12 @@ class SenzuLanguage {
     this.preparingPrefix = 'Preparing',
 
     // ── Notifications ─────────────────────────────
-    this.downloadCompleteTitle = 'Таталт амжилттай',
-    this.downloadCompleteBody = 'Видеог офлайн горимд үзэх боломжтой боллоо.',
-    this.downloadFailedTitle = 'Таталт амжилтгүй',
-    this.downloadFailedBody = 'Видеог татахад алдаа гарлаа.',
-    this.licenseExpiredTitle = 'Лиценз дууссан',
-    this.licenseExpiredBody = 'Офлайн лицензийн хугацаа дууссан байна.',
+    this.downloadCompleteTitle = 'Download Complete',
+    this.downloadCompleteBody = 'The video is now available to watch offline.',
+    this.downloadFailedTitle = 'Download Failed',
+    this.downloadFailedBody = 'An error occurred while downloading the video.',
+    this.licenseExpiredTitle = 'License Expired',
+    this.licenseExpiredBody = 'The offline license has expired.',
   });
 
   // Cellular

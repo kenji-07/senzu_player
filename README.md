@@ -63,6 +63,10 @@ Add the following to your `Info.plist`:
   <string>airplay</string>
 </array>
 
+<!-- Local file read permission -->
+<key>NSLocalNetworkUsageDescription</key>
+<string>${PRODUCT_NAME} uses the local network to discover Cast-enabled devices on your WiFi network.</string>
+
 <!-- Allow HTTP (if needed) -->
 <key>NSAppTransportSecurity</key>
 <dict>

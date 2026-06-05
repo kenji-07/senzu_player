@@ -5,6 +5,7 @@ import 'package:senzu_player/src/data/models/video_source_model.dart';
 import 'package:senzu_player/src/data/models/senzu_chapter_model.dart';
 import 'package:senzu_player/src/ui/core/senzu_player_core_view.dart';
 import 'package:senzu_player/src/ui/widgets/senzu_style.dart';
+import 'package:senzu_player/src/ui/widgets/senzu_error_view.dart';
 import 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 import 'package:senzu_player/src/data/models/senzu_metadata.dart';
 import 'package:senzu_player/src/platform/senzu_native_channel.dart';
@@ -27,7 +28,8 @@ export 'package:senzu_player/src/data/models/senzu_thumbnail_sprite.dart';
 export 'package:senzu_player/src/data/language/language.dart';
 export 'package:senzu_player/src/controllers/senzu_player_bundle.dart';
 export 'package:senzu_player/src/controllers/senzu_downloader.dart';
-export 'package:senzu_player/src/data/database/download_database.dart' show DownloadTask;
+export 'package:senzu_player/src/data/database/download_database.dart'
+    show DownloadTask;
 export 'package:senzu_player/src/cast/senzu_cast_controller.dart';
 export 'package:senzu_player/src/cast/senzu_cast_service.dart';
 export 'package:senzu_player/src/data/models/senzu_metadata.dart';
@@ -43,7 +45,7 @@ class SenzuPlayer extends StatefulWidget {
     this.seekTo = Duration.zero,
     this.autoPlay = false,
     this.isTv = false,
-    this.isLive,
+    this.isLive = false,
     this.style,
     this.meta,
     this.chapters = const [],
@@ -290,7 +292,7 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
         children: [
           if (_style.thumbnail != null)
             Positioned.fill(child: _style.thumbnail!),
-          Positioned(top: 16, left: 16, child: _BackBtn()),
+          const Positioned(top: 16, left: 16, child: SenzuBackButton()),
           Center(
             child: Container(
               width: 60,
@@ -305,62 +307,13 @@ class _SenzuPlayerState extends State<SenzuPlayer> {
         ],
       );
 
-  Widget _errorWidget() => AspectRatio(
+  Widget _errorWidget() => SenzuErrorView(
+        errorStyle: _style.errorStyle,
+        title: _style.senzuLanguage.failedToLoad,
+        retryLabel: _style.senzuLanguage.retry,
+        onRetry: _retry,
+        message: _initError,
         aspectRatio: widget.defaultAspectRatio,
-        child: Container(
-          color: Colors.black,
-          child: Stack(
-            children: [
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.white60,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _style.senzuLanguage.failedToLoad,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                    const SizedBox(height: 6),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        _initError!,
-                        style: const TextStyle(
-                            color: Colors.white54, fontSize: 11),
-                        textAlign: TextAlign.center,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white24,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: _retry,
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: Text(_style.senzuLanguage.retry),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(top: 16, left: 16, child: _BackBtn()),
-            ],
-          ),
-        ),
-      );
-}
-
-class _BackBtn extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) => InkWell(
-        onTap: () => Navigator.of(context).maybePop(),
-        child: const Icon(Icons.chevron_left, color: Colors.white, size: 28),
+        showBackButton: true,
       );
 }

@@ -95,7 +95,7 @@ class _DownloadPageState extends State<DownloadPage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Татах видео нэмэх',
+                      'Download video',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -109,12 +109,11 @@ class _DownloadPageState extends State<DownloadPage> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                _buildTextField(_titleController, 'Нэр (Title)'),
-                _buildTextField(_descController, 'Тайлбар (Description)'),
-                _buildTextField(_urlController, 'Видео URL (HLS / MP4)'),
-                _buildTextField(_posterController, 'Зураг URL (Poster)'),
-                _buildTextField(
-                    _subUrlController, 'Хадмал URL (Subtitle VTT/SRT)'),
+                _buildTextField(_titleController, 'Title'),
+                _buildTextField(_descController, 'Description'),
+                _buildTextField(_urlController, 'Video URL (HLS / MP4)'),
+                _buildTextField(_posterController, 'Image URL (Poster)'),
+                _buildTextField(_subUrlController, 'Subtitle URL (VTT/SRT)'),
                 Row(
                   children: [
                     Expanded(
@@ -170,7 +169,8 @@ class _DownloadPageState extends State<DownloadPage> {
                       );
 
                       try {
-                        final sources = await VideoSource.fromM3u8PlaylistUrl(url);
+                        final sources =
+                            await VideoSource.fromM3u8PlaylistUrl(url);
                         if (context.mounted) {
                           Navigator.pop(context); // Dismiss loading dialog
                         }
@@ -185,15 +185,18 @@ class _DownloadPageState extends State<DownloadPage> {
                                   backgroundColor: const Color(0xFF16161E),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(16),
-                                    side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                    side: BorderSide(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.1)),
                                   ),
-                                  titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                                  titlePadding:
+                                      const EdgeInsets.fromLTRB(24, 24, 24, 8),
                                   title: const Row(
                                     children: [
                                       Icon(Icons.hd, color: Color(0xFFFF4444)),
                                       SizedBox(width: 8),
                                       Text(
-                                        'Татах чанараа сонгоно уу',
+                                        'Choose your download quality.',
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 16,
@@ -204,11 +207,14 @@ class _DownloadPageState extends State<DownloadPage> {
                                   ),
                                   children: sources.keys.map((quality) {
                                     return SimpleDialogOption(
-                                      onPressed: () => Navigator.pop(context, quality),
+                                      onPressed: () =>
+                                          Navigator.pop(context, quality),
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(vertical: 8),
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 8),
                                         child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
                                               quality,
@@ -231,8 +237,10 @@ class _DownloadPageState extends State<DownloadPage> {
                               },
                             );
 
-                            if (selectedQuality != null && sources[selectedQuality] != null) {
-                              final finalUrl = sources[selectedQuality]!.dataSource;
+                            if (selectedQuality != null &&
+                                sources[selectedQuality] != null) {
+                              final finalUrl =
+                                  sources[selectedQuality]!.dataSource;
                               final finalTitle = '$title ($selectedQuality)';
                               SenzuDownloader.instance.startDownload(
                                 id: id,
@@ -271,7 +279,7 @@ class _DownloadPageState extends State<DownloadPage> {
                     );
                   },
                   child: const Text(
-                    'Татаж эхлэх',
+                    'Start downloading',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -313,7 +321,7 @@ class _DownloadPageState extends State<DownloadPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F13),
       appBar: AppBar(
-        title: const Text('Таталтууд (Downloads)'),
+        title: const Text('Downloads'),
         actions: [
           IconButton(
             icon:
@@ -346,7 +354,7 @@ class _DownloadPageState extends State<DownloadPage> {
               size: 80, color: Colors.white.withValues(alpha: 0.2)),
           const SizedBox(height: 16),
           const Text(
-            'Татаж авсан видео байхгүй байна',
+            'No videos downloaded.',
             style: TextStyle(color: Colors.white54, fontSize: 16),
           ),
           const SizedBox(height: 24),
@@ -357,7 +365,7 @@ class _DownloadPageState extends State<DownloadPage> {
               side: const BorderSide(color: Color(0xFFFF4444), width: 1),
             ),
             icon: const Icon(Icons.add),
-            label: const Text('Шинээр нэмэх'),
+            label: const Text('Add new'),
             onPressed: _showAddDownloadDialog,
           ),
         ],
@@ -376,19 +384,19 @@ class _DownloadPageState extends State<DownloadPage> {
     String statusText = task.status;
     if (isCompleted) {
       statusColor = Colors.green;
-      statusText = 'Бэлэн';
+      statusText = 'Completed';
     } else if (isDownloading) {
       statusColor = Colors.blue;
-      statusText = 'Татаж байна';
+      statusText = 'Downloading';
     } else if (isPaused) {
       statusColor = Colors.orange;
-      statusText = 'Түр зогссон';
+      statusText = 'Paused';
     } else if (isFailed) {
       statusColor = Colors.red;
-      statusText = 'Алдаа гарсан';
+      statusText = 'Failed';
     } else if (isExpired) {
       statusColor = Colors.purple;
-      statusText = 'Лиценз дууссан';
+      statusText = 'Expired';
     }
 
     return Container(
@@ -514,7 +522,8 @@ class _DownloadPageState extends State<DownloadPage> {
                                 ),
                               ),
                             ),
-                            if (isCompleted && task.completedSizeText.isNotEmpty) ...[
+                            if (isCompleted &&
+                                task.completedSizeText.isNotEmpty) ...[
                               const SizedBox(width: 8),
                               Text(
                                 task.completedSizeText,

@@ -19,6 +19,12 @@ class _PlayerPageState extends State<PlayerPage> {
   int _refreshCount = 0;
   final _logs = <String>[];
 
+  Map<String, String> customHeaders(String sessionToken) => {
+        'Authorization': 'Bearer $sessionToken',
+        'Referer': 'https://backend.mongo.rest/',
+        'Origin': 'https://backend.mongo.rest',
+      };
+
   @override
   void initState() {
     super.initState();
@@ -177,7 +183,7 @@ class _PlayerPageState extends State<PlayerPage> {
                     deepLink: 'https://example.com/ad1',
                     durationToSkip: const Duration(seconds: 5),
                     durationToEnd: const Duration(seconds: 25),
-                    durationToStart: const Duration(seconds: 8),
+                    durationToStart: const Duration(seconds: 0),
                     child: Container(
                       color: const Color(0xFF1A237E),
                       child: const Center(

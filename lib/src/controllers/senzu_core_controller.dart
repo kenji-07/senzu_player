@@ -315,8 +315,6 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
         onSubtitleChangeRequested?.call(sub, source.initialSubtitle);
       }
     }
-    onPendingAdsChanged?.call(source.ads?.toList() ?? []);
-
     await _releaseNative();
     if (stale()) return;
 
@@ -402,6 +400,7 @@ class SenzuCoreController extends GetxController with WidgetsBindingObserver {
     }
 
     rxActiveSource.value = name;
+    onPendingAdsChanged?.call(source.ads?.toList() ?? []);
     if (_explicitIsLive == null) isLiveRx.value = isLive;
 
     await ctrl.setPlaybackSpeed(lastSpeed);

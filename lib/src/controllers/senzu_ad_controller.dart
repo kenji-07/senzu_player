@@ -40,7 +40,8 @@ class SenzuAdController extends GetxController {
   Duration _lastCheckedPos = Duration.zero;
   final _queuedAds = <SenzuPlayerAd>[];
   StreamSubscription<SenzuNativeVideoState>? _adStreamSub;
-  Duration _lastAdCheckPos = Duration.zero;
+  static const Duration _kNoCheck = Duration(milliseconds: -9999);
+  Duration _lastAdCheckPos = _kNoCheck;
   Worker? _sourceWorker;
 
   int get currentAdIndex => adsSeen.length;
@@ -61,7 +62,7 @@ class SenzuAdController extends GetxController {
     _sourceWorker = ever(core.rxActiveSource, (name) {
       if (_disposed) return;
       _lastCheckedPos = Duration.zero;
-      _lastAdCheckPos = Duration.zero;
+      _lastAdCheckPos = _kNoCheck;
       _pendingAds.clear();
       adsSeen.clear();
       _queuedAds.clear();

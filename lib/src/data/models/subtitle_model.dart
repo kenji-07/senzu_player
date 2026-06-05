@@ -84,8 +84,9 @@ class SenzuPlayerSubtitle {
           final r = await http.get(Uri.parse(url_), headers: _headers);
           rawContent = r.statusCode == 200 ? utf8.decode(r.bodyBytes) : '';
         } else {
-          final file = File(url_.startsWith('file://') ? Uri.parse(url_).toFilePath() : url_);
-          if (await file.exists()) {
+          final file = File(
+              url_.startsWith('file://') ? Uri.parse(url_).toFilePath() : url_);
+          if (file.existsSync()) {
             rawContent = await file.readAsString();
           }
         }
@@ -97,8 +98,9 @@ class SenzuPlayerSubtitle {
           final r = await http.get(Uri.parse(url_), headers: _headers);
           rawContent = r.statusCode == 200 ? utf8.decode(r.bodyBytes) : '';
         } else {
-          final file = File(url_.startsWith('file://') ? Uri.parse(url_).toFilePath() : url_);
-          if (await file.exists()) {
+          final file = File(
+              url_.startsWith('file://') ? Uri.parse(url_).toFilePath() : url_);
+          if (file.existsSync()) {
             rawContent = await file.readAsString();
           }
         }

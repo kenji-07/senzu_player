@@ -48,7 +48,7 @@ class _OfflinePlayerPageState extends State<OfflinePlayerPage> {
             setState(() {
               _resolvedTask = resolved;
               _fileError =
-                  'Офлайн файл олдсангүй (bookmark stale).\nДахин татна уу.';
+                  'Offline file not found (bookmark stale).\nPlease download again.';
               _isLoading = false;
             });
           }
@@ -59,7 +59,8 @@ class _OfflinePlayerPageState extends State<OfflinePlayerPage> {
           if (mounted) {
             setState(() {
               _resolvedTask = resolved;
-              _fileError = 'Офлайн файл устсан байна.\nДахин татна уу.';
+              _fileError =
+                  'The offline file has been deleted.\nPlease download it again.';
               _isLoading = false;
             });
           }
@@ -125,7 +126,7 @@ class _OfflinePlayerPageState extends State<OfflinePlayerPage> {
                         horizontal: 24, vertical: 12),
                   ),
                   icon: const Icon(Icons.arrow_back),
-                  label: const Text('Буцах'),
+                  label: const Text('Back'),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -180,14 +181,14 @@ class _OfflinePlayerPageState extends State<OfflinePlayerPage> {
           _resolvedTask.subtitleIv != null &&
           _resolvedTask.subtitleIv!.isNotEmpty;
       if (isDecrypted) {
-        offlineSubtitles['Офлайн (Decrypted)'] = SenzuPlayerSubtitle.decrypt(
+        offlineSubtitles['Offline (Decrypted)'] = SenzuPlayerSubtitle.decrypt(
           _resolvedTask.subtitlePath!,
           keyHex: _resolvedTask.subtitleKey,
           ivHex: _resolvedTask.subtitleIv,
           type: SubtitleType.webvtt,
         );
       } else {
-        offlineSubtitles['Офлайн'] = SenzuPlayerSubtitle.network(
+        offlineSubtitles['Offline'] = SenzuPlayerSubtitle.network(
           _resolvedTask.subtitlePath!,
           type: SubtitleType.webvtt,
         );
@@ -252,7 +253,7 @@ class _OfflinePlayerPageState extends State<OfflinePlayerPage> {
                   meta: SenzuMetaData(
                     title: _resolvedTask.title,
                     description:
-                        _resolvedTask.description ?? 'Офлайн тоглуулалт',
+                        _resolvedTask.description ?? 'Offline playback',
                   ),
                 ),
               ),

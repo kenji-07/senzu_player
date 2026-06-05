@@ -17,6 +17,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - Option to select download quality (e.g. 1080p, 720p, etc.) from HLS master playlist prior to download.
 - Localized system download notification alerts, configurable directly from Flutter using `SenzuLanguage`.
 - Runtime notification permission request flow on Android 13+ and iOS.
+- Updates minimum supported SDK version to Flutter 3.44/Dart 3.27.
 
 ### Fixed
 - Fixed `SenzuSleepTimerController` ticker/vsync dependency crash by replacing it with a periodic `Timer`.
