@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:senzu_player/senzu_player.dart';
+import 'cached_offline_poster.dart';
 import 'offline_player_page.dart';
 
 class DownloadPage extends StatefulWidget {
@@ -253,6 +254,12 @@ class _DownloadPageState extends State<DownloadPage> {
                                 subtitleIv: subtitleIv,
                                 expiredAt: expiredAt,
                               );
+                              if (posterUrl.isNotEmpty) {
+                                DownloadImageCache.downloadAndCache(
+                                  imageUrl: posterUrl,
+                                  id: id,
+                                );
+                              }
                               return;
                             }
                           }
@@ -277,6 +284,12 @@ class _DownloadPageState extends State<DownloadPage> {
                       subtitleIv: subtitleIv,
                       expiredAt: expiredAt,
                     );
+                    if (posterUrl.isNotEmpty) {
+                      DownloadImageCache.downloadAndCache(
+                        imageUrl: posterUrl,
+                        id: id,
+                      );
+                    }
                   },
                   child: const Text(
                     'Start downloading',
@@ -424,23 +437,12 @@ class _DownloadPageState extends State<DownloadPage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Thumbnail poster image
-                Container(
+                // Thumbnail poster image — loaded from local SQLite cache
+                // populated by DownloadImageCache. No network round-trip.
+                CachedOfflinePoster(
+                  mediaId: task.id,
                   width: 100,
                   height: 60,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: Colors.white10,
-                    image: task.posterUrl != null && task.posterUrl!.isNotEmpty
-                        ? DecorationImage(
-                            image: NetworkImage(task.posterUrl!),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: task.posterUrl == null || task.posterUrl!.isEmpty
-                      ? const Icon(Icons.video_library, color: Colors.white30)
-                      : null,
                 ),
                 const SizedBox(width: 12),
                 // Task information
@@ -566,8 +568,10 @@ class _DownloadPageState extends State<DownloadPage> {
                     IconButton(
                       icon: const Icon(Icons.delete_outline,
                           color: Colors.white30, size: 20),
-                      onPressed: () =>
-                          SenzuDownloader.instance.deleteDownload(task.id),
+                      onPressed: () {
+                        SenzuDownloader.instance.deleteDownload(task.id);
+                        DownloadImageCache.delete(task.id);
+                      },
                     ),
                   ],
                 ),

@@ -1,5 +1,5 @@
 group 'dev.senzu.senzu_player'
-version '1.2.0'
+version '1.2.1'
 
 buildscript {
     repositories { google(); mavenCentral() }

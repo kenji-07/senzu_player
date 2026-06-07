@@ -6,6 +6,41 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.1] - 2026-06-07
+
+### Changed
+- **iOS — App Store compliance**: removed two private/undocumented API usages
+  that risked App Store review rejection.
+  - Replaced the private `AVSystemController_SystemVolumeDidChangeNotification`
+    observer with public KVO on `AVPlayer.volume`. Volume change events now
+    come from a fully public API.
+  - Removed the `MPVolumeView` subview slider hack used by `SenzuVolume.set()`.
+    `setVolume` / `getVolume` now operate on the public `AVPlayer.volume`
+    property — App Store safe.
+- iOS: `getVolume` / `setVolume` now read and write the player audio level
+  (range `0.0`–`1.0`). On iOS the system volume can only be changed by the
+  user via hardware buttons or a visible `MPVolumeView` — this is an iOS
+  platform constraint.
+
+### Added
+- `DownloadImageCache` helper that persists poster / thumbnail bytes in a new
+  `image_cache` SQLite table (`id`, `image_data` BLOB, `cached_at`).
+  Public API: `downloadAndCache`, `getCached`, `delete`, `clearAll`,
+  `sizeInMb`.
+- SQLite indexes for faster lookups:
+  `idx_download_tasks_status`, `idx_download_tasks_video_type`,
+  `idx_download_tasks_expired_at`, `idx_image_cache_cached_at`.
+- Automatic schema migration `v2 → v3` adds the new columns, creates
+  `image_cache`, and installs all indexes.
+
+### Changed
+- `cached_at` is stored as `INTEGER` (epoch milliseconds) rather than a
+  TEXT timestamp — smaller, faster to compare, and index-friendly.
+- Tightened NOT NULL constraints on numeric columns
+  (`progress`, `bytes_downloaded`, `total_bytes`).
+
+---
+
 ## [1.2.0] - 2026-06-03
 
 ### Added

@@ -211,7 +211,7 @@ class SenzuDownloader {
 
   // ── Bookmark / path utilities ─────────────────────────────────────────────
 
-  /// iOS only: resolves a "bookmark:<base64>" string to the real absolute file
+  /// iOS only: resolves a `bookmark:<base64>` string to the real absolute file
   /// path on the current device. Returns null if the bookmark is stale or if
   /// this is not iOS.
   Future<String?> resolveBookmark(String bookmarkString) async {

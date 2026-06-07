@@ -46,7 +46,7 @@ A powerful, feature-rich Flutter video player plugin built on top of **AVPlayer*
 
 ```yaml
 dependencies:
-  senzu_player: ^1.2.0
+  senzu_player: ^1.2.1
 ```
 
 ### iOS

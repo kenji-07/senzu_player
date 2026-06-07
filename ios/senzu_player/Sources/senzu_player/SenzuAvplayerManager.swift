@@ -53,6 +53,7 @@ import MediaPlayer
     private var itemEndObserver:        NSObjectProtocol?
     private var errorObserver:          NSKeyValueObservation?
     private var pipPossibleObserver:    NSKeyValueObservation?
+    private var volumeObserver:         NSKeyValueObservation?
     private var memoryPressureObserver: NSObjectProtocol?
 
     // ── Metadata ───────────────────────────────────────────────────────────
@@ -737,6 +738,17 @@ import MediaPlayer
     }
 
     /** Selects an audio track by its string index. */
+    @objc public func getPlayerVolume() -> Double {
+        Double(player?.volume ?? 1.0)
+    }
+
+    @objc public func setPlayerVolume(_ v: Float) {
+        let clamped = max(0.0, min(1.0, v))
+        DispatchQueue.main.async { [weak self] in
+            self?.player?.volume = clamped
+        }
+    }
+
     @objc public func setAudioTrack(trackId: String) {
         guard let item = playerItem, let idx = Int(trackId) else { return }
         guard let g = item.asset.mediaSelectionGroup(forMediaCharacteristic: .audible),
@@ -781,6 +793,15 @@ import MediaPlayer
 
         rateObserver = player.observe(\.rate, options: [.new]) {
             [weak self] _, _ in self?.emitPlaybackState()
+        }
+
+        volumeObserver = player.observe(\.volume, options: [.new]) {
+            [weak self] p, _ in
+            guard let self, let sink = self.eventSink else { return }
+            let v = Double(p.volume)
+            DispatchQueue.main.async {
+                sink(["type": "volume", "value": v] as [String: Any])
+            }
         }
 
         NotificationCenter.default.addObserver(
@@ -873,6 +894,7 @@ import MediaPlayer
         rateObserver?.invalidate();              rateObserver = nil
         errorObserver?.invalidate();             errorObserver = nil
         pipPossibleObserver?.invalidate();       pipPossibleObserver = nil
+        volumeObserver?.invalidate();            volumeObserver = nil
 
         if let obs = itemEndObserver {
             NotificationCenter.default.removeObserver(obs)

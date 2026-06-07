@@ -222,10 +222,16 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             UIApplication.shared.isIdleTimerDisabled = false; result(nil)
 
         // ── Volume ─────────────────────────────────────────────────────────
+        // iOS-д системийн volume-г апп дотроос програмчилан өөрчилөх public API
+        // байхгүй (MPVolumeView-ийн дотоод slider-г засах нь App Store reject
+        // эрсдэлтэй). Тиймээс AVPlayer.volume-г ашиглаж байна — энэ нь public,
+        // App Store-той бүрэн нийцтэй.
         case "getVolume":
-            result(Double(AVAudioSession.sharedInstance().outputVolume))
+            result(avManager?.getPlayerVolume() ?? 1.0)
         case "setVolume":
-            if let v = args?["volume"] as? Double { SenzuVolume.set(Float(v)) }
+            if let v = args?["volume"] as? Double {
+                avManager?.setPlayerVolume(Float(v))
+            }
             result(nil)
 
         // ── Brightness ─────────────────────────────────────────────────────
@@ -352,10 +358,8 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             name: UIDevice.batteryStateDidChangeNotification, object: nil)
 
         try? AVAudioSession.sharedInstance().setActive(true)
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(volumeChanged(_:)),
-            name: NSNotification.Name("AVSystemController_SystemVolumeDidChangeNotification"),
-            object: nil)
+        // NB: AVPlayer.volume өөрчлөлтүүдийг SenzuAVPlayerManager дотроос
+        // KVO ашиглан "volume" event болгож emit хийдэг (public API).
         NotificationCenter.default.addObserver(
             self, selector: #selector(audioSessionInterrupted(_:)),
             name: AVAudioSession.interruptionNotification, object: nil)
@@ -385,12 +389,6 @@ public class SenzuPlayerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             "level": lvl < 0 ? -1 : Int(lvl * 100),
             "state": SenzuBattery.stateString(UIDevice.current.batteryState),
         ] as [String: Any])
-    }
-
-    @objc private func volumeChanged(_ n: Notification) {
-        guard isStreamActive else { return }
-        let vol = AVAudioSession.sharedInstance().outputVolume
-        eventSink?(["type": "volume", "value": Double(vol)] as [String: Any])
     }
 
     @objc private func audioSessionInterrupted(_ n: Notification) {
@@ -438,24 +436,6 @@ final class SenzuRootViewResolver: ScreenProtectorRootViewResolving {
     }
 }
 #endif
-
-class SenzuVolume {
-    private static var slider: UISlider?
-    static func set(_ v: Float) {
-        DispatchQueue.main.async {
-            if slider == nil {
-                let vv = MPVolumeView(frame: CGRect(x: -2000, y: -2000, width: 1, height: 1))
-                let window = UIApplication.shared.connectedScenes
-                    .compactMap({ $0 as? UIWindowScene })
-                    .flatMap({ $0.windows })
-                    .first(where: { $0.isKeyWindow })
-                window?.addSubview(vv)
-                slider = vv.subviews.compactMap { $0 as? UISlider }.first
-            }
-            slider?.value = v
-        }
-    }
-}
 
 class SenzuBattery {
     static func stateString(_ s: UIDevice.BatteryState) -> String {
